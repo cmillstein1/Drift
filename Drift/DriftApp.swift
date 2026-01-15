@@ -19,13 +19,8 @@ struct DriftApp: App {
                     // Check if user has completed onboarding - this is the source of truth
                     let hasCompletedOnboarding = supabaseManager.currentUser?.userMetadata["onboarding_completed"] as? Bool ?? false
                     
-                    print("📱 DriftApp render - isAuthenticated: \(supabaseManager.isAuthenticated), hasCompletedOnboarding: \(hasCompletedOnboarding), showWelcomeSplash: \(supabaseManager.showWelcomeSplash), showOnboarding: \(supabaseManager.showOnboarding)")
-                    
                     if hasCompletedOnboarding {
                         // User has completed onboarding - go straight to home (skip WelcomeSplash and onboarding)
-                        // Force these to false to prevent any race conditions
-                        supabaseManager.showWelcomeSplash = false
-                        supabaseManager.showOnboarding = false
                         ContentView()
                     } else if supabaseManager.showWelcomeSplash {
                         // New user - show welcome splash first (part of onboarding)
@@ -56,6 +51,11 @@ struct DriftApp: App {
                     // Show welcome screen with invite code input and sign-in options
                     WelcomeScreen()
                 }
+            }
+            .onAppear {
+                // Log initial state
+                let hasCompletedOnboarding = supabaseManager.currentUser?.userMetadata["onboarding_completed"] as? Bool ?? false
+                print("📱 DriftApp appeared - isAuthenticated: \(supabaseManager.isAuthenticated), hasCompletedOnboarding: \(hasCompletedOnboarding), showWelcomeSplash: \(supabaseManager.showWelcomeSplash), showOnboarding: \(supabaseManager.showOnboarding)")
             }
             .onChange(of: supabaseManager.currentUser) { oldValue, newValue in
                 // When currentUser changes, re-evaluate onboarding status
