@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Auth
 
 @main
 struct DriftApp: App {
@@ -15,20 +16,58 @@ struct DriftApp: App {
         WindowGroup {
             Group {
                 if supabaseManager.isAuthenticated {
-                    if supabaseManager.showWelcomeSplash {
+                    // Check if user has completed onboarding - this is the source of truth
+                    let hasCompletedOnboarding = supabaseManager.currentUser?.userMetadata["onboarding_completed"] as? Bool ?? false
+                    
+                    print("📱 DriftApp render - isAuthenticated: \(supabaseManager.isAuthenticated), hasCompletedOnboarding: \(hasCompletedOnboarding), showWelcomeSplash: \(supabaseManager.showWelcomeSplash), showOnboarding: \(supabaseManager.showOnboarding)")
+                    
+                    if hasCompletedOnboarding {
+                        // User has completed onboarding - go straight to home (skip WelcomeSplash and onboarding)
+                        // Force these to false to prevent any race conditions
+                        supabaseManager.showWelcomeSplash = false
+                        supabaseManager.showOnboarding = false
+                        ContentView()
+                    } else if supabaseManager.showWelcomeSplash {
+                        // New user - show welcome splash first (part of onboarding)
                         WelcomeSplash {
-                            print("✅ WelcomeSplash onContinue called - setting showWelcomeSplash to false")
+                            print("✅ WelcomeSplash onContinue called - showing onboarding")
+                            supabaseManager.showWelcomeSplash = false
+                            supabaseManager.showOnboarding = true
+                        }
+                    } else if supabaseManager.showOnboarding {
+                        // Show onboarding flow
+                        OnboardingFlow {
                             Task {
                                 await supabaseManager.markOnboardingCompleted()
-                                supabaseManager.showWelcomeSplash = false
+                                supabaseManager.showOnboarding = false
                             }
                         }
                     } else {
-                        ContentView()
+                        // If authenticated but onboarding status is unclear, default to showing onboarding
+                        // This handles the case where checkAuthStatus hasn't finished yet
+                        OnboardingFlow {
+                            Task {
+                                await supabaseManager.markOnboardingCompleted()
+                                supabaseManager.showOnboarding = false
+                            }
+                        }
                     }
                 } else {
                     // Show welcome screen with invite code input and sign-in options
                     WelcomeScreen()
+                }
+            }
+            .onChange(of: supabaseManager.currentUser) { oldValue, newValue in
+                // When currentUser changes, re-evaluate onboarding status
+                if let user = newValue {
+                    let hasCompletedOnboarding = user.userMetadata["onboarding_completed"] as? Bool ?? false
+                    print("👤 currentUser changed - hasCompletedOnboarding: \(hasCompletedOnboarding)")
+                    if hasCompletedOnboarding {
+                        supabaseManager.showWelcomeSplash = false
+                        supabaseManager.showOnboarding = false
+                    } else {
+                        supabaseManager.showOnboarding = true
+                    }
                 }
             }
             .onChange(of: supabaseManager.isAuthenticated) { oldValue, newValue in

@@ -18,6 +18,7 @@ class SupabaseManager: ObservableObject {
     @Published var currentUser: Auth.User?
     @Published var isAuthenticated = false
     @Published var showWelcomeSplash = false
+    @Published var showOnboarding = false
     
     private init() {
         self.client = SupabaseClient(
@@ -35,23 +36,46 @@ class SupabaseManager: ObservableObject {
             let session = try await client.auth.session
             self.currentUser = session.user
             self.isAuthenticated = true
-            // Only reset welcome splash for existing sessions (not new sign-ups)
-            // This is called on app init, so existing users shouldn't see the splash
-            self.showWelcomeSplash = false
+            
+            // Check if user has completed onboarding
+            let userMetadata = session.user.userMetadata
+            let hasCompletedOnboarding = userMetadata["onboarding_completed"] as? Bool ?? false
+            
+            print("🔍 checkAuthStatus - hasCompletedOnboarding: \(hasCompletedOnboarding), metadata: \(userMetadata)")
+            
+            // If onboarding is completed, don't show splash or onboarding
+            if hasCompletedOnboarding {
+                self.showWelcomeSplash = false
+                self.showOnboarding = false
+                print("✅ User has completed onboarding - skipping onboarding flow")
+            } else {
+                // Only show splash/onboarding for existing sessions if they haven't completed onboarding
+                self.showWelcomeSplash = false
+                self.showOnboarding = true
+                print("⚠️ User has NOT completed onboarding - will show onboarding flow")
+            }
         } catch {
             self.currentUser = nil
             self.isAuthenticated = false
             self.showWelcomeSplash = false
+            self.showOnboarding = false
+            print("❌ checkAuthStatus error: \(error.localizedDescription)")
         }
     }
     
     func signInWithEmail(email: String, password: String) async throws {
         let session = try await client.auth.signIn(email: email, password: password)
         self.currentUser = session.user
+        
+        // Check if user has completed onboarding
+        let userMetadata = session.user.userMetadata
+        let hasCompletedOnboarding = userMetadata["onboarding_completed"] as? Bool ?? false
+        
         // Ensure welcome splash is false for sign-ins
         self.showWelcomeSplash = false
+        self.showOnboarding = !hasCompletedOnboarding
         self.isAuthenticated = true
-        print("✅ Sign in successful - showWelcomeSplash set to: \(showWelcomeSplash)")
+        print("✅ Sign in successful - showWelcomeSplash: \(showWelcomeSplash), showOnboarding: \(showOnboarding)")
     }
     
     func signUpWithEmail(email: String, password: String) async throws {
@@ -59,11 +83,12 @@ class SupabaseManager: ObservableObject {
         let session = try await client.auth.signUp(email: email, password: password)
         print("📝 Sign up response received")
         
-        // Set all properties together on MainActor
+            // Set all properties together on MainActor
         await MainActor.run {
             self.currentUser = session.user
             // CRITICAL: Set showWelcomeSplash BEFORE isAuthenticated
             self.showWelcomeSplash = true
+            self.showOnboarding = false // Will be set to true after splash
             print("🎉 showWelcomeSplash set to TRUE: \(self.showWelcomeSplash)")
             
             // Set isAuthenticated immediately after - SwiftUI will see both together
@@ -107,16 +132,18 @@ class SupabaseManager: ObservableObject {
                 if shouldShowSplash {
                     // CRITICAL: Set showWelcomeSplash BEFORE isAuthenticated
                     self.showWelcomeSplash = true
+                    self.showOnboarding = false // Will be set to true after splash
                     print("🎉 Showing WelcomeSplash - isNewUser: \(isNewUser), needsOnboarding: \(!hasCompletedOnboarding)")
                 } else {
                     // Existing user who has completed onboarding - don't show splash
                     self.showWelcomeSplash = false
+                    self.showOnboarding = false
                     print("👋 Existing user with completed onboarding - showWelcomeSplash set to FALSE")
                 }
                 
                 // Set isAuthenticated after showWelcomeSplash
                 self.isAuthenticated = true
-                print("✅ Apple Sign In complete - showWelcomeSplash: \(self.showWelcomeSplash), isAuthenticated: \(self.isAuthenticated)")
+                print("✅ Apple Sign In complete - showWelcomeSplash: \(self.showWelcomeSplash), showOnboarding: \(self.showOnboarding), isAuthenticated: \(self.isAuthenticated)")
             }
         } catch {
             print("❌ Supabase Apple Sign In Error: \(error)")
@@ -140,6 +167,7 @@ class SupabaseManager: ObservableObject {
             // The update method returns a User directly, not a session
             let updatedUser = try await client.auth.update(user: UserAttributes(data: updatedMetadata))
             self.currentUser = updatedUser
+            self.showOnboarding = false
             print("✅ Onboarding marked as completed in user metadata")
         } catch {
             print("⚠️ Failed to mark onboarding as completed: \(error.localizedDescription)")
@@ -152,5 +180,6 @@ class SupabaseManager: ObservableObject {
         self.currentUser = nil
         self.isAuthenticated = false
         self.showWelcomeSplash = false
+        self.showOnboarding = false
     }
 }
