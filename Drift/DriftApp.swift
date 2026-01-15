@@ -9,9 +9,15 @@ import SwiftUI
 
 @main
 struct DriftApp: App {
+    @ObservedObject private var supabaseManager = SupabaseManager.shared
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if supabaseManager.isAuthenticated {
+                ContentView()
+            } else {
+                LoginView()
+            }
         }
     }
 }

@@ -6,6 +6,17 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		16B755182F196ACA0012C1F4 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 16B755172F196ACA0012C1F4 /* Auth */; };
+		16B7551A2F196ACA0012C1F4 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = 16B755192F196ACA0012C1F4 /* Functions */; };
+		16B7551C2F196ACA0012C1F4 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = 16B7551B2F196ACA0012C1F4 /* PostgREST */; };
+		16B7551E2F196ACA0012C1F4 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = 16B7551D2F196ACA0012C1F4 /* Realtime */; };
+		16B755202F196ACA0012C1F4 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = 16B7551F2F196ACA0012C1F4 /* Storage */; };
+		16B755222F196ACA0012C1F4 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 16B755212F196ACA0012C1F4 /* Supabase */; };
+		16B755252F196AD80012C1F4 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 16B755242F196AD80012C1F4 /* RevenueCat */; };
+		16B755272F196AD80012C1F4 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 16B755262F196AD80012C1F4 /* RevenueCatUI */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		16B754FA2F1961360012C1F4 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +63,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				16B7551C2F196ACA0012C1F4 /* PostgREST in Frameworks */,
+				16B7551A2F196ACA0012C1F4 /* Functions in Frameworks */,
+				16B755252F196AD80012C1F4 /* RevenueCat in Frameworks */,
+				16B755222F196ACA0012C1F4 /* Supabase in Frameworks */,
+				16B755272F196AD80012C1F4 /* RevenueCatUI in Frameworks */,
+				16B755182F196ACA0012C1F4 /* Auth in Frameworks */,
+				16B755202F196ACA0012C1F4 /* Storage in Frameworks */,
+				16B7551E2F196ACA0012C1F4 /* Realtime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +131,14 @@
 			);
 			name = Drift;
 			packageProductDependencies = (
+				16B755172F196ACA0012C1F4 /* Auth */,
+				16B755192F196ACA0012C1F4 /* Functions */,
+				16B7551B2F196ACA0012C1F4 /* PostgREST */,
+				16B7551D2F196ACA0012C1F4 /* Realtime */,
+				16B7551F2F196ACA0012C1F4 /* Storage */,
+				16B755212F196ACA0012C1F4 /* Supabase */,
+				16B755242F196AD80012C1F4 /* RevenueCat */,
+				16B755262F196AD80012C1F4 /* RevenueCatUI */,
 			);
 			productName = Drift;
 			productReference = 16B754EC2F1961350012C1F4 /* Drift.app */;
@@ -195,6 +222,10 @@
 			);
 			mainGroup = 16B754E32F1961350012C1F4;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				16B755232F196AD80012C1F4 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 16B754ED2F1961350012C1F4 /* Products */;
 			projectDirPath = "";
@@ -395,6 +426,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Drift/Drift.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XF766QR2QD;
@@ -405,12 +437,13 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.millstein.Drift;
+				PRODUCT_BUNDLE_IDENTIFIER = com.millstein.drift;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -427,6 +460,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Drift/Drift.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XF766QR2QD;
@@ -437,12 +471,13 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.millstein.Drift;
+				PRODUCT_BUNDLE_IDENTIFIER = com.millstein.drift;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -578,6 +613,68 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+		16B755232F196AD80012C1F4 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.54.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		16B755172F196ACA0012C1F4 /* Auth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Auth;
+		};
+		16B755192F196ACA0012C1F4 /* Functions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Functions;
+		};
+		16B7551B2F196ACA0012C1F4 /* PostgREST */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = PostgREST;
+		};
+		16B7551D2F196ACA0012C1F4 /* Realtime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Realtime;
+		};
+		16B7551F2F196ACA0012C1F4 /* Storage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Storage;
+		};
+		16B755212F196ACA0012C1F4 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+		16B755242F196AD80012C1F4 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 16B755232F196AD80012C1F4 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+		16B755262F196AD80012C1F4 /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 16B755232F196AD80012C1F4 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCatUI;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 16B754E42F1961350012C1F4 /* Project object */;
 }
