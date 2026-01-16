@@ -335,10 +335,8 @@ struct ProfileScreen: View {
         .fullScreenCover(isPresented: $showBuilderCommunity) {
             VanBuilderCommunity()
         }
-        .sheet(isPresented: $showBuilderHelp) {
-            // Builder Help screen - placeholder for now
-            Text("Builder Help Coming Soon")
-                .presentationDetents([.medium, .large])
+        .fullScreenCover(isPresented: $showBuilderHelp) {
+            BuilderHelpScreen()
         }
     }
     
