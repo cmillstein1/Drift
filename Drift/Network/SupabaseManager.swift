@@ -39,20 +39,27 @@ class SupabaseManager: ObservableObject {
             
             // Check if user has completed onboarding
             let userMetadata = session.user.userMetadata
-            let hasCompletedOnboarding = userMetadata["onboarding_completed"] as? Bool ?? false
+            let hasCompletedOnboarding = getOnboardingStatus(from: userMetadata)
             
-            print("🔍 checkAuthStatus - hasCompletedOnboarding: \(hasCompletedOnboarding), metadata: \(userMetadata)")
+            print("🔍 checkAuthStatus - hasCompletedOnboarding: \(hasCompletedOnboarding)")
+            print("🔍 Metadata value for onboarding_completed: \(userMetadata["onboarding_completed"] ?? "nil")")
+            print("🔍 Type of value: \(type(of: userMetadata["onboarding_completed"]))")
             
             // If onboarding is completed, don't show splash or onboarding
+            // IMPORTANT: Only set these if they're not already correctly set to prevent loops
             if hasCompletedOnboarding {
-                self.showWelcomeSplash = false
-                self.showOnboarding = false
-                print("✅ User has completed onboarding - skipping onboarding flow")
+                if self.showWelcomeSplash || self.showOnboarding {
+                    self.showWelcomeSplash = false
+                    self.showOnboarding = false
+                    print("✅ User has completed onboarding - cleared onboarding flags")
+                }
             } else {
-                // Only show splash/onboarding for existing sessions if they haven't completed onboarding
-                self.showWelcomeSplash = false
-                self.showOnboarding = true
-                print("⚠️ User has NOT completed onboarding - will show onboarding flow")
+                // Only set showOnboarding if we're not already showing welcome splash
+                // This prevents resetting state unnecessarily
+                if !self.showWelcomeSplash {
+                    self.showOnboarding = true
+                    print("⚠️ User has NOT completed onboarding - will show onboarding flow")
+                }
             }
         } catch {
             self.currentUser = nil
@@ -63,13 +70,50 @@ class SupabaseManager: ObservableObject {
         }
     }
     
+    private func getOnboardingStatus(from metadata: [String: Any]) -> Bool {
+        guard let value = metadata["onboarding_completed"] else {
+            print("🔍 onboarding_completed key not found in metadata")
+            return false
+        }
+        
+        print("🔍 Raw value: \(value), type: \(type(of: value))")
+        
+        // Handle different types that Supabase might return
+        if let boolValue = value as? Bool {
+            print("🔍 Parsed as Bool: \(boolValue)")
+            return boolValue
+        } else if let stringValue = value as? String {
+            let result = stringValue.lowercased() == "true" || stringValue == "1"
+            print("🔍 Parsed as String '\(stringValue)': \(result)")
+            return result
+        } else if let intValue = value as? Int {
+            let result = intValue != 0
+            print("🔍 Parsed as Int \(intValue): \(result)")
+            return result
+        } else if let nsNumber = value as? NSNumber {
+            let result = nsNumber.boolValue
+            print("🔍 Parsed as NSNumber \(nsNumber): \(result)")
+            return result
+        }
+        
+        // Try to convert to string and check
+        let stringDescription = String(describing: value)
+        if stringDescription.lowercased() == "true" || stringDescription == "1" {
+            print("🔍 Parsed via String(describing:): \(stringDescription) -> true")
+            return true
+        }
+        
+        print("🔍 Could not parse onboarding_completed value: \(value)")
+        return false
+    }
+    
     func signInWithEmail(email: String, password: String) async throws {
         let session = try await client.auth.signIn(email: email, password: password)
         self.currentUser = session.user
         
         // Check if user has completed onboarding
         let userMetadata = session.user.userMetadata
-        let hasCompletedOnboarding = userMetadata["onboarding_completed"] as? Bool ?? false
+        let hasCompletedOnboarding = getOnboardingStatus(from: userMetadata)
         
         // Ensure welcome splash is false for sign-ins
         self.showWelcomeSplash = false
@@ -117,7 +161,7 @@ class SupabaseManager: ObservableObject {
             // Also check if user has completed onboarding by checking user metadata
             // If onboarding_completed is not set or false, show the splash
             let userMetadata = session.user.userMetadata
-            let hasCompletedOnboarding = userMetadata["onboarding_completed"] as? Bool ?? false
+            let hasCompletedOnboarding = getOnboardingStatus(from: userMetadata)
             
             print("👤 User created: \(session.user.createdAt), time since: \(timeSinceCreation)s")
             print("👤 isNewUser: \(isNewUser), hasCompletedOnboarding: \(hasCompletedOnboarding)")
@@ -159,19 +203,41 @@ class SupabaseManager: ObservableObject {
     
     func markOnboardingCompleted() async {
         do {
+            guard let currentUser = currentUser else {
+                print("⚠️ No current user to update")
+                self.showWelcomeSplash = false
+                self.showOnboarding = false
+                return
+            }
+            
             // Update user metadata to mark onboarding as completed
-            var updatedMetadata = currentUser?.userMetadata ?? [:]
+            var updatedMetadata = currentUser.userMetadata
             updatedMetadata["onboarding_completed"] = true
             
+            print("💾 Marking onboarding as complete - metadata before: \(updatedMetadata)")
+            
             // Update user with new metadata
-            // The update method returns a User directly, not a session
             let updatedUser = try await client.auth.update(user: UserAttributes(data: updatedMetadata))
+            
+            // Update currentUser immediately
             self.currentUser = updatedUser
+            
+            // Explicitly set onboarding flags to false BEFORE refreshing session
+            self.showWelcomeSplash = false
             self.showOnboarding = false
-            print("✅ Onboarding marked as completed in user metadata")
+            
+            // Refresh the session to ensure we have the latest data
+            let session = try await client.auth.session
+            self.currentUser = session.user
+            
+            let finalStatus = getOnboardingStatus(from: session.user.userMetadata)
+            print("✅ Onboarding marked as completed - final status: \(finalStatus), metadata: \(session.user.userMetadata)")
+            print("✅ showWelcomeSplash: \(self.showWelcomeSplash), showOnboarding: \(self.showOnboarding)")
         } catch {
             print("⚠️ Failed to mark onboarding as completed: \(error.localizedDescription)")
-            // Don't throw - this is not critical, we'll still hide the splash
+            // Still set flags to false to prevent loop
+            self.showWelcomeSplash = false
+            self.showOnboarding = false
         }
     }
     

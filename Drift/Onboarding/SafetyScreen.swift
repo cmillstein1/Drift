@@ -117,7 +117,11 @@ struct SafetyScreen: View {
                     
                     Button(action: {
                         Task {
+                            // Mark onboarding as complete first
                             await supabaseManager.markOnboardingCompleted()
+                            // Small delay to ensure state updates
+                            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                            // Then call onComplete
                             onComplete()
                         }
                     }) {

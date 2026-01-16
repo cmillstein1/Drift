@@ -80,6 +80,7 @@ struct OnboardingFlow: View {
                 }
             case 4:
                 SafetyScreen {
+                    // SafetyScreen handles marking onboarding as complete internally
                     onComplete()
                 }
             default:

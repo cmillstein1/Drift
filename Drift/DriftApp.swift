@@ -8,6 +8,24 @@
 import SwiftUI
 import Auth
 
+// Helper function to parse onboarding status from metadata
+private func getOnboardingStatus(from metadata: [String: Any]) -> Bool {
+    guard let value = metadata["onboarding_completed"] else {
+        return false
+    }
+    
+    // Handle both Bool and String representations
+    if let boolValue = value as? Bool {
+        return boolValue
+    } else if let stringValue = value as? String {
+        return stringValue.lowercased() == "true"
+    } else if let intValue = value as? Int {
+        return intValue != 0
+    }
+    
+    return false
+}
+
 @main
 struct DriftApp: App {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
@@ -17,7 +35,7 @@ struct DriftApp: App {
             Group {
                 if supabaseManager.isAuthenticated {
                     // Check if user has completed onboarding - this is the source of truth
-                    let hasCompletedOnboarding = supabaseManager.currentUser?.userMetadata["onboarding_completed"] as? Bool ?? false
+                    let hasCompletedOnboarding = getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
                     
                     if hasCompletedOnboarding {
                         // User has completed onboarding - go straight to home (skip WelcomeSplash and onboarding)
@@ -32,20 +50,16 @@ struct DriftApp: App {
                     } else if supabaseManager.showOnboarding {
                         // Show onboarding flow
                         OnboardingFlow {
-                            Task {
-                                await supabaseManager.markOnboardingCompleted()
-                                supabaseManager.showOnboarding = false
-                            }
+                            // SafetyScreen will mark onboarding as complete
+                            // Just need to clear the flag here
+                            supabaseManager.showOnboarding = false
                         }
                     } else {
-                        // If authenticated but onboarding status is unclear, default to showing onboarding
-                        // This handles the case where checkAuthStatus hasn't finished yet
-                        OnboardingFlow {
-                            Task {
-                                await supabaseManager.markOnboardingCompleted()
-                                supabaseManager.showOnboarding = false
+                        // If authenticated but onboarding status is unclear, check auth status again
+                        ContentView()
+                            .task {
+                                await supabaseManager.checkAuthStatus()
                             }
-                        }
                     }
                 } else {
                     // Show welcome screen with invite code input and sign-in options
@@ -54,20 +68,25 @@ struct DriftApp: App {
             }
             .onAppear {
                 // Log initial state
-                let hasCompletedOnboarding = supabaseManager.currentUser?.userMetadata["onboarding_completed"] as? Bool ?? false
+                let hasCompletedOnboarding = getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
                 print("📱 DriftApp appeared - isAuthenticated: \(supabaseManager.isAuthenticated), hasCompletedOnboarding: \(hasCompletedOnboarding), showWelcomeSplash: \(supabaseManager.showWelcomeSplash), showOnboarding: \(supabaseManager.showOnboarding)")
             }
             .onChange(of: supabaseManager.currentUser) { oldValue, newValue in
                 // When currentUser changes, re-evaluate onboarding status
+                // Only update if we're not already in the correct state
                 if let user = newValue {
-                    let hasCompletedOnboarding = user.userMetadata["onboarding_completed"] as? Bool ?? false
-                    print("👤 currentUser changed - hasCompletedOnboarding: \(hasCompletedOnboarding)")
+                    let hasCompletedOnboarding = getOnboardingStatus(from: user.userMetadata)
+                    print("👤 currentUser changed - hasCompletedOnboarding: \(hasCompletedOnboarding), current showOnboarding: \(supabaseManager.showOnboarding)")
+                    
+                    // Only update state if it needs to change AND we're not currently in onboarding flow
                     if hasCompletedOnboarding {
+                        // If onboarding is complete, always clear flags (prevents loop)
                         supabaseManager.showWelcomeSplash = false
                         supabaseManager.showOnboarding = false
-                    } else {
-                        supabaseManager.showOnboarding = true
+                        print("✅ Updated state: cleared onboarding flags (onboarding complete)")
                     }
+                    // Don't set showOnboarding to true here - let checkAuthStatus handle it
+                    // This prevents the onChange from triggering a loop
                 }
             }
             .onChange(of: supabaseManager.isAuthenticated) { oldValue, newValue in

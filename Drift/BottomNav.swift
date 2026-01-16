@@ -15,11 +15,11 @@ struct BottomNav: View {
     }
     
     private let tabs: [TabItem] = [
-        TabItem(id: "discover", label: "Discover", icon: "heart.fill"),
-        TabItem(id: "map", label: "Map", icon: "map.fill"),
+        TabItem(id: "discover", label: "Discover", icon: "heart"),
+        TabItem(id: "map", label: "Map", icon: "map"),
         TabItem(id: "activities", label: "Activities", icon: "calendar"),
-        TabItem(id: "messages", label: "Messages", icon: "message.circle.fill"),
-        TabItem(id: "profile", label: "Profile", icon: "person.fill")
+        TabItem(id: "messages", label: "Messages", icon: "message.circle"),
+        TabItem(id: "profile", label: "Profile", icon: "person")
     ]
     
     var body: some View {
