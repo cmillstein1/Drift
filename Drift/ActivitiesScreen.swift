@@ -20,6 +20,7 @@ struct Activity: Identifiable {
 }
 
 struct ActivitiesScreen: View {
+    @State private var showCreateSheet = false
     @State private var activities: [Activity] = [
         Activity(
             id: 1,
@@ -104,7 +105,7 @@ struct ActivitiesScreen: View {
                         Spacer()
                         
                         Button(action: {
-                            // Handle create activity
+                            showCreateSheet = true
                         }) {
                             Image(systemName: "plus")
                                 .font(.system(size: 24, weight: .semibold))
@@ -145,6 +146,27 @@ struct ActivitiesScreen: View {
                     }
                     .padding(.bottom, 100)
                 }
+            }
+            
+            // Create Activity Sheet
+            .sheet(isPresented: $showCreateSheet) {
+                CreateActivitySheet { activityData in
+                    // Handle activity creation
+                    let newActivity = Activity(
+                        id: activities.count + 1,
+                        title: activityData.title,
+                        location: activityData.location,
+                        date: "\(activityData.date) \(activityData.time)",
+                        attendees: 0,
+                        maxAttendees: activityData.maxAttendees,
+                        host: "You",
+                        category: activityData.category,
+                        imageURL: "" // You can add image URL handling here
+                    )
+                    activities.insert(newActivity, at: 0)
+                }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
             }
         }
     }
