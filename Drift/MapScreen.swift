@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+import MapKit
+import CoreLocation
+import Combine
 
 struct NearbyUser: Identifiable {
     let id: Int
@@ -17,16 +20,53 @@ struct NearbyUser: Identifiable {
     let lng: Double
 }
 
+class MapLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+    private let locationManager = CLLocationManager()
+    @Published var userLocation: CLLocationCoordinate2D?
+    @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    @Published var locationUpdated: Bool = false
+    
+    override init() {
+        super.init()
+        locationManager.delegate = self
+        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        authorizationStatus = locationManager.authorizationStatus
+        
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            locationManager.startUpdatingLocation()
+        }
+    }
+    
+    func requestLocationPermission() {
+        locationManager.requestWhenInUseAuthorization()
+    }
+    
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        authorizationStatus = manager.authorizationStatus
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            locationManager.startUpdatingLocation()
+        }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        userLocation = location.coordinate
+        locationUpdated.toggle() // Toggle to trigger onChange
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        print("Location error: \(error.localizedDescription)")
+    }
+}
+
 struct MapScreen: View {
-    @State private var nearbyUsers: [NearbyUser] = [
-        NearbyUser(id: 1, name: "Sarah", age: 28, distance: "2 mi", lifestyle: "Van Life", lat: 36.27, lng: -121.81),
-        NearbyUser(id: 2, name: "Marcus", age: 31, distance: "5 mi", lifestyle: "Digital Nomad", lat: 36.29, lng: -121.83),
-        NearbyUser(id: 3, name: "Luna", age: 26, distance: "8 mi", lifestyle: "Van Life", lat: 36.25, lng: -121.79),
-        NearbyUser(id: 4, name: "Jake", age: 29, distance: "12 mi", lifestyle: "Backpacker", lat: 36.32, lng: -121.85)
-    ]
+    @StateObject private var locationManager = MapLocationManager()
+    @State private var nearbyUsers: [NearbyUser] = []
     
     @State private var selectedUser: NearbyUser? = nil
     @State private var pulseScale: CGFloat = 1.0
+    @State private var hasCenteredOnUser = false
+    @State private var cameraPosition: MapCameraPosition = .automatic
     
     private let softGray = Color(red: 0.96, green: 0.96, blue: 0.96)
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
@@ -37,61 +77,78 @@ struct MapScreen: View {
     
     var body: some View {
         ZStack {
-            softGray
-                .ignoresSafeArea()
-            
-            GeometryReader { geometry in
-                ZStack {
-                    MapBackgroundView()
-                    
-                    ForEach(Array(nearbyUsers.enumerated()), id: \.element.id) { index, user in
-                        MapMarker(
+            Map(position: $cameraPosition) {
+                UserAnnotation()
+                
+                ForEach(nearbyUsers) { user in
+                    Annotation(user.name, coordinate: CLLocationCoordinate2D(latitude: user.lat, longitude: user.lng)) {
+                        UserMapMarker(
                             user: user,
-                            isSelected: selectedUser?.id == user.id,
-                            position: CGPoint(
-                                x: geometry.size.width * (0.35 + Double(index) * 0.10),
-                                y: geometry.size.height * (0.30 + Double(index) * 0.15)
-                            ),
-                            onTap: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    selectedUser = user
-                                }
-                            }
+                            isSelected: selectedUser?.id == user.id
                         )
-                    }
-                    
-                    CurrentLocationMarker(pulseScale: pulseScale)
-                        .position(
-                            x: geometry.size.width * 0.5,
-                            y: geometry.size.height * 0.5
-                        )
-                    
-                    VStack {
-                        HStack {
-                            StatsCard(count: nearbyUsers.count)
-                                .padding(.leading, 16)
-                                .padding(.top, 16)
-                            
-                            Spacer()
-                            
-                            FilterButton()
-                                .padding(.trailing, 16)
-                                .padding(.top, 16)
-                        }
-                        
-                        Spacer()
-                        
-                        if let selectedUser = selectedUser {
-                            UserCard(user: selectedUser) {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    self.selectedUser = nil
-                                }
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                selectedUser = user
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 100)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     }
+                }
+            }
+            .mapStyle(.standard)
+            .ignoresSafeArea()
+            
+            VStack {
+                HStack {
+                    StatsCard(count: nearbyUsers.count)
+                        .padding(.leading, 16)
+                        .padding(.top, 16)
+                    
+                    Spacer()
+                    
+                    HStack(spacing: 12) {
+                        // Center on user location button
+                        if locationManager.userLocation != nil {
+                            Button(action: {
+                                if let location = locationManager.userLocation {
+                                    withAnimation(.easeInOut(duration: 0.5)) {
+                                        cameraPosition = .region(
+                                            MKCoordinateRegion(
+                                                center: location,
+                                                span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
+                                            )
+                                        )
+                                    }
+                                }
+                            }) {
+                                Image(systemName: "location.fill")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(skyBlue)
+                                    .frame(width: 44, height: 44)
+                                    .background(
+                                        Circle()
+                                            .fill(Color.white)
+                                            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                                    )
+                            }
+                        }
+                        
+                        FilterButton()
+                    }
+                    .padding(.trailing, 16)
+                    .padding(.top, 16)
+                }
+                
+                Spacer()
+                
+                if let selectedUser = selectedUser {
+                    UserCard(user: selectedUser) {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            self.selectedUser = nil
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 100)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
         }
@@ -99,57 +156,62 @@ struct MapScreen: View {
             withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
                 pulseScale = 1.3
             }
-        }
-    }
-}
-
-struct MapBackgroundView: View {
-    private let skyBlue = Color(red: 0.53, green: 0.81, blue: 0.92)
-    private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
-    
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    skyBlue.opacity(0.2),
-                    forestGreen.opacity(0.2)
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
             
-            GridPattern()
-                .opacity(0.1)
+            // Request location permission if not already granted
+            if locationManager.authorizationStatus == .notDetermined {
+                locationManager.requestLocationPermission()
+            }
         }
-    }
-}
-
-struct GridPattern: View {
-    var body: some View {
-        GeometryReader { geometry in
-            Path { path in
-                let spacing: CGFloat = 40
-                
-                for x in stride(from: 0, through: geometry.size.width, by: spacing) {
-                    path.move(to: CGPoint(x: x, y: 0))
-                    path.addLine(to: CGPoint(x: x, y: geometry.size.height))
+        .onChange(of: locationManager.locationUpdated) { oldValue, newValue in
+            // When location is updated, center map and generate nearby users
+            if let location = locationManager.userLocation {
+                // Generate nearby users relative to user's location
+                if nearbyUsers.isEmpty {
+                    nearbyUsers = generateNearbyUsers(relativeTo: location)
                 }
                 
-                for y in stride(from: 0, through: geometry.size.height, by: spacing) {
-                    path.move(to: CGPoint(x: 0, y: y))
-                    path.addLine(to: CGPoint(x: geometry.size.width, y: y))
+                // Center on user location only on first update
+                if !hasCenteredOnUser {
+                    hasCenteredOnUser = true
+                    withAnimation(.easeInOut(duration: 1.0)) {
+                        cameraPosition = .region(
+                            MKCoordinateRegion(
+                                center: location,
+                                span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
+                            )
+                        )
+                    }
                 }
             }
-            .stroke(Color.black.opacity(0.1), lineWidth: 1)
         }
+    }
+    
+    // Generate nearby users positioned relative to the user's location
+    private func generateNearbyUsers(relativeTo userLocation: CLLocationCoordinate2D) -> [NearbyUser] {
+        // Small offsets in degrees (approximately 0.01 degree ≈ 1 km)
+        let offsets: [(lat: Double, lng: Double, distance: String)] = [
+            (0.015, 0.015, "2 mi"),   // Northeast
+            (-0.02, 0.01, "3 mi"),    // Southeast
+            (0.01, -0.025, "4 mi"),   // Northwest
+            (-0.015, -0.02, "5 mi")   // Southwest
+        ]
+        
+        return [
+            NearbyUser(id: 1, name: "Sarah", age: 28, distance: offsets[0].distance, lifestyle: "Van Life", 
+                     lat: userLocation.latitude + offsets[0].lat, lng: userLocation.longitude + offsets[0].lng),
+            NearbyUser(id: 2, name: "Marcus", age: 31, distance: offsets[1].distance, lifestyle: "Digital Nomad", 
+                     lat: userLocation.latitude + offsets[1].lat, lng: userLocation.longitude + offsets[1].lng),
+            NearbyUser(id: 3, name: "Luna", age: 26, distance: offsets[2].distance, lifestyle: "Van Life", 
+                     lat: userLocation.latitude + offsets[2].lat, lng: userLocation.longitude + offsets[2].lng),
+            NearbyUser(id: 4, name: "Jake", age: 29, distance: offsets[3].distance, lifestyle: "Backpacker", 
+                     lat: userLocation.latitude + offsets[3].lat, lng: userLocation.longitude + offsets[3].lng)
+        ]
     }
 }
 
-struct MapMarker: View {
+struct UserMapMarker: View {
     let user: NearbyUser
     let isSelected: Bool
-    let position: CGPoint
-    let onTap: () -> Void
     
     @State private var scale: CGFloat = 1.0
     
@@ -157,69 +219,27 @@ struct MapMarker: View {
     private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
     
     var body: some View {
-        Button(action: {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                scale = 1.1
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    scale = 1.0
-                }
-            }
-            onTap()
-        }) {
-            ZStack {
-                Circle()
-                    .fill(burntOrange)
-                    .frame(width: 48, height: 48)
-                    .overlay(
-                        Circle()
-                            .stroke(Color.white, lineWidth: 4)
-                    )
-                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
-                
-                Circle()
-                    .fill(forestGreen)
-                    .frame(width: 16, height: 16)
-                    .offset(x: 18, y: 18)
-                    .overlay(
-                        Circle()
-                            .stroke(Color.white, lineWidth: 2)
-                    )
-            }
-        }
-        .scaleEffect(scale)
-        .position(position)
-    }
-}
-
-struct CurrentLocationMarker: View {
-    let pulseScale: CGFloat
-    
-    private let skyBlue = Color(red: 0.53, green: 0.81, blue: 0.92)
-    
-    var body: some View {
         ZStack {
             Circle()
-                .fill(skyBlue.opacity(0.2))
-                .frame(width: 80, height: 80)
-                .scaleEffect(pulseScale)
+                .fill(burntOrange)
+                .frame(width: isSelected ? 56 : 48, height: isSelected ? 56 : 48)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white, lineWidth: isSelected ? 5 : 4)
+                )
+                .shadow(color: .black.opacity(0.3), radius: isSelected ? 12 : 8, x: 0, y: 4)
             
-            ZStack {
-                Circle()
-                    .fill(skyBlue)
-                    .frame(width: 48, height: 48)
-                    .overlay(
-                        Circle()
-                            .stroke(Color.white, lineWidth: 4)
-                    )
-                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
-                
-                Image(systemName: "location.north.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(.white)
-            }
+            Circle()
+                .fill(forestGreen)
+                .frame(width: 16, height: 16)
+                .offset(x: isSelected ? 20 : 18, y: isSelected ? 20 : 18)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white, lineWidth: 2)
+                )
         }
+        .scaleEffect(scale)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
     }
 }
 
@@ -284,7 +304,7 @@ struct UserCard: View {
                     .foregroundColor(charcoalColor)
                 
                 HStack(spacing: 4) {
-                    Image(systemName: "mappin.fill")
+                    Image(systemName: "mappin")
                         .font(.system(size: 14))
                         .foregroundColor(charcoalColor.opacity(0.6))
                     

@@ -103,7 +103,7 @@ struct ProfileCard: View {
                             }
                             
                             HStack(spacing: 4) {
-                                Image(systemName: "mappin.fill")
+                                Image(systemName: "mappin")
                                     .font(.system(size: 14))
                                     .foregroundColor(charcoalColor.opacity(0.6))
                                 

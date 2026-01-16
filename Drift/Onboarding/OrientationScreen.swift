@@ -34,7 +34,7 @@ struct OrientationScreen: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                ProgressIndicator(currentStep: 1, totalSteps: 5)
+                ProgressIndicator(currentStep: 3, totalSteps: 8)
                     .padding(.top, 32)
                     .padding(.bottom, 48)
                 

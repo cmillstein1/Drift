@@ -227,7 +227,7 @@ struct ActivityCard: View {
                 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
-                        Image(systemName: "mappin.fill")
+                        Image(systemName: "mappin")
                             .font(.system(size: 14))
                             .foregroundColor(charcoalColor.opacity(0.6))
                         

@@ -34,7 +34,7 @@ struct LookingForScreen: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                ProgressIndicator(currentStep: 2, totalSteps: 5)
+                ProgressIndicator(currentStep: 4, totalSteps: 8)
                     .padding(.top, 32)
                     .padding(.bottom, 48)
                 

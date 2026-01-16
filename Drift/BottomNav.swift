@@ -18,7 +18,7 @@ struct BottomNav: View {
         TabItem(id: "discover", label: "Discover", icon: "heart"),
         TabItem(id: "map", label: "Map", icon: "map"),
         TabItem(id: "activities", label: "Activities", icon: "calendar"),
-        TabItem(id: "messages", label: "Messages", icon: "message.circle"),
+        TabItem(id: "messages", label: "Messages", icon: "message"),
         TabItem(id: "profile", label: "Profile", icon: "person")
     ]
     
@@ -86,31 +86,3 @@ struct BottomNav: View {
     
     return PreviewWrapper()
 }
-
-/**
- * CUSTOMIZATION GUIDE:
- *
- * To add a new tab:
- * 1. Add a new TabItem to the tabs array:
- *    TabItem(id: "newtab", label: "New Tab", icon: "icon.name")
- * 2. Create the corresponding screen component
- * 3. Add the screen to your main app routing logic
- *
- * To change colors:
- * - Active state: Modify 'burntOrange' property
- * - Inactive state: Modify 'charcoal.opacity(0.4)' to your preferred color
- * - Background: Modify 'Color.white.opacity(0.95)' for different transparency/color
- *
- * To adjust spacing:
- * - Icon size: Modify font size in Image(systemName:) (currently 24)
- * - Label size: Modify font size in Text (currently 10)
- * - Gap between icon and label: Modify 'spacing: 4' in VStack
- * - Padding: Modify 'padding(.vertical, 8)' and 'padding(.horizontal, 16)'
- *
- * SF Symbols alternatives:
- * - Heart: "heart.fill", "heart", "suit.heart.fill"
- * - Map: "map.fill", "map", "location.fill"
- * - Calendar: "calendar", "calendar.badge.plus"
- * - Messages: "message.circle.fill", "message.fill", "bubble.left.and.bubble.right.fill"
- * - Profile: "person.fill", "person.circle.fill", "person.crop.circle.fill"
- */
