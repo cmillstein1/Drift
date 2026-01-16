@@ -11,12 +11,15 @@ import Supabase
 struct ProfileScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @State private var isSigningOut = false
+    @State private var showBuilderCommunity = false
+    @State private var showBuilderHelp = false
     
     private let softGray = Color(red: 0.96, green: 0.96, blue: 0.96)
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
     private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
     private let desertSand = Color(red: 0.96, green: 0.87, blue: 0.73)
+    private let skyBlue = Color(red: 0.53, green: 0.81, blue: 0.92)
     
     var body: some View {
         ZStack {
@@ -180,6 +183,59 @@ struct ProfileScreen: View {
                         .padding(.horizontal, 16)
                         .padding(.bottom, 16)
                         
+                        // Van Builder Community CTA
+                        VStack(spacing: 16) {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(Color.white.opacity(0.2))
+                                        .frame(width: 56, height: 56)
+                                    
+                                    Image(systemName: "message.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundColor(.white)
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Van Builder Community")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundColor(.white)
+                                    
+                                    Text("Chat with 12K+ builders worldwide")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.white.opacity(0.9))
+                                }
+                                
+                                Spacer()
+                            }
+                            
+                            Button(action: {
+                                showBuilderCommunity = true
+                            }) {
+                                Text("Join Community")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(charcoalColor)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(Color.white)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                        .padding(24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 24)
+                                .fill(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [skyBlue, forestGreen]),
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 16)
+                        
+                        // Builder Help CTA
                         VStack(spacing: 16) {
                             HStack(spacing: 12) {
                                 ZStack {
@@ -193,11 +249,11 @@ struct ProfileScreen: View {
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Need van build help?")
+                                    Text("Need expert help?")
                                         .font(.system(size: 18, weight: .semibold))
                                         .foregroundColor(.white)
                                     
-                                    Text("Connect with verified experts")
+                                    Text("Book 1-on-1 with verified experts")
                                         .font(.system(size: 14))
                                         .foregroundColor(.white.opacity(0.9))
                                 }
@@ -206,9 +262,9 @@ struct ProfileScreen: View {
                             }
                             
                             Button(action: {
-                                // Handle builder help
+                                showBuilderHelp = true
                             }) {
-                                Text("Explore Builder Help")
+                                Text("Book an Expert")
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundColor(charcoalColor)
                                     .frame(maxWidth: .infinity)
@@ -275,6 +331,14 @@ struct ProfileScreen: View {
                     }
                 }
             }
+        }
+        .fullScreenCover(isPresented: $showBuilderCommunity) {
+            VanBuilderCommunity()
+        }
+        .sheet(isPresented: $showBuilderHelp) {
+            // Builder Help screen - placeholder for now
+            Text("Builder Help Coming Soon")
+                .presentationDetents([.medium, .large])
         }
     }
     
