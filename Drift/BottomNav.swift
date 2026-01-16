@@ -5,8 +5,8 @@ struct BottomNav: View {
     let onTabChange: (String) -> Void
     
     // Color definitions matching the design system
-    private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20) // #CC6633
-    private let charcoal = Color(red: 0.2, green: 0.2, blue: 0.2) // #333333
+    private let burntOrange = Color("BurntOrange")
+    private let charcoal = Color("Charcoal")
     
     struct TabItem {
         let id: String
@@ -15,7 +15,7 @@ struct BottomNav: View {
     }
     
     private let tabs: [TabItem] = [
-        TabItem(id: "discover", label: "Discover", icon: "heart"),
+        TabItem(id: "discover", label: "Discover", icon: "discover_rv"),
         TabItem(id: "activities", label: "Activities", icon: "calendar"),
         TabItem(id: "builder", label: "Builder", icon: "wrench"),
         TabItem(id: "messages", label: "Messages", icon: "message"),
@@ -33,14 +33,26 @@ struct BottomNav: View {
                         onTabChange(tab.id)
                     }) {
                         VStack(spacing: 4) {
-                            Image(systemName: tab.icon)
-                                .font(.system(size: 24, weight: .regular))
-                                .foregroundColor(activeTab == tab.id ? burntOrange : charcoal.opacity(0.4))
-                                .animation(.easeInOut(duration: 0.2), value: activeTab)
+                            if tab.icon == "discover_rv" {
+                                Image(tab.icon)
+                                    .resizable()
+                                    .renderingMode(.template)
+                                    .scaledToFit()
+                                    .frame(width: 24, height: 24)
+                                    .foregroundColor(activeTab == tab.id ? burntOrange : charcoal)
+                                    .animation(.easeInOut(duration: 0.2), value: activeTab)
+                            } else {
+                                Image(systemName: tab.icon)
+                                    .font(.system(size: 24, weight: .regular))
+                                    .frame(width: 24, height: 24)
+                                    .foregroundColor(activeTab == tab.id ? burntOrange : charcoal)
+                                    .animation(.easeInOut(duration: 0.2), value: activeTab)
+                            }
                             
                             Text(tab.label)
                                 .font(.system(size: 12, weight: .regular))
-                                .foregroundColor(activeTab == tab.id ? burntOrange : charcoal.opacity(0.4))
+                                .foregroundColor(activeTab == tab.id ? burntOrange : charcoal)
+                                .frame(height: 14)
                                 .animation(.easeInOut(duration: 0.2), value: activeTab)
                         }
                         .frame(maxWidth: .infinity)

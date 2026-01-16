@@ -140,7 +140,7 @@ struct FriendsScreen: View {
                 // Header
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Nearby Friends")
-                        .font(.system(size: 24, weight: .bold))
+                        .font(.campfire(.regular, size: 24))
                         .foregroundColor(charcoalColor)
                     
                     Text("Connect instantly - no matching required!")

@@ -40,9 +40,22 @@
 		16B755032F1961360012C1F4 /* DriftUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DriftUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		16EB88502F1AFB6B0029251C /* Exceptions for "Drift" folder in "Drift" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 16B754EB2F1961350012C1F4 /* Drift */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		16B754EE2F1961350012C1F4 /* Drift */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				16EB88502F1AFB6B0029251C /* Exceptions for "Drift" folder in "Drift" target */,
+			);
 			path = Drift;
 			sourceTree = "<group>";
 		};
@@ -432,6 +445,7 @@
 				DEVELOPMENT_TEAM = XF766QR2QD;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Drift/Info.plist;
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "We use your location to help you find nearby nomads and share your travel route with the community.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your location to help you find nearby nomads and share your travel route with the community.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -467,6 +481,7 @@
 				DEVELOPMENT_TEAM = XF766QR2QD;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Drift/Info.plist;
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "We use your location to help you find nearby nomads and share your travel route with the community.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your location to help you find nearby nomads and share your travel route with the community.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

@@ -59,7 +59,8 @@ struct ProfileDetailView: View {
                     VStack(spacing: 0) {
                         // Image Carousel
                         ZStack(alignment: .top) {
-                            AsyncImage(url: URL(string: images[imageIndex])) { phase in
+                            GeometryReader { geometry in
+                                AsyncImage(url: URL(string: images[imageIndex])) { phase in
                                     switch phase {
                                     case .empty:
                                         ZStack {
@@ -70,6 +71,8 @@ struct ProfileDetailView: View {
                                         image
                                             .resizable()
                                             .aspectRatio(contentMode: .fill)
+                                            .frame(width: geometry.size.width, height: geometry.size.height)
+                                            .clipped()
                                     case .failure:
                                         ZStack {
                                             Color.gray.opacity(0.2)
@@ -79,9 +82,10 @@ struct ProfileDetailView: View {
                                     @unknown default:
                                         EmptyView()
                                     }
+                                }
                             }
                             .frame(height: UIScreen.main.bounds.height * 0.5)
-                            .clipped()
+                            .frame(maxWidth: .infinity)
                             
                             // Gradient Overlay
                             LinearGradient(
@@ -155,6 +159,8 @@ struct ProfileDetailView: View {
                                 .padding(.top, 64)
                             }
                         }
+                        .frame(maxWidth: .infinity)
+                        .clipped()
                         
                         // Profile Info
                         VStack(alignment: .leading, spacing: 24) {

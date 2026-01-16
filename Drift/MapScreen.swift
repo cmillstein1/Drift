@@ -10,16 +10,6 @@ import MapKit
 import CoreLocation
 import Combine
 
-struct NearbyUser: Identifiable {
-    let id: Int
-    let name: String
-    let age: Int
-    let distance: String
-    let lifestyle: String
-    let lat: Double
-    let lng: Double
-}
-
 class MapLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     @Published var userLocation: CLLocationCoordinate2D?
@@ -63,34 +53,37 @@ struct MapScreen: View {
     var embedded: Bool = false
     
     @StateObject private var locationManager = MapLocationManager()
-    @State private var nearbyUsers: [NearbyUser] = []
+    @State private var campgrounds: [Campground] = []
+    @State private var isLoadingCampgrounds = false
+    @State private var currentRegion: MKCoordinateRegion?
+    @State private var isFetchingAllUS = false
     
-    @State private var selectedUser: NearbyUser? = nil
+    @State private var selectedCampground: Campground? = nil
     @State private var pulseScale: CGFloat = 1.0
     @State private var hasCenteredOnUser = false
     @State private var cameraPosition: MapCameraPosition = .automatic
     
-    private let softGray = Color(red: 0.96, green: 0.96, blue: 0.96)
-    private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
-    private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
-    private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
-    private let skyBlue = Color(red: 0.53, green: 0.81, blue: 0.92)
-    private let desertSand = Color(red: 0.96, green: 0.87, blue: 0.73)
+    private let softGray = Color("SoftGray")
+    private let charcoalColor = Color("Charcoal")
+    private let burntOrange = Color("BurntOrange")
+    private let forestGreen = Color("ForestGreen")
+    private let skyBlue = Color("SkyBlue")
+    private let desertSand = Color("DesertSand")
     
     var body: some View {
         ZStack {
             Map(position: $cameraPosition) {
                 UserAnnotation()
                 
-                ForEach(nearbyUsers) { user in
-                    Annotation(user.name, coordinate: CLLocationCoordinate2D(latitude: user.lat, longitude: user.lng)) {
-                        UserMapMarker(
-                            user: user,
-                            isSelected: selectedUser?.id == user.id
+                ForEach(campgrounds) { campground in
+                    Annotation(campground.name, coordinate: CLLocationCoordinate2D(latitude: campground.location.latitude, longitude: campground.location.longitude)) {
+                        CampgroundMapMarker(
+                            campground: campground,
+                            isSelected: selectedCampground?.id == campground.id
                         )
                         .onTapGesture {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                selectedUser = user
+                                selectedCampground = campground
                             }
                         }
                     }
@@ -98,54 +91,91 @@ struct MapScreen: View {
             }
             .mapStyle(.standard)
             .ignoresSafeArea()
+            .onMapCameraChange { context in
+                let newRegion = context.region
+                let previousDelta = currentRegion?.span.latitudeDelta ?? 0
+                currentRegion = newRegion
+                
+                // Check if zoomed out enough to show all US campgrounds (latitudeDelta > 20 degrees)
+                if newRegion.span.latitudeDelta > 20.0 {
+                    // Zoomed out to show entire US, fetch all campgrounds
+                    if previousDelta <= 20.0 || campgrounds.isEmpty {
+                        print("🗺️ Zoomed out - fetching all US campgrounds (delta: \(newRegion.span.latitudeDelta))")
+                        Task {
+                            await fetchAllUSCampgrounds()
+                        }
+                    }
+                } else if newRegion.span.latitudeDelta < 1.0 {
+                    // Zoomed in, fetch nearby campgrounds based on map center
+                    let centerLat = newRegion.center.latitude
+                    let centerLng = newRegion.center.longitude
+                    print("🗺️ Zoomed in - fetching nearby campgrounds (delta: \(newRegion.span.latitudeDelta), center: \(centerLat), \(centerLng))")
+                    Task {
+                        await fetchNearbyCampgrounds(latitude: centerLat, longitude: centerLng)
+                    }
+                }
+            }
             
             VStack {
                 HStack {
-                    StatsCard(count: nearbyUsers.count)
-                        .padding(.leading, 16)
-                        .padding(.top, 16)
-                    
                     Spacer()
                     
-                    HStack(spacing: 12) {
-                        // Center on user location button
-                        if locationManager.userLocation != nil {
-                            Button(action: {
-                                if let location = locationManager.userLocation {
-                                    withAnimation(.easeInOut(duration: 0.5)) {
-                                        cameraPosition = .region(
-                                            MKCoordinateRegion(
-                                                center: location,
-                                                span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
-                                            )
+                    // Center on user location button
+                    if locationManager.userLocation != nil {
+                        Button(action: {
+                            if let location = locationManager.userLocation {
+                                withAnimation(.easeInOut(duration: 0.5)) {
+                                    cameraPosition = .region(
+                                        MKCoordinateRegion(
+                                            center: location,
+                                            span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
                                         )
-                                    }
-                                }
-                            }) {
-                                Image(systemName: "location.fill")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(skyBlue)
-                                    .frame(width: 44, height: 44)
-                                    .background(
-                                        Circle()
-                                            .fill(Color.white)
-                                            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
                                     )
+                                }
                             }
+                        }) {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(skyBlue)
+                                .frame(width: 44, height: 44)
+                                .background(
+                                    Circle()
+                                        .fill(Color.white)
+                                        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                                )
                         }
-                        
-                        FilterButton()
+                        .padding(.trailing, 16)
+                        .padding(.top, 16)
                     }
-                    .padding(.trailing, 16)
-                    .padding(.top, 16)
                 }
                 
                 Spacer()
                 
-                if let selectedUser = selectedUser {
-                    UserCard(user: selectedUser) {
+                // Show message if no campgrounds found
+                if campgrounds.isEmpty && !isLoadingCampgrounds {
+                    VStack(spacing: 12) {
+                        Image(systemName: "tent.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(charcoalColor.opacity(0.3))
+                        
+                        Text("No Campgrounds Found")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(charcoalColor)
+                        
+                        Text("The Campflare API isn't returning data. This may be due to API key permissions or data availability.")
+                            .font(.system(size: 14))
+                            .foregroundColor(charcoalColor.opacity(0.6))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                    }
+                    .padding(.vertical, 32)
+                    .padding(.bottom, 100)
+                }
+                
+                if let selectedCampground = selectedCampground {
+                    CampgroundCard(campground: selectedCampground) {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            self.selectedUser = nil
+                            self.selectedCampground = nil
                         }
                     }
                     .padding(.horizontal, 16)
@@ -163,15 +193,14 @@ struct MapScreen: View {
             if locationManager.authorizationStatus == .notDetermined {
                 locationManager.requestLocationPermission()
             }
+            
+            // Test API access with a known campground ID
+            Task {
+            }
         }
         .onChange(of: locationManager.locationUpdated) { oldValue, newValue in
-            // When location is updated, center map and generate nearby users
+            // When location is updated, center map
             if let location = locationManager.userLocation {
-                // Generate nearby users relative to user's location
-                if nearbyUsers.isEmpty {
-                    nearbyUsers = generateNearbyUsers(relativeTo: location)
-                }
-                
                 // Center on user location only on first update
                 if !hasCenteredOnUser {
                     hasCenteredOnUser = true
@@ -179,149 +208,245 @@ struct MapScreen: View {
                         cameraPosition = .region(
                             MKCoordinateRegion(
                                 center: location,
-                                span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
+                                span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
                             )
                         )
                     }
                 }
             }
         }
+        .onAppear {
+            // On initial load, if no region is set, start with a US-wide view
+            if currentRegion == nil {
+                // Set initial view to show entire US
+                cameraPosition = .region(
+                    MKCoordinateRegion(
+                        center: CLLocationCoordinate2D(latitude: 39.8283, longitude: -98.5795), // Center of US
+                        span: MKCoordinateSpan(latitudeDelta: 50.0, longitudeDelta: 60.0) // Show entire US
+                    )
+                )
+            }
+        }
     }
     
-    // Generate nearby users positioned relative to the user's location
-    private func generateNearbyUsers(relativeTo userLocation: CLLocationCoordinate2D) -> [NearbyUser] {
-        // Small offsets in degrees (approximately 0.01 degree ≈ 1 km)
-        let offsets: [(lat: Double, lng: Double, distance: String)] = [
-            (0.015, 0.015, "2 mi"),   // Northeast
-            (-0.02, 0.01, "3 mi"),    // Southeast
-            (0.01, -0.025, "4 mi"),   // Northwest
-            (-0.015, -0.02, "5 mi")   // Southwest
-        ]
+    // Fetch nearby campgrounds from Campflare API
+    private func fetchNearbyCampgrounds(latitude: Double, longitude: Double) async {
+        isLoadingCampgrounds = true
         
-        return [
-            NearbyUser(id: 1, name: "Sarah", age: 28, distance: offsets[0].distance, lifestyle: "Van Life", 
-                     lat: userLocation.latitude + offsets[0].lat, lng: userLocation.longitude + offsets[0].lng),
-            NearbyUser(id: 2, name: "Marcus", age: 31, distance: offsets[1].distance, lifestyle: "Digital Nomad", 
-                     lat: userLocation.latitude + offsets[1].lat, lng: userLocation.longitude + offsets[1].lng),
-            NearbyUser(id: 3, name: "Luna", age: 26, distance: offsets[2].distance, lifestyle: "Van Life", 
-                     lat: userLocation.latitude + offsets[2].lat, lng: userLocation.longitude + offsets[2].lng),
-            NearbyUser(id: 4, name: "Jake", age: 29, distance: offsets[3].distance, lifestyle: "Backpacker", 
-                     lat: userLocation.latitude + offsets[3].lat, lng: userLocation.longitude + offsets[3].lng)
-        ]
+        do {
+            // Try with a larger radius first (200km) to increase chances of finding campgrounds
+            let searchRequest = CampgroundSearchRequest(
+                latitude: latitude,
+                longitude: longitude,
+                radius: 200, // Increased to 200 km radius
+                state: nil,
+                stateCode: nil,
+                kind: nil,
+                amenities: nil,
+                limit: 100,
+                offset: nil
+            )
+            
+            let response = try await CampflareManager.shared.searchCampgrounds(request: searchRequest)
+            
+            print("📍 Found \(response.campgrounds.count) campgrounds near (\(latitude), \(longitude))")
+            
+            await MainActor.run {
+                self.campgrounds = response.campgrounds
+                self.isLoadingCampgrounds = false
+            }
+        } catch {
+            print("❌ Error fetching campgrounds: \(error.localizedDescription)")
+            await MainActor.run {
+                self.isLoadingCampgrounds = false
+            }
+        }
+    }
+    
+    // Fetch all US campgrounds (when zoomed out)
+    private func fetchAllUSCampgrounds() async {
+        guard !isFetchingAllUS else { return }
+        isFetchingAllUS = true
+        isLoadingCampgrounds = true
+        print("🌲 Starting to fetch all US campgrounds...")
+        
+        do {
+            // Try fetching by popular states with lots of campgrounds
+            // This is a workaround since searching without constraints returns empty
+            let states = ["CA", "CO", "UT", "AZ", "OR", "WA", "MT", "WY", "ID", "NV", "NM", "TX", "FL", "NC", "VA", "NY", "ME", "VT", "NH", "MI"]
+            var allCampgrounds: [Campground] = []
+            var processedStates = 0
+            
+            // Try searching by popular camping locations first to test if API has data
+            let popularLocations: [(lat: Double, lng: Double, name: String)] = [
+                (37.8651, -119.5383, "Yosemite, CA"),
+                (36.1069, -112.1129, "Grand Canyon, AZ"),
+                (40.3428, -105.6836, "Rocky Mountain NP, CO"),
+                (44.4280, -110.5885, "Yellowstone, WY"),
+                (38.9072, -77.0369, "Washington DC area"),
+                (34.0522, -118.2437, "Los Angeles, CA"),
+                (40.7128, -74.0060, "New York, NY"),
+                (47.6062, -122.3321, "Seattle, WA"),
+                (45.5152, -122.6784, "Portland, OR"),
+                (39.7392, -104.9903, "Denver, CO")
+            ]
+            
+            // First, try searching by popular locations
+            for location in popularLocations {
+                print("🌲 Searching near \(location.name) (\(location.lat), \(location.lng))")
+                
+                let searchRequest = CampgroundSearchRequest(
+                    latitude: location.lat,
+                    longitude: location.lng,
+                    radius: 100, // 100 km radius
+                    state: nil,
+                    stateCode: nil,
+                    kind: nil,
+                    amenities: nil,
+                    limit: 50,
+                    offset: nil
+                )
+                
+                do {
+                    let response = try await CampflareManager.shared.searchCampgrounds(request: searchRequest)
+                    print("🌲 \(location.name) returned \(response.campgrounds.count) campgrounds")
+                    allCampgrounds.append(contentsOf: response.campgrounds)
+                    
+                    // Limit total to prevent performance issues
+                    if allCampgrounds.count >= 500 {
+                        print("🌲 Reached limit of 500 campgrounds, stopping")
+                        break
+                    }
+                } catch {
+                    print("⚠️ Error fetching for \(location.name): \(error.localizedDescription)")
+                    continue
+                }
+            }
+            
+            // If we still don't have enough, try by state codes
+            if allCampgrounds.count < 100 {
+                print("🌲 Trying state-based search as fallback...")
+                for stateCode in states.prefix(10) { // Limit to first 10 states
+                    processedStates += 1
+                    print("🌲 Fetching campgrounds for state: \(stateCode) (\(processedStates)/10)")
+                    
+                    let searchRequest = CampgroundSearchRequest(
+                        latitude: nil,
+                        longitude: nil,
+                        radius: nil,
+                        state: nil,
+                        stateCode: stateCode,
+                        kind: nil,
+                        amenities: nil,
+                        limit: 100,
+                        offset: nil
+                    )
+                    
+                    do {
+                        let response = try await CampflareManager.shared.searchCampgrounds(request: searchRequest)
+                        print("🌲 State \(stateCode) returned \(response.campgrounds.count) campgrounds")
+                        allCampgrounds.append(contentsOf: response.campgrounds)
+                        
+                        // Limit total to prevent performance issues
+                        if allCampgrounds.count >= 500 {
+                            print("🌲 Reached limit of 500 campgrounds, stopping")
+                            break
+                        }
+                    } catch {
+                        print("⚠️ Error fetching for state \(stateCode): \(error.localizedDescription)")
+                        continue
+                    }
+                }
+            }
+            
+            print("🌲 Total campgrounds fetched: \(allCampgrounds.count) from \(processedStates) states")
+            
+            await MainActor.run {
+                self.campgrounds = allCampgrounds
+                self.isLoadingCampgrounds = false
+                self.isFetchingAllUS = false
+            }
+        } catch {
+            print("❌ Error fetching all US campgrounds: \(error.localizedDescription)")
+            await MainActor.run {
+                self.isLoadingCampgrounds = false
+                self.isFetchingAllUS = false
+            }
+        }
     }
 }
 
-struct UserMapMarker: View {
-    let user: NearbyUser
+struct CampgroundMapMarker: View {
+    let campground: Campground
     let isSelected: Bool
     
     @State private var scale: CGFloat = 1.0
     
-    private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
-    private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
+    private let burntOrange = Color("BurntOrange")
+    private let forestGreen = Color("ForestGreen")
     
     var body: some View {
         ZStack {
-            Circle()
-                .fill(burntOrange)
-                .frame(width: isSelected ? 56 : 48, height: isSelected ? 56 : 48)
-                .overlay(
+            Image(systemName: "tent.fill")
+                .font(.system(size: isSelected ? 24 : 20, weight: .medium))
+                .foregroundColor(.white)
+                .frame(width: isSelected ? 48 : 40, height: isSelected ? 48 : 40)
+                .background(
                     Circle()
-                        .stroke(Color.white, lineWidth: isSelected ? 5 : 4)
+                        .fill(forestGreen)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white, lineWidth: isSelected ? 4 : 3)
+                        )
                 )
                 .shadow(color: .black.opacity(0.3), radius: isSelected ? 12 : 8, x: 0, y: 4)
-            
-            Circle()
-                .fill(forestGreen)
-                .frame(width: 16, height: 16)
-                .offset(x: isSelected ? 20 : 18, y: isSelected ? 20 : 18)
-                .overlay(
-                    Circle()
-                        .stroke(Color.white, lineWidth: 2)
-                )
         }
         .scaleEffect(scale)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
     }
 }
 
-struct StatsCard: View {
-    let count: Int
-    
-    private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Nearby")
-                .font(.system(size: 14))
-                .foregroundColor(charcoalColor.opacity(0.6))
-            
-            Text("\(count)")
-                .font(.system(size: 20, weight: .bold))
-                .foregroundColor(charcoalColor)
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white)
-                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-        )
-    }
-}
-
-struct FilterButton: View {
-    private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
-    
-    var body: some View {
-        Button(action: {
-            // Handle filter action
-        }) {
-            Text("Filters")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(charcoalColor)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(
-                    Capsule()
-                        .fill(Color.white)
-                        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-                )
-        }
-    }
-}
-
-struct UserCard: View {
-    let user: NearbyUser
+struct CampgroundCard: View {
+    let campground: Campground
     let onView: () -> Void
     
-    private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
-    private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
-    private let desertSand = Color(red: 0.96, green: 0.87, blue: 0.73)
+    private let charcoalColor = Color("Charcoal")
+    private let burntOrange = Color("BurntOrange")
+    private let desertSand = Color("DesertSand")
+    private let forestGreen = Color("ForestGreen")
     
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("\(user.name), \(user.age)")
+                Text(campground.name)
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(charcoalColor)
+                    .lineLimit(2)
                 
-                HStack(spacing: 4) {
-                    Image(systemName: "mappin")
-                        .font(.system(size: 14))
-                        .foregroundColor(charcoalColor.opacity(0.6))
-                    
-                    Text("\(user.distance) away")
-                        .font(.system(size: 14))
-                        .foregroundColor(charcoalColor.opacity(0.6))
+                if let address = campground.location.address {
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin")
+                            .font(.system(size: 14))
+                            .foregroundColor(charcoalColor.opacity(0.6))
+                        
+                        Text(address.city ?? address.state ?? "")
+                            .font(.system(size: 14))
+                            .foregroundColor(charcoalColor.opacity(0.6))
+                            .lineLimit(1)
+                    }
                 }
                 
-                Text(user.lifestyle)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(charcoalColor)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(desertSand)
-                    .clipShape(Capsule())
+                if campground.status == "open" {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(forestGreen)
+                            .frame(width: 8, height: 8)
+                        
+                        Text("Open")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(charcoalColor)
+                    }
+                }
             }
             
             Spacer()

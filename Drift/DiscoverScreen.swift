@@ -204,9 +204,7 @@ struct DiscoverScreen: View {
                                                 offset: Double(offset) * -10,
                                                 onSwipe: handleSwipe,
                                                 onTap: {
-                                                    if mode == .dating {
-                                                        selectedProfile = profile
-                                                    }
+                                                    selectedProfile = profile
                                                 }
                                             )
                                             .zIndex(Double(profiles.count - index))
