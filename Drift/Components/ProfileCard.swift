@@ -10,13 +10,29 @@ import SwiftUI
 struct ProfileCard: View {
     let profile: Profile
     let isTop: Bool
+    let mode: DiscoverMode
     let scale: Double
     let offset: Double
+    let onSwipe: (SwipeDirection) -> Void
+    let onTap: () -> Void
     
-    private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
-    private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
-    private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
-    private let desertSand = Color(red: 0.96, green: 0.87, blue: 0.73)
+    @State private var dragOffset: CGSize = .zero
+    @State private var dragRotation: Double = 0
+    
+    private let charcoalColor = Color("Charcoal")
+    private let burntOrange = Color("BurntOrange")
+    private let forestGreen = Color("ForestGreen")
+    private let desertSand = Color("DesertSand")
+    private let skyBlue = Color("SkyBlue")
+    private let pink500 = Color(red: 0.93, green: 0.36, blue: 0.51) // Keep pink500 as is since it's not in assets
+    
+    private var shouldShowDatingBadge: Bool {
+        profile.lookingFor == .dating || (profile.lookingFor == .both && mode == .dating)
+    }
+    
+    private var shouldShowFriendsBadge: Bool {
+        profile.lookingFor == .friends || (profile.lookingFor == .both && mode == .friends)
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -26,8 +42,8 @@ struct ProfileCard: View {
                     .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
                 
                 VStack(spacing: 0) {
-                    // Image section - aligned to top
-                    ZStack(alignment: .topTrailing) {
+                    // Image section - 60% height
+                    ZStack(alignment: .topLeading) {
                         AsyncImage(url: URL(string: profile.imageURL)) { phase in
                             switch phase {
                             case .empty:
@@ -39,7 +55,7 @@ struct ProfileCard: View {
                                 image
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
-                                    .frame(width: geometry.size.width, height: geometry.size.height * 0.65)
+                                    .frame(width: geometry.size.width, height: geometry.size.height * 0.6)
                                     .clipped()
                             case .failure:
                                 ZStack {
@@ -51,7 +67,7 @@ struct ProfileCard: View {
                                 EmptyView()
                             }
                         }
-                        .frame(width: geometry.size.width, height: geometry.size.height * 0.65)
+                        .frame(width: geometry.size.width, height: geometry.size.height * 0.6, alignment: .top)
                         .clipShape(
                             UnevenRoundedRectangle(
                                 cornerRadii: RectangleCornerRadii(
@@ -71,7 +87,7 @@ struct ProfileCard: View {
                             startPoint: .top,
                             endPoint: .bottom
                         )
-                        .frame(width: geometry.size.width, height: geometry.size.height * 0.65)
+                        .frame(width: geometry.size.width, height: geometry.size.height * 0.6, alignment: .top)
                         .clipShape(
                             UnevenRoundedRectangle(
                                 cornerRadii: RectangleCornerRadii(
@@ -84,27 +100,85 @@ struct ProfileCard: View {
                         )
                         .allowsHitTesting(false)
                         
-                        if profile.verified {
-                            VerifiedBadge()
-                                .padding(.top, 16)
-                                .padding(.trailing, 16)
+                        // Badges - positioned to avoid overlap
+                        HStack {
+                            // Looking For Badge (top left)
+                            if shouldShowDatingBadge {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "heart.fill")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.white)
+                                    
+                                    Text("Dating")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.white)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [burntOrange, pink500]),
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .clipShape(Capsule())
+                            } else if shouldShowFriendsBadge {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "person.2.fill")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.white)
+                                    
+                                    Text("Friends")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.white)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [skyBlue, forestGreen]),
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .clipShape(Capsule())
+                            }
+                            
+                            Spacer()
+                            
+                            // Verified Badge (top right)
+                            if profile.verified {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(forestGreen)
+                                    
+                                    Text("Verified")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(charcoalColor)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.white.opacity(0.9))
+                                .clipShape(Capsule())
+                            }
                         }
+                        .padding(.top, 16)
+                        .padding(.horizontal, 16)
                     }
                     
                     // Content section
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 16) {
                         VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("\(profile.name), \(profile.age)")
-                                    .font(.system(size: 24, weight: .bold))
-                                    .foregroundColor(charcoalColor)
-                                
-                                Spacer()
-                            }
+                            Text("\(profile.name), \(profile.age)")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(charcoalColor)
                             
                             HStack(spacing: 4) {
-                                Image(systemName: "mappin")
-                                    .font(.system(size: 14))
+                                Image("map_pin")
+                                    .resizable()
+                                    .frame(width: 18, height: 18)
                                     .foregroundColor(charcoalColor.opacity(0.6))
                                 
                                 Text(profile.location)
@@ -119,17 +193,16 @@ struct ProfileCard: View {
                             .lineSpacing(4)
                             .fixedSize(horizontal: false, vertical: true)
                         
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(profile.tags, id: \.self) { tag in
-                                    Text(tag)
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(charcoalColor)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 6)
-                                        .background(desertSand)
-                                        .clipShape(Capsule())
-                                }
+                        // Tags
+                        HStack(spacing: 8) {
+                            ForEach(profile.tags, id: \.self) { tag in
+                                Text(tag)
+                                    .font(.system(size: 13))
+                                    .foregroundColor(charcoalColor)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(desertSand)
+                                    .clipShape(Capsule())
                             }
                         }
                         
@@ -139,7 +212,7 @@ struct ProfileCard: View {
                                 .foregroundColor(charcoalColor.opacity(0.6))
                             
                             Text(profile.nextDestination)
-                                .font(.system(size: 14, weight: .medium))
+                                .font(.system(size: 14))
                                 .foregroundColor(burntOrange)
                         }
                     }
@@ -148,8 +221,32 @@ struct ProfileCard: View {
                 }
             }
             .scaleEffect(scale)
-            .offset(y: offset)
-            .opacity(isTop ? 1.0 : 0.95)
+            .offset(x: isTop ? dragOffset.width : 0, y: offset + (isTop ? dragOffset.height : 0))
+            .rotationEffect(.degrees(isTop ? dragRotation : 0))
+            .opacity(isTop ? (1.0 - abs(dragOffset.width) / 500.0) : 0.95)
+            .gesture(
+                isTop ? DragGesture()
+                    .onChanged { value in
+                        dragOffset = value.translation
+                        dragRotation = Double(value.translation.width / 20)
+                    }
+                    .onEnded { value in
+                        if abs(value.translation.width) > 100 {
+                            onSwipe(value.translation.width > 0 ? .right : .left)
+                        } else {
+                            withAnimation(.spring()) {
+                                dragOffset = .zero
+                                dragRotation = 0
+                            }
+                        }
+                    }
+                : nil
+            )
+            .onTapGesture {
+                if isTop {
+                    onTap()
+                }
+            }
         }
     }
 }
@@ -166,11 +263,15 @@ struct ProfileCard: View {
             tags: ["Van Life", "Photography", "Surf", "Early Riser"],
             verified: true,
             lifestyle: "Van Life",
-            nextDestination: "Portland, OR"
+            nextDestination: "Portland, OR",
+            lookingFor: .both
         ),
         isTop: true,
+        mode: .friends,
         scale: 1.0,
-        offset: 0
+        offset: 0,
+        onSwipe: { _ in },
+        onTap: { }
     )
     .frame(height: 600)
     .padding()

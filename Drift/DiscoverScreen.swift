@@ -7,6 +7,12 @@
 
 import SwiftUI
 
+enum LookingFor: String {
+    case dating
+    case friends
+    case both
+}
+
 struct Profile: Identifiable {
     let id: Int
     let name: String
@@ -18,6 +24,12 @@ struct Profile: Identifiable {
     let verified: Bool
     let lifestyle: String
     let nextDestination: String
+    let lookingFor: LookingFor
+}
+
+enum DiscoverMode {
+    case dating
+    case friends
 }
 
 struct DiscoverScreen: View {
@@ -32,7 +44,8 @@ struct DiscoverScreen: View {
             tags: ["Van Life", "Photography", "Surf", "Early Riser"],
             verified: true,
             lifestyle: "Van Life",
-            nextDestination: "Portland, OR"
+            nextDestination: "Portland, OR",
+            lookingFor: .both
         ),
         Profile(
             id: 2,
@@ -44,7 +57,8 @@ struct DiscoverScreen: View {
             tags: ["Remote Dev", "Van Life", "Rock Climbing", "Tech"],
             verified: true,
             lifestyle: "Digital Nomad",
-            nextDestination: "Boulder, CO"
+            nextDestination: "Boulder, CO",
+            lookingFor: .both
         ),
         Profile(
             id: 3,
@@ -56,67 +70,197 @@ struct DiscoverScreen: View {
             tags: ["Yoga", "Writing", "Meditation", "Desert Life"],
             verified: false,
             lifestyle: "Van Life",
-            nextDestination: "Moab, UT"
+            nextDestination: "Moab, UT",
+            lookingFor: .dating
+        ),
+        Profile(
+            id: 4,
+            name: "Jake",
+            age: 29,
+            location: "Portland, OR",
+            imageURL: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800",
+            bio: "Outdoor enthusiast and coffee roaster. Always down for a weekend adventure or a chill camping trip.",
+            tags: ["Camping", "Coffee", "Mountain Biking", "Chill Vibes"],
+            verified: true,
+            lifestyle: "Van Life",
+            nextDestination: "Seattle, WA",
+            lookingFor: .friends
         )
     ]
     
     @State private var currentIndex: Int = 0
+    @State private var mode: DiscoverMode = .dating
     @State private var originalProfiles: [Profile] = []
+    @State private var selectedProfile: Profile? = nil
+    @State private var segmentIndex: Int = 0
     
-    private let softGray = Color(red: 0.96, green: 0.96, blue: 0.96)
-    private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
-    private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
-    private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
-    private let skyBlue = Color(red: 0.53, green: 0.81, blue: 0.92)
-    private let desertSand = Color(red: 0.96, green: 0.87, blue: 0.73)
+    private var segmentOptions: [SegmentOption] {
+        [
+            SegmentOption(
+                id: 0,
+                title: "Dating",
+                icon: "heart.fill",
+                activeGradient: LinearGradient(
+                    gradient: Gradient(colors: [burntOrange, pink500]),
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            ),
+            SegmentOption(
+                id: 1,
+                title: "Friends",
+                icon: "person.2.fill",
+                activeGradient: LinearGradient(
+                    gradient: Gradient(colors: [skyBlue, forestGreen]),
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+        ]
+    }
+    
+    private let softGray = Color("SoftGray")
+    private let charcoalColor = Color("Charcoal")
+    private let burntOrange = Color("BurntOrange")
+    private let forestGreen = Color("ForestGreen")
+    private let skyBlue = Color("SkyBlue")
+    private let desertSand = Color("DesertSand")
+    private let pink500 = Color(red: 0.93, green: 0.36, blue: 0.51) // Keep pink500 as is since it's not in assets
+    
+    private var currentCard: Profile? {
+        guard currentIndex < profiles.count else { return nil }
+        return profiles[currentIndex]
+    }
+    
+    private func updateSegmentIndex() {
+        segmentIndex = mode == .dating ? 0 : 1
+    }
+    
+    private func handleSwipe(direction: SwipeDirection) {
+        if currentIndex < profiles.count - 1 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                currentIndex += 1
+            }
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                currentIndex = 0
+                profiles = originalProfiles
+            }
+        }
+    }
     
     var body: some View {
         ZStack {
             softGray
                 .ignoresSafeArea()
             
-            GeometryReader { geometry in
-                if currentIndex < profiles.count {
-                    ZStack {
-                        ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
-                            if index >= currentIndex && index < currentIndex + 2 {
-                                let offset = index - currentIndex
-                                let isTop = offset == 0
-                                
-                                ProfileCard(
-                                    profile: profile,
-                                    isTop: isTop,
-                                    scale: 1.0 - Double(offset) * 0.05,
-                                    offset: Double(offset) * -10
-                                )
-                                .zIndex(Double(profiles.count - index))
+            VStack(spacing: 0) {
+                // Mode Toggle
+                SegmentToggle(
+                    options: segmentOptions,
+                    selectedIndex: Binding(
+                        get: { segmentIndex },
+                        set: { newIndex in
+                            segmentIndex = newIndex
+                            mode = newIndex == 0 ? .dating : .friends
+                        }
+                    )
+                )
+                .frame(maxWidth: 448) // max-w-md equivalent
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 16)
+                
+                // Content based on mode
+                .onChange(of: mode) { _ in
+                    updateSegmentIndex()
+                }
+                .onAppear {
+                    updateSegmentIndex()
+                }
+                
+                if mode == .friends {
+                    FriendsScreen()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    // Card Stack for Dating
+                    GeometryReader { geometry in
+                        HStack {
+                            Spacer()
+                            
+                            if let card = currentCard {
+                                ZStack {
+                                    // Show up to 2 cards
+                                    ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
+                                        if index >= currentIndex && index < currentIndex + 2 {
+                                            let offset = index - currentIndex
+                                            let isTop = offset == 0
+                                            
+                                            ProfileCard(
+                                                profile: profile,
+                                                isTop: isTop,
+                                                mode: mode,
+                                                scale: 1.0 - Double(offset) * 0.05,
+                                                offset: Double(offset) * -10,
+                                                onSwipe: handleSwipe,
+                                                onTap: {
+                                                    if mode == .dating {
+                                                        selectedProfile = profile
+                                                    }
+                                                }
+                                            )
+                                            .zIndex(Double(profiles.count - index))
+                                        }
+                                    }
+                                }
+                                .frame(width: min(448, geometry.size.width - 16))
+                                .frame(height: geometry.size.height)
+                            } else {
+                                VStack {
+                                    Spacer()
+                                    Text("No more profiles")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(charcoalColor.opacity(0.6))
+                                    Spacer()
+                                }
                             }
+                            
+                            Spacer()
                         }
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: geometry.size.height - 50)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 10)
-                    .padding(.bottom, 16)
-                } else {
-                    VStack {
-                        Spacer()
-                        Text("No more profiles")
-                            .font(.system(size: 16))
-                            .foregroundColor(charcoalColor.opacity(0.6))
-                        Spacer()
-                    }
+                    .padding(.horizontal, 8)
+                    .offset(y: -8)
                 }
+                
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear {
             originalProfiles = profiles
         }
+        .fullScreenCover(item: $selectedProfile) { profile in
+            ProfileDetailView(
+                profile: profile,
+                isOpen: Binding(
+                    get: { selectedProfile != nil },
+                    set: { if !$0 { selectedProfile = nil } }
+                ),
+                onLike: {
+                    handleSwipe(direction: .right)
+                },
+                onPass: {
+                    handleSwipe(direction: .left)
+                }
+            )
+        }
     }
-    
 }
 
+enum SwipeDirection {
+    case left
+    case right
+    case up
+}
 
 #Preview {
     DiscoverScreen()

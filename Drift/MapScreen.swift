@@ -60,6 +60,8 @@ class MapLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
 }
 
 struct MapScreen: View {
+    var embedded: Bool = false
+    
     @StateObject private var locationManager = MapLocationManager()
     @State private var nearbyUsers: [NearbyUser] = []
     

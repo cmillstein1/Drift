@@ -16,8 +16,8 @@ struct BottomNav: View {
     
     private let tabs: [TabItem] = [
         TabItem(id: "discover", label: "Discover", icon: "heart"),
-        TabItem(id: "map", label: "Map", icon: "map"),
         TabItem(id: "activities", label: "Activities", icon: "calendar"),
+        TabItem(id: "builder", label: "Builder", icon: "wrench"),
         TabItem(id: "messages", label: "Messages", icon: "message"),
         TabItem(id: "profile", label: "Profile", icon: "person")
     ]
@@ -34,12 +34,12 @@ struct BottomNav: View {
                     }) {
                         VStack(spacing: 4) {
                             Image(systemName: tab.icon)
-                                .font(.system(size: 24, weight: .medium))
+                                .font(.system(size: 24, weight: .regular))
                                 .foregroundColor(activeTab == tab.id ? burntOrange : charcoal.opacity(0.4))
                                 .animation(.easeInOut(duration: 0.2), value: activeTab)
                             
                             Text(tab.label)
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.system(size: 12, weight: .regular))
                                 .foregroundColor(activeTab == tab.id ? burntOrange : charcoal.opacity(0.4))
                                 .animation(.easeInOut(duration: 0.2), value: activeTab)
                         }

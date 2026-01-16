@@ -19,8 +19,33 @@ struct Activity: Identifiable {
     let imageURL: String
 }
 
+enum ActivityView {
+    case list
+    case map
+}
+
 struct ActivitiesScreen: View {
     @State private var showCreateSheet = false
+    @State private var view: ActivityView = .list
+    @State private var segmentIndex: Int = 0
+    
+    private var segmentOptions: [SegmentOption] {
+        [
+            SegmentOption(
+                id: 0,
+                title: "List",
+                icon: "list.bullet",
+                activeColor: burntOrange
+            ),
+            SegmentOption(
+                id: 1,
+                title: "Map",
+                icon: "map",
+                activeColor: burntOrange
+            )
+        ]
+    }
+    
     @State private var activities: [Activity] = [
         Activity(
             id: 1,
@@ -72,10 +97,10 @@ struct ActivitiesScreen: View {
     
     private let categories = ["All", "Outdoor", "Work", "Social", "Food & Drink"]
     
-    private let softGray = Color(red: 0.96, green: 0.96, blue: 0.96)
-    private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
-    private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
-    private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
+    private let softGray = Color("SoftGray")
+    private let charcoalColor = Color("Charcoal")
+    private let burntOrange = Color("BurntOrange")
+    private let forestGreen = Color("ForestGreen")
     
     var filteredActivities: [Activity] {
         if selectedCategory == "All" {
@@ -89,12 +114,13 @@ struct ActivitiesScreen: View {
             softGray
                 .ignoresSafeArea()
             
-            ScrollView {
+            VStack(spacing: 0) {
+                // Sticky Header with Toggle
                 VStack(spacing: 0) {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Activities")
-                                .font(.system(size: 32, weight: .bold))
+                                .font(.system(size: 24, weight: .bold))
                                 .foregroundColor(charcoalColor)
                             
                             Text("Join or create meetups")
@@ -108,7 +134,7 @@ struct ActivitiesScreen: View {
                             showCreateSheet = true
                         }) {
                             Image(systemName: "plus")
-                                .font(.system(size: 24, weight: .semibold))
+                                .font(.system(size: 20, weight: .semibold))
                                 .foregroundColor(.white)
                                 .frame(width: 48, height: 48)
                                 .background(burntOrange)
@@ -118,33 +144,69 @@ struct ActivitiesScreen: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 12)
                     
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(categories, id: \.self) { category in
-                                CategoryButton(
-                                    title: category,
-                                    isSelected: selectedCategory == category,
-                                    onTap: {
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                            selectedCategory = category
-                                        }
-                                    }
-                                )
+                    // List/Map Toggle
+                    SegmentToggle(
+                        options: segmentOptions,
+                        selectedIndex: Binding(
+                            get: { segmentIndex },
+                            set: { newIndex in
+                                segmentIndex = newIndex
+                                view = newIndex == 0 ? .list : .map
                             }
-                        }
-                        .padding(.horizontal, 16)
-                    }
-                    .padding(.bottom, 24)
-                    
-                    VStack(spacing: 16) {
-                        ForEach(filteredActivities) { activity in
-                            ActivityCard(activity: activity)
+                        )
+                    )
+                    .frame(height: 44)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+                }
+                .background(softGray)
+                
+                // Content
+                .onChange(of: view) { _ in
+                    segmentIndex = view == .list ? 0 : 1
+                }
+                .onAppear {
+                    segmentIndex = view == .list ? 0 : 1
+                }
+                
+                if view == .map {
+                    MapScreen(embedded: true)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            // Category Filters
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(categories, id: \.self) { category in
+                                        CategoryButton(
+                                            title: category,
+                                            isSelected: selectedCategory == category,
+                                            onTap: {
+                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                    selectedCategory = category
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
                                 .padding(.horizontal, 16)
+                            }
+                            .padding(.top, 16)
+                            .padding(.bottom, 16)
+                            
+                            // Activities List
+                            VStack(spacing: 16) {
+                                ForEach(filteredActivities) { activity in
+                                    ActivityCard(activity: activity)
+                                        .padding(.horizontal, 16)
+                                }
+                            }
+                            .padding(.bottom, 100)
                         }
                     }
-                    .padding(.bottom, 100)
                 }
             }
             
@@ -169,146 +231,6 @@ struct ActivitiesScreen: View {
                 .presentationDragIndicator(.visible)
             }
         }
-    }
-}
-
-struct CategoryButton: View {
-    let title: String
-    let isSelected: Bool
-    let onTap: () -> Void
-    
-    private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
-    
-    var body: some View {
-        Button(action: onTap) {
-            Text(title)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(isSelected ? .white : charcoalColor)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(
-                    Capsule()
-                        .fill(isSelected ? charcoalColor : Color.white)
-                )
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}
-
-struct ActivityCard: View {
-    let activity: Activity
-    
-    private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
-    private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
-    private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            ZStack(alignment: .topTrailing) {
-                AsyncImage(url: URL(string: activity.imageURL)) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    ZStack {
-                        Color.gray.opacity(0.2)
-                        ProgressView()
-                    }
-                }
-                .frame(height: 160)
-                .clipped()
-                
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color.clear,
-                        Color.black.opacity(0.4)
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 160)
-                
-                Text(activity.category)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(charcoalColor)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(Color.white.opacity(0.9))
-                            .background(.ultraThinMaterial)
-                    )
-                    .padding(.top, 12)
-                    .padding(.trailing, 12)
-            }
-            
-            VStack(alignment: .leading, spacing: 12) {
-                Text(activity.title)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(charcoalColor)
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "mappin")
-                            .font(.system(size: 14))
-                            .foregroundColor(charcoalColor.opacity(0.6))
-                        
-                        Text(activity.location)
-                            .font(.system(size: 14))
-                            .foregroundColor(charcoalColor.opacity(0.6))
-                    }
-                    
-                    HStack(spacing: 8) {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 14))
-                            .foregroundColor(charcoalColor.opacity(0.6))
-                        
-                        Text(activity.date)
-                            .font(.system(size: 14))
-                            .foregroundColor(charcoalColor.opacity(0.6))
-                    }
-                    
-                    HStack(spacing: 8) {
-                        Image(systemName: "person.2.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(charcoalColor.opacity(0.6))
-                        
-                        Text("\(activity.attendees)/\(activity.maxAttendees) going")
-                            .font(.system(size: 14))
-                            .foregroundColor(charcoalColor.opacity(0.6))
-                    }
-                }
-                
-                HStack {
-                    HStack(spacing: 0) {
-                        Text("Hosted by ")
-                            .font(.system(size: 14))
-                            .foregroundColor(charcoalColor.opacity(0.6))
-                        Text(activity.host)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(burntOrange)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        // Handle join
-                    }) {
-                        Text("Join")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 8)
-                            .background(forestGreen)
-                            .clipShape(Capsule())
-                    }
-                }
-            }
-            .padding(20)
-            .background(Color.white)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 24))
-        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
     }
 }
 

@@ -93,6 +93,9 @@ iOSInjectionProject/
 **/SupabaseConfig.swift
 Drift/Network/SupabaseConfig.swift
 Drift/SupabaseConfig.swift
+**/CampflareConfig.swift
+Drift/Network/CampflareConfig.swift
+Drift/CampflareConfig.swift
 *.env
 .env.local
 .env.*.local

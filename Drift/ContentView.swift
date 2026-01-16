@@ -23,6 +23,8 @@ struct ContentView: View {
                         MapScreen()
                     case "activities":
                         ActivitiesScreen()
+                    case "builder":
+                        BuilderScreen()
                     case "messages":
                         MessagesScreen()
                     case "profile":
