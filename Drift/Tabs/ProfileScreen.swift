@@ -12,6 +12,7 @@ struct ProfileScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var revenueCatManager = RevenueCatManager.shared
     @State private var isSigningOut = false
+    @State private var showEditProfileSheet = false
     
     private let softGray = Color(red: 0.96, green: 0.96, blue: 0.96)
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
@@ -51,6 +52,7 @@ struct ProfileScreen: View {
                         )
                         .frame(height: 256)
                         
+                        // Settings button - top right
                         Button(action: {
                             // Handle settings
                         }) {
@@ -67,28 +69,38 @@ struct ProfileScreen: View {
                         .padding(.top, 16)
                         .padding(.trailing, 16)
                         
-                        Button(action: {
-                            // Handle edit profile
-                        }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "pencil")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(charcoalColor)
-                                
-                                Text("Edit Profile")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(charcoalColor)
+                        // Edit Profile button - bottom right
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Spacer()
+                                Button(action: {
+                                    showEditProfileSheet = true
+                                }) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "pencil")
+                                            .font(.system(size: 16))
+                                            .foregroundColor(charcoalColor)
+                                        
+                                        Text("Edit Profile")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(charcoalColor)
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.white)
+                                            .overlay(
+                                                Capsule()
+                                                    .stroke(charcoalColor.opacity(0.1), lineWidth: 1)
+                                            )
+                                    )
+                                }
+                                .padding(.bottom, 16)
+                                .padding(.trailing, 16)
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(
-                                Capsule()
-                                    .fill(Color.white)
-                            )
                         }
-                        .padding(.bottom, 16)
-                        .padding(.trailing, 16)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     
                     VStack(spacing: 0) {
@@ -288,6 +300,11 @@ struct ProfileScreen: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showEditProfileSheet) {
+            EditProfileSheet(isPresented: $showEditProfileSheet)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
     
