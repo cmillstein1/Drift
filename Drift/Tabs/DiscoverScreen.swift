@@ -33,6 +33,7 @@ enum DiscoverMode {
 }
 
 struct DiscoverScreen: View {
+    @ObservedObject private var supabaseManager = SupabaseManager.shared
     @State private var profiles: [Profile] = [
         Profile(
             id: 1,
@@ -154,35 +155,40 @@ struct DiscoverScreen: View {
             softGray
                 .ignoresSafeArea()
             
-            VStack(spacing: 0) {
-                // Mode Toggle
-                SegmentToggle(
-                    options: segmentOptions,
-                    selectedIndex: Binding(
-                        get: { segmentIndex },
-                        set: { newIndex in
-                            segmentIndex = newIndex
-                            mode = newIndex == 0 ? .dating : .friends
-                        }
+            // Check if user is friendsOnly - if so, show FriendsScreen directly
+            if supabaseManager.isFriendsOnly() {
+                FriendsScreen()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                VStack(spacing: 0) {
+                    // Mode Toggle
+                    SegmentToggle(
+                        options: segmentOptions,
+                        selectedIndex: Binding(
+                            get: { segmentIndex },
+                            set: { newIndex in
+                                segmentIndex = newIndex
+                                mode = newIndex == 0 ? .dating : .friends
+                            }
+                        )
                     )
-                )
-                .frame(maxWidth: 448) // max-w-md equivalent
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 16)
-                
-                // Content based on mode
-                .onChange(of: mode) { _ in
-                    updateSegmentIndex()
-                }
-                .onAppear {
-                    updateSegmentIndex()
-                }
-                
-                if mode == .friends {
-                    FriendsScreen()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
+                    .frame(maxWidth: 448) // max-w-md equivalent
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 16)
+                    
+                    // Content based on mode
+                    .onChange(of: mode) { _ in
+                        updateSegmentIndex()
+                    }
+                    .onAppear {
+                        updateSegmentIndex()
+                    }
+                    
+                    if mode == .friends {
+                        FriendsScreen()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
                     // Card Stack for Dating
                     GeometryReader { geometry in
                         HStack {
@@ -230,7 +236,7 @@ struct DiscoverScreen: View {
                     .padding(.horizontal, 8)
                     .offset(y: -8)
                 }
-                
+                }
             }
         }
         .onAppear {
