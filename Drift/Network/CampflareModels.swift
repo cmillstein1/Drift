@@ -14,7 +14,7 @@ struct Campground: Codable, Identifiable {
     let name: String
     let status: String
     let statusDescription: String?
-    let kind: String
+    let kind: String?
     let shortDescription: String?
     let mediumDescription: String?
     let longDescription: String?
@@ -114,6 +114,7 @@ struct CellService: Codable {
     let verizon: Double?
     let tmobile: Double?
     let att: Double?
+    let uscell: Double?
 }
 
 struct Management: Codable {
@@ -191,16 +192,26 @@ struct Availability: Codable {
 
 // MARK: - Search Models
 
+struct BoundingBox: Codable {
+    let minLatitude: Double
+    let maxLatitude: Double
+    let minLongitude: Double
+    let maxLongitude: Double
+}
+
 struct CampgroundSearchRequest: Codable {
-    let latitude: Double?
-    let longitude: Double?
-    let radius: Double?
-    let state: String?
-    let stateCode: String?
-    let kind: String?
-    let amenities: [String]?
+    let query: String?
     let limit: Int?
-    let offset: Int?
+    let amenities: [String]?
+    let minimumRvLength: Double?
+    let minimumTrailerLength: Double?
+    let bigRigFriendly: Bool?
+    let cellService: [String]?
+    let status: String?
+    let kind: String?
+    let campsiteKinds: [String]?
+    let bbox: BoundingBox?
+    let v1CampgroundId: String?
 }
 
 struct CampgroundSearchResponse: Codable {

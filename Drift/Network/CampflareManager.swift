@@ -61,20 +61,74 @@ class CampflareManager: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         
         do {
+            // Debug logging
+            let separator = String(repeating: "=", count: 80)
+            print(separator)
+            print("CAMPFLARE GET CAMPGROUND REQUEST")
+            print(separator)
+            print("URL: \(urlString)")
+            print("Method: GET")
+            print("Authorization: \(apiKey.prefix(30))...")
+            print(String(repeating: "-", count: 80))
+            
             let (data, response) = try await URLSession.shared.data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse else {
+                print("ERROR: Invalid response type")
                 throw CampflareError.invalidResponse
             }
             
+            print("Response Status: \(httpResponse.statusCode)")
+            print("Response Headers:")
+            for (key, value) in httpResponse.allHeaderFields {
+                print("  - \(key): \(value)")
+            }
+            
+            print("Response Data Length: \(data.count) bytes")
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("Response Body:")
+                print(responseString)
+            } else {
+                print("Response Body: (unable to decode as UTF-8)")
+            }
+            print(separator)
+            
             try validateResponse(httpResponse)
+            
+            // Check if data is empty
+            if data.isEmpty {
+                print("⚠️ WARNING: Response data is empty")
+                throw CampflareError.decodingError(NSError(domain: "Campflare", code: -1, userInfo: [NSLocalizedDescriptionKey: "Empty response data"]))
+            }
             
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
-            return try decoder.decode(Campground.self, from: data)
+            
+            do {
+                return try decoder.decode(Campground.self, from: data)
+            } catch {
+                print("❌ Decoding Error: \(error)")
+                if let decodingError = error as? DecodingError {
+                    print("Decoding Error Details:")
+                    switch decodingError {
+                    case .typeMismatch(let type, let context):
+                        print("  Type Mismatch: Expected \(type), at \(context.codingPath)")
+                    case .valueNotFound(let type, let context):
+                        print("  Value Not Found: \(type), at \(context.codingPath)")
+                    case .keyNotFound(let key, let context):
+                        print("  Key Not Found: \(key), at \(context.codingPath)")
+                    case .dataCorrupted(let context):
+                        print("  Data Corrupted: \(context)")
+                    @unknown default:
+                        print("  Unknown decoding error")
+                    }
+                }
+                throw CampflareError.decodingError(error)
+            }
         } catch let error as CampflareError {
             throw error
         } catch {
+            print("❌ Network Error: \(error.localizedDescription)")
             throw CampflareError.networkError(error)
         }
     }
@@ -160,69 +214,79 @@ class CampflareManager: ObservableObject {
     
     // MARK: - Search Campgrounds
     
-    // NOTE: Search endpoint uses plural /campgrounds/search (unlike other endpoints which are singular)
-    // This endpoint is used to find corresponding V2 campground IDs from V1 listings
+    // NOTE: Search endpoint uses POST with JSON body (not GET with query parameters)
+    // Endpoint: POST /campgrounds/search
     func searchCampgrounds(request: CampgroundSearchRequest) async throws -> CampgroundSearchResponse {
-        // Build query parameters
-        // Search endpoint uses plural /campgrounds/search
-        var components = URLComponents(string: "\(baseURL)/campgrounds/search")
-        var queryItems: [URLQueryItem] = []
-        
-        if let latitude = request.latitude {
-            queryItems.append(URLQueryItem(name: "latitude", value: String(latitude)))
-        }
-        if let longitude = request.longitude {
-            queryItems.append(URLQueryItem(name: "longitude", value: String(longitude)))
-        }
-        if let radius = request.radius {
-            queryItems.append(URLQueryItem(name: "radius", value: String(radius)))
-        }
-        if let state = request.state {
-            queryItems.append(URLQueryItem(name: "state", value: state))
-        }
-        if let stateCode = request.stateCode {
-            queryItems.append(URLQueryItem(name: "state_code", value: stateCode))
-        }
-        if let kind = request.kind {
-            queryItems.append(URLQueryItem(name: "kind", value: kind))
-        }
-        if let amenities = request.amenities, !amenities.isEmpty {
-            queryItems.append(URLQueryItem(name: "amenities", value: amenities.joined(separator: ",")))
-        }
-        if let limit = request.limit {
-            queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
-        }
-        if let offset = request.offset {
-            queryItems.append(URLQueryItem(name: "offset", value: String(offset)))
-        }
-        
-        components?.queryItems = queryItems.isEmpty ? nil : queryItems
-        
-        guard let url = components?.url else {
+        let urlString = "\(baseURL)/campgrounds/search"
+        guard let url = URL(string: urlString) else {
             throw CampflareError.invalidURL
         }
         
         var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = "GET"
+        urlRequest.httpMethod = "POST"
         urlRequest.setValue(apiKey, forHTTPHeaderField: "Authorization")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
         
+        // Encode request as JSON body
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        urlRequest.httpBody = try encoder.encode(request)
+        
         do {
-            // Debug: Print request details
-            print("🔍 Campflare Search Request URL: \(url.absoluteString)")
-            print("🔍 Campflare Authorization Header: \(apiKey.prefix(20))...") // Print first 20 chars for debugging
+            // Detailed logging for Campflare support
+            let separator = String(repeating: "=", count: 80)
+            print(separator)
+            print("CAMPFLARE API REQUEST DEBUG LOG")
+            print(separator)
+            print("Timestamp: \(Date())")
+            print("Endpoint: SEARCH CAMPGROUNDS")
+            print("Base URL: \(baseURL)")
+            print("Full Request URL: \(urlString)")
+            print("HTTP Method: POST")
+            print("Request Headers:")
+            print("  - Authorization: \(apiKey.prefix(30))... (truncated for security)")
+            print("  - Content-Type: application/json")
+            print("  - Accept: application/json")
+            if let httpBody = urlRequest.httpBody,
+               let bodyString = String(data: httpBody, encoding: .utf8) {
+                print("Request Body:")
+                print(bodyString)
+            }
+            print(String(repeating: "-", count: 80))
             
             let (data, response) = try await URLSession.shared.data(for: urlRequest)
             
             guard let httpResponse = response as? HTTPURLResponse else {
+                print("ERROR: Invalid response type")
                 throw CampflareError.invalidResponse
             }
             
-            // Debug: Print response details
-            print("🔍 Campflare Response Status: \(httpResponse.statusCode)")
-            if let responseString = String(data: data, encoding: .utf8) {
-                print("🔍 Campflare Response Body: \(responseString)")
+            print("Response Status Code: \(httpResponse.statusCode)")
+            print("Response Headers:")
+            for (key, value) in httpResponse.allHeaderFields {
+                print("  - \(key): \(value)")
             }
+            
+            let responseString = String(data: data, encoding: .utf8) ?? "(unable to decode)"
+            print("Response Body:")
+            print(responseString)
+            
+            // Check for 405 specifically
+            if httpResponse.statusCode == 405 {
+                print(separator)
+                print("⚠️ 405 METHOD NOT ALLOWED ERROR")
+                print(separator)
+                print("The endpoint returned 405, indicating the HTTP method is not allowed.")
+                print("Request Details:")
+                print("  - URL: \(url.absoluteString)")
+                print("  - Method: GET")
+                print("  - Expected: The search endpoint should accept GET requests")
+                print("  - Issue: Either the endpoint doesn't exist, or it requires a different method")
+                print(separator)
+            }
+            
+            print(separator)
             
             try validateResponse(httpResponse)
             

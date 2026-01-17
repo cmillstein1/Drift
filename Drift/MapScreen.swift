@@ -63,6 +63,11 @@ struct MapScreen: View {
     @State private var hasCenteredOnUser = false
     @State private var cameraPosition: MapCameraPosition = .automatic
     
+    // Track search center and radius
+    @State private var searchCenter: CLLocationCoordinate2D?
+    @State private var searchRadiusMiles: Double = 200.0
+    @State private var showSearchHereButton = false
+    
     private let softGray = Color("SoftGray")
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
@@ -93,27 +98,10 @@ struct MapScreen: View {
             .ignoresSafeArea()
             .onMapCameraChange { context in
                 let newRegion = context.region
-                let previousDelta = currentRegion?.span.latitudeDelta ?? 0
                 currentRegion = newRegion
                 
-                // Check if zoomed out enough to show all US campgrounds (latitudeDelta > 20 degrees)
-                if newRegion.span.latitudeDelta > 20.0 {
-                    // Zoomed out to show entire US, fetch all campgrounds
-                    if previousDelta <= 20.0 || campgrounds.isEmpty {
-                        print("🗺️ Zoomed out - fetching all US campgrounds (delta: \(newRegion.span.latitudeDelta))")
-                        Task {
-                            await fetchAllUSCampgrounds()
-                        }
-                    }
-                } else if newRegion.span.latitudeDelta < 1.0 {
-                    // Zoomed in, fetch nearby campgrounds based on map center
-                    let centerLat = newRegion.center.latitude
-                    let centerLng = newRegion.center.longitude
-                    print("🗺️ Zoomed in - fetching nearby campgrounds (delta: \(newRegion.span.latitudeDelta), center: \(centerLat), \(centerLng))")
-                    Task {
-                        await fetchNearbyCampgrounds(latitude: centerLat, longitude: centerLng)
-                    }
-                }
+                // Check if user has moved outside the search radius
+                checkIfOutsideSearchRadius(center: newRegion.center)
             }
             
             VStack {
@@ -151,38 +139,38 @@ struct MapScreen: View {
                 
                 Spacer()
                 
-                // Show message if no campgrounds found
-                if campgrounds.isEmpty && !isLoadingCampgrounds {
-                    VStack(spacing: 12) {
-                        Image(systemName: "tent.fill")
-                            .font(.system(size: 48))
-                            .foregroundColor(charcoalColor.opacity(0.3))
-                        
-                        Text("No Campgrounds Found")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(charcoalColor)
-                        
-                        Text("The Campflare API isn't returning data. This may be due to API key permissions or data availability.")
-                            .font(.system(size: 14))
-                            .foregroundColor(charcoalColor.opacity(0.6))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
-                    }
-                    .padding(.vertical, 32)
-                    .padding(.bottom, 100)
-                }
+                // Map pins are displayed via ForEach above
                 
-                if let selectedCampground = selectedCampground {
-                    CampgroundCard(campground: selectedCampground) {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            self.selectedCampground = nil
+                // "Search here" button when outside search radius
+                if showSearchHereButton, let currentCenter = currentRegion?.center {
+                    VStack {
+                        Spacer()
+                        Button(action: {
+                            Task {
+                                await fetchCampgroundsForLocation(center: currentCenter)
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("Search here")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 14)
+                            .background(burntOrange)
+                            .clipShape(Capsule())
+                            .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
                         }
+                        .padding(.bottom, 100)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 100)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
+        }
+        .sheet(item: $selectedCampground) { campground in
+            CampgroundDetailSheet(campground: campground)
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
@@ -199,7 +187,7 @@ struct MapScreen: View {
             }
         }
         .onChange(of: locationManager.locationUpdated) { oldValue, newValue in
-            // When location is updated, center map
+            // When location is updated, center map and fetch campgrounds
             if let location = locationManager.userLocation {
                 // Center on user location only on first update
                 if !hasCenteredOnUser {
@@ -208,9 +196,14 @@ struct MapScreen: View {
                         cameraPosition = .region(
                             MKCoordinateRegion(
                                 center: location,
-                                span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
+                                span: MKCoordinateSpan(latitudeDelta: 2.0, longitudeDelta: 2.0)
                             )
                         )
+                    }
+                    
+                    // Fetch campgrounds for user's location
+                    Task {
+                        await fetchCampgroundsForLocation(center: location)
                     }
                 }
             }
@@ -229,145 +222,95 @@ struct MapScreen: View {
         }
     }
     
-    // Fetch nearby campgrounds from Campflare API
-    private func fetchNearbyCampgrounds(latitude: Double, longitude: Double) async {
+    // Fetch a single campground by ID from Campflare API
+    private func fetchCampground(id: String) async {
         isLoadingCampgrounds = true
         
         do {
-            // Try with a larger radius first (200km) to increase chances of finding campgrounds
-            let searchRequest = CampgroundSearchRequest(
-                latitude: latitude,
-                longitude: longitude,
-                radius: 200, // Increased to 200 km radius
-                state: nil,
-                stateCode: nil,
-                kind: nil,
-                amenities: nil,
-                limit: 100,
-                offset: nil
-            )
+            let campground = try await CampflareManager.shared.getCampground(id: id)
             
-            let response = try await CampflareManager.shared.searchCampgrounds(request: searchRequest)
-            
-            print("📍 Found \(response.campgrounds.count) campgrounds near (\(latitude), \(longitude))")
+            print("✅ Successfully fetched campground: \(campground.name) (ID: \(campground.id))")
             
             await MainActor.run {
-                self.campgrounds = response.campgrounds
+                self.campgrounds = [campground]
                 self.isLoadingCampgrounds = false
             }
         } catch {
-            print("❌ Error fetching campgrounds: \(error.localizedDescription)")
+            print("❌ Error fetching campground: \(error.localizedDescription)")
             await MainActor.run {
                 self.isLoadingCampgrounds = false
             }
         }
     }
     
-    // Fetch all US campgrounds (when zoomed out)
-    private func fetchAllUSCampgrounds() async {
+    // Calculate bounding box from center point and radius in miles
+    private func boundingBox(center: CLLocationCoordinate2D, radiusMiles: Double) -> BoundingBox {
+        // 1 degree of latitude ≈ 69 miles
+        // 1 degree of longitude ≈ 69 miles * cos(latitude)
+        let latDelta = radiusMiles / 69.0
+        let lonDelta = radiusMiles / (69.0 * cos(center.latitude * .pi / 180.0))
+        
+        return BoundingBox(
+            minLatitude: center.latitude - latDelta,
+            maxLatitude: center.latitude + latDelta,
+            minLongitude: center.longitude - lonDelta,
+            maxLongitude: center.longitude + lonDelta
+        )
+    }
+    
+    // Calculate distance between two coordinates in miles
+    private func distanceInMiles(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) -> Double {
+        let fromLocation = CLLocation(latitude: from.latitude, longitude: from.longitude)
+        let toLocation = CLLocation(latitude: to.latitude, longitude: to.longitude)
+        return fromLocation.distance(from: toLocation) / 1609.34 // Convert meters to miles
+    }
+    
+    // Check if current map center is outside the search radius
+    private func checkIfOutsideSearchRadius(center: CLLocationCoordinate2D) {
+        guard let searchCenter = searchCenter else { return }
+        
+        let distance = distanceInMiles(from: searchCenter, to: center)
+        showSearchHereButton = distance > searchRadiusMiles
+    }
+    
+    // Fetch campgrounds for a specific location
+    private func fetchCampgroundsForLocation(center: CLLocationCoordinate2D) async {
         guard !isFetchingAllUS else { return }
         isFetchingAllUS = true
         isLoadingCampgrounds = true
-        print("🌲 Starting to fetch all US campgrounds...")
+        showSearchHereButton = false
+        
+        print("🌲 Fetching campgrounds within 200 miles of (\(center.latitude), \(center.longitude))...")
+        
+        let bbox = boundingBox(center: center, radiusMiles: searchRadiusMiles)
+        
+        let searchRequest = CampgroundSearchRequest(
+            query: nil,
+            limit: 100,
+            amenities: nil,
+            minimumRvLength: nil,
+            minimumTrailerLength: nil,
+            bigRigFriendly: nil,
+            cellService: nil,
+            status: "open",
+            kind: nil,
+            campsiteKinds: nil,
+            bbox: bbox,
+            v1CampgroundId: nil
+        )
         
         do {
-            // Try fetching by popular states with lots of campgrounds
-            // This is a workaround since searching without constraints returns empty
-            let states = ["CA", "CO", "UT", "AZ", "OR", "WA", "MT", "WY", "ID", "NV", "NM", "TX", "FL", "NC", "VA", "NY", "ME", "VT", "NH", "MI"]
-            var allCampgrounds: [Campground] = []
-            var processedStates = 0
-            
-            // Try searching by popular camping locations first to test if API has data
-            let popularLocations: [(lat: Double, lng: Double, name: String)] = [
-                (37.8651, -119.5383, "Yosemite, CA"),
-                (36.1069, -112.1129, "Grand Canyon, AZ"),
-                (40.3428, -105.6836, "Rocky Mountain NP, CO"),
-                (44.4280, -110.5885, "Yellowstone, WY"),
-                (38.9072, -77.0369, "Washington DC area"),
-                (34.0522, -118.2437, "Los Angeles, CA"),
-                (40.7128, -74.0060, "New York, NY"),
-                (47.6062, -122.3321, "Seattle, WA"),
-                (45.5152, -122.6784, "Portland, OR"),
-                (39.7392, -104.9903, "Denver, CO")
-            ]
-            
-            // First, try searching by popular locations
-            for location in popularLocations {
-                print("🌲 Searching near \(location.name) (\(location.lat), \(location.lng))")
-                
-                let searchRequest = CampgroundSearchRequest(
-                    latitude: location.lat,
-                    longitude: location.lng,
-                    radius: 100, // 100 km radius
-                    state: nil,
-                    stateCode: nil,
-                    kind: nil,
-                    amenities: nil,
-                    limit: 50,
-                    offset: nil
-                )
-                
-                do {
-                    let response = try await CampflareManager.shared.searchCampgrounds(request: searchRequest)
-                    print("🌲 \(location.name) returned \(response.campgrounds.count) campgrounds")
-                    allCampgrounds.append(contentsOf: response.campgrounds)
-                    
-                    // Limit total to prevent performance issues
-                    if allCampgrounds.count >= 500 {
-                        print("🌲 Reached limit of 500 campgrounds, stopping")
-                        break
-                    }
-                } catch {
-                    print("⚠️ Error fetching for \(location.name): \(error.localizedDescription)")
-                    continue
-                }
-            }
-            
-            // If we still don't have enough, try by state codes
-            if allCampgrounds.count < 100 {
-                print("🌲 Trying state-based search as fallback...")
-                for stateCode in states.prefix(10) { // Limit to first 10 states
-                    processedStates += 1
-                    print("🌲 Fetching campgrounds for state: \(stateCode) (\(processedStates)/10)")
-                    
-                    let searchRequest = CampgroundSearchRequest(
-                        latitude: nil,
-                        longitude: nil,
-                        radius: nil,
-                        state: nil,
-                        stateCode: stateCode,
-                        kind: nil,
-                        amenities: nil,
-                        limit: 100,
-                        offset: nil
-                    )
-                    
-                    do {
-                        let response = try await CampflareManager.shared.searchCampgrounds(request: searchRequest)
-                        print("🌲 State \(stateCode) returned \(response.campgrounds.count) campgrounds")
-                        allCampgrounds.append(contentsOf: response.campgrounds)
-                        
-                        // Limit total to prevent performance issues
-                        if allCampgrounds.count >= 500 {
-                            print("🌲 Reached limit of 500 campgrounds, stopping")
-                            break
-                        }
-                    } catch {
-                        print("⚠️ Error fetching for state \(stateCode): \(error.localizedDescription)")
-                        continue
-                    }
-                }
-            }
-            
-            print("🌲 Total campgrounds fetched: \(allCampgrounds.count) from \(processedStates) states")
+            let response = try await CampflareManager.shared.searchCampgrounds(request: searchRequest)
+            print("✅ Found \(response.campgrounds.count) campgrounds")
             
             await MainActor.run {
-                self.campgrounds = allCampgrounds
+                self.campgrounds = response.campgrounds
+                self.searchCenter = center
                 self.isLoadingCampgrounds = false
                 self.isFetchingAllUS = false
             }
         } catch {
-            print("❌ Error fetching all US campgrounds: \(error.localizedDescription)")
+            print("❌ Error fetching campgrounds: \(error.localizedDescription)")
             await MainActor.run {
                 self.isLoadingCampgrounds = false
                 self.isFetchingAllUS = false
@@ -467,6 +410,241 @@ struct CampgroundCard: View {
                 .fill(Color.white)
                 .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
         )
+    }
+}
+
+// MARK: - Campground Detail Sheet
+
+struct CampgroundDetailSheet: View {
+    let campground: Campground
+    @Environment(\.dismiss) private var dismiss
+    
+    private let charcoalColor = Color("Charcoal")
+    private let burntOrange = Color("BurntOrange")
+    private let forestGreen = Color("ForestGreen")
+    private let softGray = Color("SoftGray")
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Header
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(campground.name)
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundColor(charcoalColor)
+                        
+                        if let address = campground.location.address {
+                            HStack(spacing: 4) {
+                                Image(systemName: "mappin")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(charcoalColor.opacity(0.6))
+                                
+                                Text(address.full ?? "\(address.city ?? ""), \(address.stateCode ?? "")")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(charcoalColor.opacity(0.6))
+                            }
+                        }
+                        
+                        if campground.status == "open" {
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(forestGreen)
+                                    .frame(width: 10, height: 10)
+                                
+                                Text("Open")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundColor(charcoalColor)
+                            }
+                            .padding(.top, 4)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    
+                    Divider()
+                        .padding(.horizontal, 20)
+                    
+                    // Description
+                    if let description = campground.longDescription ?? campground.mediumDescription ?? campground.shortDescription {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("About")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(charcoalColor)
+                            
+                            Text(description)
+                                .font(.system(size: 16))
+                                .foregroundColor(charcoalColor.opacity(0.8))
+                                .lineSpacing(4)
+                        }
+                        .padding(.horizontal, 20)
+                    }
+                    
+                    // Amenities
+                    if let amenities = campground.amenities {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Amenities")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(charcoalColor)
+                            
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                                if amenities.toilets == true {
+                                    AmenityRow(icon: "toilet", text: "Toilets", kind: amenities.toiletKind)
+                                }
+                                if amenities.showers == true {
+                                    AmenityRow(icon: "drop.fill", text: "Showers")
+                                }
+                                if amenities.water == true {
+                                    AmenityRow(icon: "drop.fill", text: "Water")
+                                }
+                                if amenities.electricHookups == true {
+                                    AmenityRow(icon: "bolt.fill", text: "Electric Hookups")
+                                }
+                                if amenities.waterHookups == true {
+                                    AmenityRow(icon: "hose.fill", text: "Water Hookups")
+                                }
+                                if amenities.sewerHookups == true {
+                                    AmenityRow(icon: "pipe.and.drop.fill", text: "Sewer Hookups")
+                                }
+                                if amenities.dumpStation == true {
+                                    AmenityRow(icon: "arrow.down.circle.fill", text: "Dump Station")
+                                }
+                                if amenities.firesAllowed == true {
+                                    AmenityRow(icon: "flame.fill", text: "Fires Allowed")
+                                }
+                                if amenities.petsAllowed == true {
+                                    AmenityRow(icon: "pawprint.fill", text: "Pets Allowed")
+                                }
+                                if amenities.wifi == true {
+                                    AmenityRow(icon: "wifi", text: "WiFi")
+                                }
+                                if amenities.campStore == true {
+                                    AmenityRow(icon: "bag.fill", text: "Camp Store")
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                    }
+                    
+                    // Price
+                    if let price = campground.price {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Pricing")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(charcoalColor)
+                            
+                            if let min = price.minimum, let max = price.maximum {
+                                if min == max {
+                                    Text("$\(Int(min)) per night")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundColor(charcoalColor)
+                                } else {
+                                    Text("$\(Int(min)) - $\(Int(max)) per night")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundColor(charcoalColor)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                    }
+                    
+                    // Contact
+                    if let contact = campground.contact {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Contact")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(charcoalColor)
+                            
+                            if let phone = contact.primaryPhone {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "phone.fill")
+                                        .foregroundColor(burntOrange)
+                                    Text(phone)
+                                        .font(.system(size: 16))
+                                        .foregroundColor(charcoalColor)
+                                }
+                            }
+                            
+                            if let email = contact.primaryEmail {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "envelope.fill")
+                                        .foregroundColor(burntOrange)
+                                    Text(email)
+                                        .font(.system(size: 16))
+                                        .foregroundColor(charcoalColor)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                    }
+                    
+                    // Reservation
+                    if let reservationUrl = campground.reservationUrl {
+                        Link(destination: URL(string: reservationUrl)!) {
+                            HStack {
+                                Text("Make Reservation")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.white)
+                                
+                                Spacer()
+                                
+                                Image(systemName: "arrow.right")
+                                    .foregroundColor(.white)
+                            }
+                            .padding(20)
+                            .background(burntOrange)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
+                    }
+                }
+            }
+            .navigationTitle("Campground Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(burntOrange)
+                }
+            }
+        }
+    }
+}
+
+struct AmenityRow: View {
+    let icon: String
+    let text: String
+    var kind: String? = nil
+    
+    private let charcoalColor = Color("Charcoal")
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundColor(charcoalColor.opacity(0.7))
+                .frame(width: 20)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(text)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(charcoalColor)
+                
+                if let kind = kind {
+                    Text(kind.capitalized)
+                        .font(.system(size: 12))
+                        .foregroundColor(charcoalColor.opacity(0.6))
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(12)
+        .background(Color("SoftGray"))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
