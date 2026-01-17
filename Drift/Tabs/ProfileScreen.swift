@@ -11,8 +11,6 @@ import Supabase
 struct ProfileScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @State private var isSigningOut = false
-    @State private var showBuilderCommunity = false
-    @State private var showBuilderHelp = false
     
     private let softGray = Color(red: 0.96, green: 0.96, blue: 0.96)
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
@@ -183,110 +181,6 @@ struct ProfileScreen: View {
                         .padding(.horizontal, 16)
                         .padding(.bottom, 16)
                         
-                        // Van Builder Community CTA
-                        VStack(spacing: 16) {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .fill(Color.white.opacity(0.2))
-                                        .frame(width: 56, height: 56)
-                                    
-                                    Image(systemName: "message.fill")
-                                        .font(.system(size: 24))
-                                        .foregroundColor(.white)
-                                }
-                                
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Van Builder Community")
-                                        .font(.system(size: 18, weight: .semibold))
-                                        .foregroundColor(.white)
-                                    
-                                    Text("Chat with 12K+ builders worldwide")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.white.opacity(0.9))
-                                }
-                                
-                                Spacer()
-                            }
-                            
-                            Button(action: {
-                                showBuilderCommunity = true
-                            }) {
-                                Text("Join Community")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(charcoalColor)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(Color.white)
-                                    .clipShape(Capsule())
-                            }
-                        }
-                        .padding(24)
-                        .background(
-                            RoundedRectangle(cornerRadius: 24)
-                                .fill(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [skyBlue, forestGreen]),
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                        )
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 16)
-                        
-                        // Builder Help CTA
-                        VStack(spacing: 16) {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .fill(Color.white.opacity(0.2))
-                                        .frame(width: 56, height: 56)
-                                    
-                                    Image(systemName: "wrench.and.screwdriver.fill")
-                                        .font(.system(size: 24))
-                                        .foregroundColor(.white)
-                                }
-                                
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Need expert help?")
-                                        .font(.system(size: 18, weight: .semibold))
-                                        .foregroundColor(.white)
-                                    
-                                    Text("Book 1-on-1 with verified experts")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.white.opacity(0.9))
-                                }
-                                
-                                Spacer()
-                            }
-                            
-                            Button(action: {
-                                showBuilderHelp = true
-                            }) {
-                                Text("Book an Expert")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(charcoalColor)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(Color.white)
-                                    .clipShape(Capsule())
-                            }
-                        }
-                        .padding(24)
-                        .background(
-                            RoundedRectangle(cornerRadius: 24)
-                                .fill(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [burntOrange, forestGreen]),
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                        )
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 16)
-                        
                         VStack(spacing: 12) {
                             Button(action: {
                                 Task {
@@ -331,12 +225,6 @@ struct ProfileScreen: View {
                     }
                 }
             }
-        }
-        .fullScreenCover(isPresented: $showBuilderCommunity) {
-            VanBuilderCommunity()
-        }
-        .fullScreenCover(isPresented: $showBuilderHelp) {
-            BuilderHelpScreen()
         }
     }
     
