@@ -17,6 +17,37 @@ struct Activity: Identifiable {
     let host: String
     let category: String
     let imageURL: String
+    let description: String?
+    let time: String?
+    let exactLocation: String?
+    
+    init(
+        id: Int,
+        title: String,
+        location: String,
+        date: String,
+        attendees: Int,
+        maxAttendees: Int,
+        host: String,
+        category: String,
+        imageURL: String,
+        description: String? = nil,
+        time: String? = nil,
+        exactLocation: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.location = location
+        self.date = date
+        self.attendees = attendees
+        self.maxAttendees = maxAttendees
+        self.host = host
+        self.category = category
+        self.imageURL = imageURL
+        self.description = description
+        self.time = time
+        self.exactLocation = exactLocation
+    }
 }
 
 enum ActivityView {
@@ -29,6 +60,7 @@ struct ActivitiesScreen: View {
     @State private var showPaywall = false
     @State private var view: ActivityView = .list
     @State private var segmentIndex: Int = 0
+    @State private var selectedActivity: Activity? = nil
     @StateObject private var revenueCatManager = RevenueCatManager.shared
     
     private var segmentOptions: [SegmentOption] {
@@ -206,8 +238,10 @@ struct ActivitiesScreen: View {
                             // Activities List
                             VStack(spacing: 16) {
                                 ForEach(filteredActivities) { activity in
-                                    ActivityCard(activity: activity)
-                                        .padding(.horizontal, 16)
+                                    ActivityCard(activity: activity) {
+                                        selectedActivity = activity
+                                    }
+                                    .padding(.horizontal, 16)
                                 }
                             }
                             .padding(.bottom, 100)
@@ -238,6 +272,11 @@ struct ActivitiesScreen: View {
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallScreen(isOpen: $showPaywall, source: .createActivity)
+            }
+            .sheet(item: $selectedActivity) { activity in
+                ActivityDetailSheet(activity: activity)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
             }
         }
     }
