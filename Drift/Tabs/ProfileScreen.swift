@@ -123,6 +123,40 @@ struct ProfileScreen: View {
                             .padding(.horizontal, 16)
                             .padding(.bottom, 24)
                         
+                        // Preference Toggle
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Discovery Mode")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(charcoalColor)
+                                .padding(.horizontal, 20)
+                                .padding(.top, 16)
+                            
+                            Toggle(isOn: Binding(
+                                get: { supabaseManager.isFriendsOnly() },
+                                set: { newValue in
+                                    Task {
+                                        await updatePreference(friendsOnly: newValue)
+                                    }
+                                }
+                            )) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(supabaseManager.isFriendsOnly() ? "Friends Only" : "Dating & Friends")
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(charcoalColor)
+                                    
+                                    Text(supabaseManager.isFriendsOnly() ? "Only see friends in Discover" : "See both dating and friends in Discover")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(charcoalColor.opacity(0.6))
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 16)
+                        }
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 24)
+                        
                         // Manage Subscription Button (for testing)
                         Button(action: {
                             revenueCatManager.showCustomerCenter()
@@ -271,21 +305,64 @@ struct ProfileScreen: View {
         do {
             // Clear onboarding completion flag in user metadata
             var updatedMetadata = supabaseManager.currentUser?.userMetadata ?? [:]
-            updatedMetadata["onboarding_completed"] = false
+            updatedMetadata["onboarding_completed"] = AnyJSON.string("false")
             
             if let currentUser = supabaseManager.currentUser {
                 let updatedUser = try await supabaseManager.client.auth.update(user: UserAttributes(data: updatedMetadata))
                 supabaseManager.currentUser = updatedUser
                 
-                // Trigger onboarding flow
-                supabaseManager.showOnboarding = true
+                // Show preference selection screen so user can choose Dating & Friends or Friends Only again
+                supabaseManager.showPreferenceSelection = true
+                supabaseManager.showOnboarding = false
+                supabaseManager.showFriendOnboarding = false
                 supabaseManager.showWelcomeSplash = false
                 
-                print("✅ Onboarding restarted - user will see onboarding flow")
+                print("✅ Onboarding restarted - user will see preference selection screen")
             }
         } catch {
             print("⚠️ Failed to restart onboarding: \(error.localizedDescription)")
         }
+    }
+    
+    private func updatePreference(friendsOnly: Bool) async {
+        do {
+            try await supabaseManager.updatePreference(friendsOnly: friendsOnly)
+            print("✅ Preference updated - friendsOnly: \(friendsOnly)")
+            
+            // If switching from Friends Only to Dating & Friends, check if onboarding is needed
+            if !friendsOnly {
+                let hasCompletedOnboarding = getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
+                if !hasCompletedOnboarding {
+                    // User switched to Dating & Friends but hasn't completed onboarding
+                    // Trigger onboarding flow
+                    supabaseManager.showOnboarding = true
+                    supabaseManager.showWelcomeSplash = false
+                    supabaseManager.showPreferenceSelection = false
+                }
+            }
+        } catch {
+            print("⚠️ Failed to update preference: \(error.localizedDescription)")
+        }
+    }
+    
+    // Helper function to parse onboarding status (same as in DriftApp)
+    private func getOnboardingStatus(from metadata: [String: Any]) -> Bool {
+        guard let value = metadata["onboarding_completed"] else {
+            return false
+        }
+        
+        if let boolValue = value as? Bool {
+            return boolValue
+        } else if let stringValue = value as? String {
+            return stringValue.lowercased() == "true" || stringValue == "1"
+        } else if let intValue = value as? Int {
+            return intValue != 0
+        } else if let nsNumber = value as? NSNumber {
+            return nsNumber.boolValue
+        }
+        
+        let stringDescription = String(describing: value)
+        return stringDescription.lowercased() == "true" || stringDescription == "1"
     }
 }
 

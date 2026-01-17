@@ -42,6 +42,7 @@ struct DriftApp: App {
                 if supabaseManager.isAuthenticated {
                     // Check if user has completed onboarding - this is the source of truth
                     let hasCompletedOnboarding = getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
+                    let hasPreference = supabaseManager.hasSelectedPreference()
                     
                     if hasCompletedOnboarding {
                         // User has completed onboarding - go straight to home (skip WelcomeSplash and onboarding)
@@ -49,9 +50,18 @@ struct DriftApp: App {
                     } else if supabaseManager.showWelcomeSplash {
                         // New user - show welcome splash first (part of onboarding)
                         WelcomeSplash {
-                            print("✅ WelcomeSplash onContinue called - showing onboarding")
+                            print("✅ WelcomeSplash onContinue called - showing preference selection")
                             supabaseManager.showWelcomeSplash = false
-                            supabaseManager.showOnboarding = true
+                            supabaseManager.showPreferenceSelection = true
+                        }
+                    } else if supabaseManager.showPreferenceSelection {
+                        // Show preference selection screen
+                        PreferenceSelectionScreen()
+                    } else if supabaseManager.showFriendOnboarding {
+                        // Show friend onboarding flow
+                        FriendOnboardingFlow {
+                            // SafetyScreen will mark onboarding as complete internally
+                            supabaseManager.showFriendOnboarding = false
                         }
                     } else if supabaseManager.showOnboarding {
                         // Show onboarding flow

@@ -132,8 +132,9 @@ struct FriendsScreen: View {
                         .font(.system(size: 14))
                         .foregroundColor(charcoalColor.opacity(0.6))
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 0)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
                 .padding(.bottom, 24)
                 
                 // Friends Cards

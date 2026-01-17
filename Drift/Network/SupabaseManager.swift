@@ -19,6 +19,8 @@ class SupabaseManager: ObservableObject {
     @Published var isAuthenticated = false
     @Published var showWelcomeSplash = false
     @Published var showOnboarding = false
+    @Published var showPreferenceSelection = false
+    @Published var showFriendOnboarding = false
     
     private init() {
         self.client = SupabaseClient(
@@ -37,28 +39,39 @@ class SupabaseManager: ObservableObject {
             self.currentUser = session.user
             self.isAuthenticated = true
             
-            // Check if user has completed onboarding
+            // Check if user has completed onboarding and selected preference
             let userMetadata = session.user.userMetadata
             let hasCompletedOnboarding = getOnboardingStatus(from: userMetadata)
+            let hasPreference = hasSelectedPreference()
             
-            print("🔍 checkAuthStatus - hasCompletedOnboarding: \(hasCompletedOnboarding)")
+            print("🔍 checkAuthStatus - hasCompletedOnboarding: \(hasCompletedOnboarding), hasPreference: \(hasPreference)")
             print("🔍 Metadata value for onboarding_completed: \(userMetadata["onboarding_completed"] ?? "nil")")
-            print("🔍 Type of value: \(type(of: userMetadata["onboarding_completed"]))")
+            print("🔍 Metadata value for friendsOnly: \(userMetadata["friendsOnly"] ?? "nil")")
             
             // If onboarding is completed, don't show splash or onboarding
             // IMPORTANT: Only set these if they're not already correctly set to prevent loops
             if hasCompletedOnboarding {
-                if self.showWelcomeSplash || self.showOnboarding {
+                if self.showWelcomeSplash || self.showOnboarding || self.showPreferenceSelection {
                     self.showWelcomeSplash = false
                     self.showOnboarding = false
+                    self.showPreferenceSelection = false
                     print("✅ User has completed onboarding - cleared onboarding flags")
                 }
             } else {
-                // Only set showOnboarding if we're not already showing welcome splash
-                // This prevents resetting state unnecessarily
-                if !self.showWelcomeSplash {
-                    self.showOnboarding = true
-                    print("⚠️ User has NOT completed onboarding - will show onboarding flow")
+                // Check if preference has been selected
+                if !hasPreference {
+                    // No preference selected - show preference selection
+                    if !self.showWelcomeSplash {
+                        self.showPreferenceSelection = true
+                        self.showOnboarding = false
+                        print("⚠️ User has NOT selected preference - will show preference selection")
+                    }
+                } else {
+                    // Preference selected but onboarding not complete - show onboarding
+                    if !self.showWelcomeSplash && !self.showPreferenceSelection {
+                        self.showOnboarding = true
+                        print("⚠️ User has NOT completed onboarding - will show onboarding flow")
+                    }
                 }
             }
         } catch {
@@ -66,6 +79,7 @@ class SupabaseManager: ObservableObject {
             self.isAuthenticated = false
             self.showWelcomeSplash = false
             self.showOnboarding = false
+            self.showPreferenceSelection = false
             print("❌ checkAuthStatus error: \(error.localizedDescription)")
         }
     }
@@ -107,19 +121,69 @@ class SupabaseManager: ObservableObject {
         return false
     }
     
+    private func getBoolFromMetadata(_ metadata: [String: Any], key: String) -> Bool {
+        guard let value = metadata[key] else {
+            return false
+        }
+        
+        if let boolValue = value as? Bool {
+            return boolValue
+        } else if let stringValue = value as? String {
+            return stringValue.lowercased() == "true" || stringValue == "1"
+        } else if let intValue = value as? Int {
+            return intValue != 0
+        } else if let nsNumber = value as? NSNumber {
+            return nsNumber.boolValue
+        }
+        
+        let stringDescription = String(describing: value)
+        return stringDescription.lowercased() == "true" || stringDescription == "1"
+    }
+    
+    func isFriendsOnly() -> Bool {
+        guard let user = currentUser else { return false }
+        return getBoolFromMetadata(user.userMetadata, key: "friendsOnly")
+    }
+    
+    func hasSelectedPreference() -> Bool {
+        guard let user = currentUser else { return false }
+        // If friendsOnly exists in metadata, preference has been selected
+        return user.userMetadata["friendsOnly"] != nil
+    }
+    
+    func updatePreference(friendsOnly: Bool) async throws {
+        guard let currentUser = currentUser else {
+            throw NSError(domain: "SupabaseManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "No current user"])
+        }
+        
+        // Update user metadata to set friendsOnly preference
+        var updatedMetadata = currentUser.userMetadata
+        updatedMetadata["friendsOnly"] = AnyJSON.string(friendsOnly ? "true" : "false")
+        
+        print("💾 Updating preference - friendsOnly: \(friendsOnly)")
+        
+        // Update user with new metadata
+        let updatedUser = try await client.auth.update(user: UserAttributes(data: updatedMetadata))
+        
+        // Update currentUser immediately
+        self.currentUser = updatedUser
+    }
+    
     func signInWithEmail(email: String, password: String) async throws {
         let session = try await client.auth.signIn(email: email, password: password)
         self.currentUser = session.user
         
-        // Check if user has completed onboarding
+        // Check if user has completed onboarding and selected preference
         let userMetadata = session.user.userMetadata
         let hasCompletedOnboarding = getOnboardingStatus(from: userMetadata)
+        let hasPreference = hasSelectedPreference()
         
         // Ensure welcome splash is false for sign-ins
         self.showWelcomeSplash = false
-        self.showOnboarding = !hasCompletedOnboarding
+        self.showPreferenceSelection = !hasPreference
+        self.showOnboarding = hasPreference && !hasCompletedOnboarding
         self.isAuthenticated = true
-        print("✅ Sign in successful - showWelcomeSplash: \(showWelcomeSplash), showOnboarding: \(showOnboarding)")
+        print("✅ Sign in successful - showPreferenceSelection: \(showPreferenceSelection), showOnboarding: \(showOnboarding)")
     }
     
     func signUpWithEmail(email: String, password: String) async throws {
@@ -130,14 +194,25 @@ class SupabaseManager: ObservableObject {
             // Set all properties together on MainActor
         await MainActor.run {
             self.currentUser = session.user
-            // CRITICAL: Set showWelcomeSplash BEFORE isAuthenticated
-            self.showWelcomeSplash = true
-            self.showOnboarding = false // Will be set to true after splash
-            print("🎉 showWelcomeSplash set to TRUE: \(self.showWelcomeSplash)")
+            // Check if preference has been selected
+            let hasPreference = self.hasSelectedPreference()
+            
+            if hasPreference {
+                // Preference already selected, check if onboarding is needed
+                let hasCompletedOnboarding = self.getOnboardingStatus(from: session.user.userMetadata)
+                self.showWelcomeSplash = false
+                self.showOnboarding = !hasCompletedOnboarding
+                self.showPreferenceSelection = false
+            } else {
+                // New user - show welcome splash, then preference selection
+                self.showWelcomeSplash = true
+                self.showOnboarding = false
+                self.showPreferenceSelection = false // Will be set to true after splash
+            }
             
             // Set isAuthenticated immediately after - SwiftUI will see both together
             self.isAuthenticated = true
-            print("✅ Sign up complete - showWelcomeSplash: \(self.showWelcomeSplash), isAuthenticated: \(self.isAuthenticated)")
+            print("✅ Sign up complete - showWelcomeSplash: \(self.showWelcomeSplash), showPreferenceSelection: \(self.showPreferenceSelection), isAuthenticated: \(self.isAuthenticated)")
         }
     }
     
@@ -172,22 +247,33 @@ class SupabaseManager: ObservableObject {
             // Set properties similar to sign-up flow
             await MainActor.run {
                 self.currentUser = session.user
+                let hasPreference = self.hasSelectedPreference()
                 
                 if shouldShowSplash {
                     // CRITICAL: Set showWelcomeSplash BEFORE isAuthenticated
-                    self.showWelcomeSplash = true
-                    self.showOnboarding = false // Will be set to true after splash
-                    print("🎉 Showing WelcomeSplash - isNewUser: \(isNewUser), needsOnboarding: \(!hasCompletedOnboarding)")
+                    if hasPreference {
+                        // Has preference but needs onboarding
+                        self.showWelcomeSplash = false
+                        self.showPreferenceSelection = false
+                        self.showOnboarding = !hasCompletedOnboarding
+                    } else {
+                        // New user without preference - show splash then preference
+                        self.showWelcomeSplash = true
+                        self.showPreferenceSelection = false
+                        self.showOnboarding = false
+                    }
+                    print("🎉 Showing WelcomeSplash - isNewUser: \(isNewUser), needsOnboarding: \(!hasCompletedOnboarding), hasPreference: \(hasPreference)")
                 } else {
                     // Existing user who has completed onboarding - don't show splash
                     self.showWelcomeSplash = false
+                    self.showPreferenceSelection = !hasPreference
                     self.showOnboarding = false
-                    print("👋 Existing user with completed onboarding - showWelcomeSplash set to FALSE")
+                    print("👋 Existing user with completed onboarding - showWelcomeSplash set to FALSE, hasPreference: \(hasPreference)")
                 }
                 
                 // Set isAuthenticated after showWelcomeSplash
                 self.isAuthenticated = true
-                print("✅ Apple Sign In complete - showWelcomeSplash: \(self.showWelcomeSplash), showOnboarding: \(self.showOnboarding), isAuthenticated: \(self.isAuthenticated)")
+                print("✅ Apple Sign In complete - showWelcomeSplash: \(self.showWelcomeSplash), showPreferenceSelection: \(self.showPreferenceSelection), showOnboarding: \(self.showOnboarding), isAuthenticated: \(self.isAuthenticated)")
             }
         } catch {
             print("❌ Supabase Apple Sign In Error: \(error)")
@@ -212,7 +298,7 @@ class SupabaseManager: ObservableObject {
             
             // Update user metadata to mark onboarding as completed
             var updatedMetadata = currentUser.userMetadata
-            updatedMetadata["onboarding_completed"] = true
+            updatedMetadata["onboarding_completed"] = AnyJSON.string("true")
             
             print("💾 Marking onboarding as complete - metadata before: \(updatedMetadata)")
             
@@ -247,5 +333,7 @@ class SupabaseManager: ObservableObject {
         self.isAuthenticated = false
         self.showWelcomeSplash = false
         self.showOnboarding = false
+        self.showPreferenceSelection = false
+        self.showFriendOnboarding = false
     }
 }
