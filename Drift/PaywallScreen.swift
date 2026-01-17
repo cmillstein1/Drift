@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import RevenueCat
 
 // Extension for custom corner radius
 extension View {
@@ -45,9 +44,6 @@ struct PaywallScreen: View {
     @Binding var isOpen: Bool
     var source: PaywallSource = .general
     @State private var selectedPlan: SubscriptionPlan = .yearly
-    @StateObject private var revenueCatManager = RevenueCatManager.shared
-    @State private var isPurchasing = false
-    @State private var purchaseError: String?
     
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
@@ -183,15 +179,9 @@ struct PaywallScreen: View {
                                                         .font(.system(size: 14, weight: .medium))
                                                         .foregroundColor(selectedPlan == .monthly ? charcoalColor : charcoalColor.opacity(0.6))
                                                     
-                                                    if let monthlyPackage = revenueCatManager.getMonthlyPackage() {
-                                                        Text(monthlyPackage.storeProduct.localizedPriceString)
-                                                            .font(.system(size: 11))
-                                                            .foregroundColor(selectedPlan == .monthly ? burntOrange : charcoalColor.opacity(0.4))
-                                                    } else {
-                                                        Text("$11.99/mo")
-                                                            .font(.system(size: 11))
-                                                            .foregroundColor(selectedPlan == .monthly ? burntOrange : charcoalColor.opacity(0.4))
-                                                    }
+                                                    Text("$14.99/mo")
+                                                        .font(.system(size: 11))
+                                                        .foregroundColor(selectedPlan == .monthly ? burntOrange : charcoalColor.opacity(0.4))
                                                 }
                                                 .frame(maxWidth: .infinity)
                                                 .frame(height: 42)
@@ -224,15 +214,9 @@ struct PaywallScreen: View {
                                                             .clipShape(Capsule())
                                                     }
                                                     
-                                                    if let yearlyPackage = revenueCatManager.getYearlyPackage() {
-                                                        Text(yearlyPackage.storeProduct.localizedPriceString)
-                                                            .font(.system(size: 11))
-                                                            .foregroundColor(selectedPlan == .yearly ? burntOrange : charcoalColor.opacity(0.4))
-                                                    } else {
-                                                        Text("$79.99/year")
-                                                            .font(.system(size: 11))
-                                                            .foregroundColor(selectedPlan == .yearly ? burntOrange : charcoalColor.opacity(0.4))
-                                                    }
+                                                    Text("$8.99/mo")
+                                                        .font(.system(size: 11))
+                                                        .foregroundColor(selectedPlan == .yearly ? burntOrange : charcoalColor.opacity(0.4))
                                                 }
                                                 .frame(maxWidth: .infinity)
                                                 .frame(height: 42)
@@ -256,20 +240,14 @@ struct PaywallScreen: View {
                     // Fixed Bottom CTA
                     VStack(spacing: 8) {
                         Button(action: {
-                            Task {
-                                await handlePurchase()
-                            }
+                            // Handle subscription
+                            print("Start Free 7-Day Trial")
                         }) {
                             HStack(spacing: 8) {
-                                if isPurchasing {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                } else {
-                                    Image(systemName: "crown.fill")
-                                        .font(.system(size: 18))
-                                }
+                                Image(systemName: "crown.fill")
+                                    .font(.system(size: 18))
                                 
-                                Text(isPurchasing ? "Processing..." : "Start Free 7-Day Trial")
+                                Text("Start Free 7-Day Trial")
                                     .font(.system(size: 16, weight: .semibold))
                             }
                             .foregroundColor(.white)
@@ -284,14 +262,6 @@ struct PaywallScreen: View {
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 20))
                             .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
-                        }
-                        .disabled(isPurchasing || revenueCatManager.isLoading)
-                        
-                        if let error = purchaseError {
-                            Text(error)
-                                .font(.system(size: 12))
-                                .foregroundColor(.red)
-                                .multilineTextAlignment(.center)
                         }
                         
                         Text("Cancel anytime. No commitment required.")
@@ -311,54 +281,8 @@ struct PaywallScreen: View {
             }
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .zIndex(1000)
-            .onAppear {
-                Task {
-                    await revenueCatManager.loadOfferings()
-                }
-            }
         }
     }
-    
-    // MARK: - Purchase Handler
-    
-    private func handlePurchase() async {
-        isPurchasing = true
-        purchaseError = nil
-        
-        guard let package = revenueCatManager.getPackage(for: selectedPlan) else {
-            purchaseError = "Product not available. Please try again later."
-            isPurchasing = false
-            return
-        }
-        
-        let result = await revenueCatManager.purchase(package: package)
-        
-        switch result {
-        case .success:
-            // Purchase successful, close paywall
-            withAnimation {
-                isOpen = false
-            }
-        case .failure(let error):
-            if error.localizedDescription.contains("cancelled") {
-                // User cancelled, don't show error
-                purchaseError = nil
-            } else {
-                purchaseError = error.localizedDescription
-            }
-        }
-        
-        isPurchasing = false
-    }
-}
-
-// MARK: - Helper Functions
-
-private func formatCurrency(_ amount: Double) -> String {
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .currency
-    formatter.currencyCode = "USD"
-    return formatter.string(from: NSNumber(value: amount)) ?? "$\(String(format: "%.2f", amount))"
 }
 
 struct FeatureRow: View {
