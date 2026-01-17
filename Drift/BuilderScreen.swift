@@ -33,8 +33,6 @@ struct RecentActivity: Identifiable {
 struct BuilderScreen: View {
     @State private var showCommunity = false
     @State private var showExpertHelp = false
-    @State private var showPaywall = false
-    @StateObject private var revenueCatManager = RevenueCatManager.shared
     
     private let softGray = Color(red: 0.96, green: 0.96, blue: 0.96)
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
@@ -274,11 +272,7 @@ struct BuilderScreen: View {
                             Spacer()
                             
                             Button(action: {
-                                if revenueCatManager.hasProAccess {
-                                    showExpertHelp = true
-                                } else {
-                                    showPaywall = true
-                                }
+                                showExpertHelp = true
                             }) {
                                 Text("View All")
                                     .font(.system(size: 14))
@@ -290,11 +284,7 @@ struct BuilderScreen: View {
                         VStack(spacing: 12) {
                             ForEach(topExperts) { expert in
                                 Button(action: {
-                                    if revenueCatManager.hasProAccess {
                                     showExpertHelp = true
-                                } else {
-                                    showPaywall = true
-                                }
                                 }) {
                                     HStack(spacing: 16) {
                                         // Avatar
@@ -456,9 +446,6 @@ struct BuilderScreen: View {
         }
         .fullScreenCover(isPresented: $showExpertHelp) {
             BuilderHelpScreen()
-        }
-        .sheet(isPresented: $showPaywall) {
-            PaywallScreen(isOpen: $showPaywall, source: .expertHelp)
         }
     }
 }

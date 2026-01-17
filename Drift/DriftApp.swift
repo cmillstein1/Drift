@@ -29,6 +29,12 @@ private func getOnboardingStatus(from metadata: [String: Any]) -> Bool {
 @main
 struct DriftApp: App {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
+    @StateObject private var revenueCatManager = RevenueCatManager.shared
+    
+    init() {
+        // Initialize RevenueCat early
+        _ = RevenueCatManager.shared
+    }
     
     var body: some Scene {
         WindowGroup {

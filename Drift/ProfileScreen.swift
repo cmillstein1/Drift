@@ -10,7 +10,6 @@ import Supabase
 
 struct ProfileScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
-    @StateObject private var revenueCatManager = RevenueCatManager.shared
     @State private var isSigningOut = false
     
     private let softGray = Color(red: 0.96, green: 0.96, blue: 0.96)
@@ -116,34 +115,6 @@ struct ProfileScreen: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
-                        .padding(.bottom, 24)
-                        
-                        // Subscription Status
-                        SubscriptionStatusView()
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 24)
-                        
-                        // Manage Subscription Button (for testing)
-                        Button(action: {
-                            revenueCatManager.showCustomerCenter()
-                        }) {
-                            HStack {
-                                Image(systemName: "creditcard")
-                                    .font(.system(size: 16))
-                                Text("Manage Subscription")
-                                    .font(.system(size: 16, weight: .medium))
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(charcoalColor.opacity(0.4))
-                            }
-                            .foregroundColor(charcoalColor)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 16)
-                            .background(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                        }
-                        .padding(.horizontal, 16)
                         .padding(.bottom, 24)
                         
                         HStack(spacing: 12) {
