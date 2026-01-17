@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ActivityCard: View {
     let activity: Activity
+    var onTap: (() -> Void)? = nil
     
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
@@ -115,6 +116,7 @@ struct ActivityCard: View {
                             .background(forestGreen)
                             .clipShape(Capsule())
                     }
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
             .padding(20)
@@ -122,6 +124,10 @@ struct ActivityCard: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 24))
         .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onTap?()
+        }
     }
 }
 
