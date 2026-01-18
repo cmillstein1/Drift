@@ -402,6 +402,7 @@ extension Color {
 
 struct ResourceCard: View {
     let resource: VanBuilderResource
+    @State private var showNoUrlAlert = false
 
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
@@ -431,6 +432,13 @@ struct ResourceCard: View {
                     .foregroundColor(charcoalColor.opacity(0.4))
             }
 
+            if let description = resource.description {
+                Text(description)
+                    .font(.system(size: 13))
+                    .foregroundColor(charcoalColor.opacity(0.7))
+                    .lineLimit(2)
+            }
+
             HStack(spacing: 8) {
                 Text("\(resource.views.formatted()) views")
                     .font(.system(size: 12))
@@ -444,7 +452,13 @@ struct ResourceCard: View {
                     .foregroundColor(charcoalColor.opacity(0.5))
             }
 
-            Button(action: {}) {
+            Button(action: {
+                if let urlString = resource.fileUrl, let url = URL(string: urlString) {
+                    UIApplication.shared.open(url)
+                } else {
+                    showNoUrlAlert = true
+                }
+            }) {
                 Text("View Resource")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(burntOrange)
@@ -460,6 +474,11 @@ struct ResourceCard: View {
                 .fill(Color.white)
                 .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
         )
+        .alert("Coming Soon", isPresented: $showNoUrlAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("This resource is not yet available. Check back later!")
+        }
     }
 }
 
