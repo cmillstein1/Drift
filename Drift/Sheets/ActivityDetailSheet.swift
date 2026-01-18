@@ -6,13 +6,18 @@
 //
 
 import SwiftUI
+import UIKit
 import DriftBackend
 
 struct ActivityDetailSheet: View {
     @Environment(\.dismiss) var dismiss
     let activity: Activity
+    @StateObject private var activityManager = ActivityManager.shared
     @State private var isJoined: Bool = false
-    
+    @State private var isLoading: Bool = false
+    @State private var errorMessage: String?
+    @State private var showError: Bool = false
+
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
     private let forestGreen = Color("ForestGreen")
@@ -368,27 +373,35 @@ struct ActivityDetailSheet: View {
                         Button(action: {
                             handleJoin()
                         }) {
-                            Text(isJoined ? "Joined ✓" : "Join Activity")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 48)
-                                .background(
-                                    isJoined
-                                        ? LinearGradient(
-                                            gradient: Gradient(colors: [charcoalColor, charcoalColor.opacity(0.8)]),
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                        : LinearGradient(
-                                            gradient: Gradient(colors: [forestGreen, skyBlue]),
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                )
-                                .clipShape(Capsule())
-                                .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                            if isLoading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 48)
+                            } else {
+                                Text(isJoined ? "Leave Activity" : "Join Activity")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 48)
+                            }
                         }
+                        .background(
+                            isJoined
+                                ? LinearGradient(
+                                    gradient: Gradient(colors: [charcoalColor, charcoalColor.opacity(0.8)]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                                : LinearGradient(
+                                    gradient: Gradient(colors: [forestGreen, skyBlue]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                        )
+                        .clipShape(Capsule())
+                        .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                        .disabled(isLoading)
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 28)
@@ -397,22 +410,59 @@ struct ActivityDetailSheet: View {
         }
         .background(Color.white)
         .ignoresSafeArea(edges: .bottom)
-    }
-    
-    private func handleJoin() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            isJoined.toggle()
+        .onAppear {
+            // Check if user is already attending
+            isJoined = activityManager.isAttending(activity.id)
+        }
+        .alert("Error", isPresented: $showError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "An error occurred")
         }
     }
-    
+
+    private func handleJoin() {
+        isLoading = true
+
+        Task {
+            do {
+                if isJoined {
+                    try await activityManager.leaveActivity(activity.id)
+                } else {
+                    try await activityManager.joinActivity(activity.id)
+                }
+
+                await MainActor.run {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        isJoined.toggle()
+                    }
+                    isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showError = true
+                    isLoading = false
+                }
+            }
+        }
+    }
+
     private func handleShare() {
         // Share functionality
-        print("Share activity")
+        let activityInfo = "\(activity.title) - \(activity.location) on \(activity.formattedDate)"
+        let activityItems: [Any] = [activityInfo]
+        let activityVC = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootViewController = windowScene.windows.first?.rootViewController {
+            rootViewController.present(activityVC, animated: true)
+        }
     }
-    
+
     private func handleMessage() {
-        // Message host functionality
-        print("Message host")
+        // TODO: Navigate to messaging with host
+        print("Message host: \(activity.host?.displayName ?? "Unknown")")
     }
 }
 

@@ -260,7 +260,8 @@ public class ProfileManager: ObservableObject {
             throw ProfileError.notAuthenticated
         }
 
-        let fileName = "\(userId.uuidString)/avatar.jpg"
+        // Use lowercase UUID to match auth.uid() in RLS policies
+        let fileName = "\(userId.uuidString.lowercased())/avatar.jpg"
 
         // Upload to storage
         try await client.storage
@@ -291,8 +292,8 @@ public class ProfileManager: ObservableObject {
             throw ProfileError.notAuthenticated
         }
 
-        let photoId = UUID().uuidString
-        let fileName = "\(userId.uuidString)/\(photoId).jpg"
+        let photoId = UUID().uuidString.lowercased()
+        let fileName = "\(userId.uuidString.lowercased())/\(photoId).jpg"
 
         // Upload to storage
         try await client.storage
@@ -300,7 +301,7 @@ public class ProfileManager: ObservableObject {
             .upload(
                 fileName,
                 data: imageData,
-                options: FileOptions(contentType: "image/jpeg")
+                options: FileOptions(contentType: "image/jpeg", upsert: true)
             )
 
         // Get public URL
@@ -325,8 +326,8 @@ public class ProfileManager: ObservableObject {
         }
 
         // Extract filename from URL
-        if let range = photoUrl.range(of: "\(userId.uuidString)/") {
-            let fileName = "\(userId.uuidString)/\(String(photoUrl[range.upperBound...]))"
+        if let range = photoUrl.range(of: "\(userId.uuidString.lowercased())/") {
+            let fileName = "\(userId.uuidString.lowercased())/\(String(photoUrl[range.upperBound...]))"
 
             try await client.storage
                 .from("photos")
