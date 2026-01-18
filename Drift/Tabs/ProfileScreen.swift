@@ -349,11 +349,23 @@ struct ProfileScreen: View {
             // Clear onboarding completion flag in user metadata
             var updatedMetadata = supabaseManager.currentUser?.userMetadata ?? [:]
             updatedMetadata["onboarding_completed"] = AnyJSON.string("false")
-            
-            if let currentUser = supabaseManager.currentUser {
+            updatedMetadata["friendsOnly"] = nil
+
+            if supabaseManager.currentUser != nil {
                 let updatedUser = try await supabaseManager.client.auth.update(user: UserAttributes(data: updatedMetadata))
                 supabaseManager.currentUser = updatedUser
-                
+
+                // Also clear the profile data to force re-onboarding
+                try await profileManager.updateProfile(
+                    ProfileUpdateRequest(
+                        name: "",
+                        onboardingCompleted: false
+                    )
+                )
+
+                // Refresh the profile to get the updated state
+                try await profileManager.fetchCurrentProfile()
+
                 // Show preference selection screen so user can choose Dating & Friends or Friends Only again
                 supabaseManager.isShowingPreferenceSelection = true
                 supabaseManager.isShowingOnboarding = false
@@ -361,7 +373,7 @@ struct ProfileScreen: View {
                 supabaseManager.isShowingWelcomeSplash = false
             }
         } catch {
-            print("⚠️ Failed to restart onboarding: \(error.localizedDescription)")
+            print("Failed to restart onboarding: \(error.localizedDescription)")
         }
     }
     

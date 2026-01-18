@@ -265,7 +265,7 @@ public class FriendsManager: ObservableObject {
 
         let swipes: [Swipe] = try await client
             .from("swipes")
-            .select("swiped_id")
+            .select()
             .eq("swiper_id", value: userId)
             .execute()
             .value

@@ -6,134 +6,27 @@
 //
 
 import SwiftUI
-
-struct Channel: Identifiable {
-    let id: String
-    let name: String
-    let icon: String
-    let color: Color
-    let description: String
-    let members: Int
-    let unreadCount: Int?
-    let trending: Bool
-}
-
-struct Resource: Identifiable {
-    let id: Int
-    let title: String
-    let category: String
-    let views: Int
-    let saves: Int
-}
+import DriftBackend
 
 struct VanBuilderCommunity: View {
     @Environment(\.dismiss) var dismiss
-    @State private var selectedChannel: Channel? = nil
+    @StateObject private var vanBuilderManager = VanBuilderManager.shared
+    @State private var selectedChannel: VanBuilderChannel? = nil
     @State private var searchQuery: String = ""
     @State private var activeTab: ActiveTab = .channels
-    
+
     enum ActiveTab {
         case channels
         case resources
     }
-    
-    private let channels: [Channel] = [
-        Channel(
-            id: "electrical",
-            name: "Electrical & Wiring",
-            icon: "bolt.fill",
-            color: Color(red: 0.80, green: 0.40, blue: 0.20),
-            description: "Electrical systems, wiring, batteries, and power management",
-            members: 3421,
-            unreadCount: 12,
-            trending: true
-        ),
-        Channel(
-            id: "solar",
-            name: "Solar & Off-Grid",
-            icon: "sun.max.fill",
-            color: Color(red: 0.96, green: 0.62, blue: 0.04),
-            description: "Solar panels, charge controllers, and off-grid power solutions",
-            members: 2890,
-            unreadCount: 5,
-            trending: true
-        ),
-        Channel(
-            id: "plumbing",
-            name: "Plumbing & Water",
-            icon: "drop.fill",
-            color: Color(red: 0.53, green: 0.81, blue: 0.92),
-            description: "Water tanks, pumps, filtration, and plumbing systems",
-            members: 2156,
-            unreadCount: nil,
-            trending: false
-        ),
-        Channel(
-            id: "hvac",
-            name: "Heating & Cooling",
-            icon: "thermometer",
-            color: Color(red: 0.86, green: 0.15, blue: 0.15),
-            description: "Heaters, AC units, ventilation, and insulation",
-            members: 1834,
-            unreadCount: 3,
-            trending: false
-        ),
-        Channel(
-            id: "interior",
-            name: "Interior Design",
-            icon: "sofa.fill",
-            color: Color(red: 0.13, green: 0.55, blue: 0.13),
-            description: "Layout planning, furniture building, and space optimization",
-            members: 4102,
-            unreadCount: nil,
-            trending: true
-        ),
-        Channel(
-            id: "finishes",
-            name: "Walls & Finishes",
-            icon: "paintbrush.fill",
-            color: Color(red: 0.55, green: 0.36, blue: 0.96),
-            description: "Wall panels, flooring, paint, and finishing touches",
-            members: 1923,
-            unreadCount: nil,
-            trending: false
-        ),
-        Channel(
-            id: "internet",
-            name: "Internet & Tech",
-            icon: "wifi",
-            color: Color(red: 0.02, green: 0.71, blue: 0.83),
-            description: "WiFi boosters, cellular routers, and connectivity solutions",
-            members: 2567,
-            unreadCount: 8,
-            trending: false
-        ),
-        Channel(
-            id: "general",
-            name: "General Build Help",
-            icon: "wrench.and.screwdriver.fill",
-            color: Color(red: 0.2, green: 0.2, blue: 0.2),
-            description: "General questions, build progress, and troubleshooting",
-            members: 5234,
-            unreadCount: 15,
-            trending: false
-        )
-    ]
-    
-    private let resources: [Resource] = [
-        Resource(id: 1, title: "Complete Electrical Wiring Guide", category: "Electrical", views: 12453, saves: 892),
-        Resource(id: 2, title: "Solar System Sizing Calculator", category: "Solar", views: 8721, saves: 1205),
-        Resource(id: 3, title: "Insulation Best Practices", category: "HVAC", views: 6543, saves: 734),
-        Resource(id: 4, title: "Water System Diagram Templates", category: "Plumbing", views: 5892, saves: 621)
-    ]
-    
-    private var filteredChannels: [Channel] {
+
+    private var filteredChannels: [VanBuilderChannel] {
         if searchQuery.isEmpty {
-            return channels
+            return vanBuilderManager.channels
         }
-        return channels.filter { channel in
+        return vanBuilderManager.channels.filter { channel in
             channel.name.localizedCaseInsensitiveContains(searchQuery) ||
-            channel.description.localizedCaseInsensitiveContains(searchQuery)
+            (channel.description?.localizedCaseInsensitiveContains(searchQuery) ?? false)
         }
     }
     
@@ -226,6 +119,16 @@ struct VanBuilderCommunity: View {
         .fullScreenCover(item: $selectedChannel) { channel in
             VanBuilderChannelView(channel: channel)
         }
+        .onAppear {
+            Task {
+                do {
+                    try await vanBuilderManager.fetchChannels()
+                    try await vanBuilderManager.fetchResources()
+                } catch {
+                    print("Failed to fetch van builder data: \(error)")
+                }
+            }
+        }
     }
     
     private var channelsContent: some View {
@@ -317,7 +220,7 @@ struct VanBuilderCommunity: View {
             .padding(.horizontal, 16)
             .padding(.top, 16)
             
-            ForEach(resources) { resource in
+            ForEach(vanBuilderManager.resources) { resource in
                 ResourceCard(resource: resource)
                     .padding(.horizontal, 16)
             }
@@ -396,33 +299,37 @@ struct TabButton: View {
 }
 
 struct ChannelCard: View {
-    let channel: Channel
+    let channel: VanBuilderChannel
     let onTap: () -> Void
-    
+
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
-    
+
+    private var channelColor: Color {
+        Color(hex: channel.color) ?? burntOrange
+    }
+
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 16) {
                 // Channel Icon
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(channel.color.opacity(0.2))
+                        .fill(channelColor.opacity(0.2))
                         .frame(width: 48, height: 48)
-                    
+
                     Image(systemName: channel.icon)
                         .font(.system(size: 24))
-                        .foregroundColor(channel.color)
+                        .foregroundColor(channelColor)
                 }
-                
+
                 // Channel Info
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
                         Text(channel.name)
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(charcoalColor)
-                        
+
                         if channel.trending {
                             Text("Hot")
                                 .font(.system(size: 11, weight: .medium))
@@ -433,32 +340,32 @@ struct ChannelCard: View {
                                 .clipShape(Capsule())
                         }
                     }
-                    
-                    Text(channel.description)
+
+                    Text(channel.description ?? "")
                         .font(.system(size: 13))
                         .foregroundColor(charcoalColor.opacity(0.6))
                         .lineLimit(2)
-                    
+
                     HStack(spacing: 4) {
                         Image(systemName: "person.2.fill")
                             .font(.system(size: 12))
                             .foregroundColor(charcoalColor.opacity(0.5))
-                        
-                        Text("\(channel.members.formatted()) members")
+
+                        Text("\(channel.memberCount.formatted()) members")
                             .font(.system(size: 12))
                             .foregroundColor(charcoalColor.opacity(0.5))
                     }
                 }
-                
+
                 Spacer()
-                
+
                 // Unread Badge
-                if let unreadCount = channel.unreadCount {
+                if let unreadCount = channel.unreadCount, unreadCount > 0 {
                     ZStack {
                         Circle()
                             .fill(burntOrange)
                             .frame(width: 24, height: 24)
-                        
+
                         Text("\(unreadCount)")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.white)
@@ -476,13 +383,30 @@ struct ChannelCard: View {
     }
 }
 
+// Helper extension to convert hex string to Color
+extension Color {
+    init?(hex: String) {
+        var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
+
+        var rgb: UInt64 = 0
+        guard Scanner(string: hexSanitized).scanHexInt64(&rgb) else { return nil }
+
+        let r = Double((rgb & 0xFF0000) >> 16) / 255.0
+        let g = Double((rgb & 0x00FF00) >> 8) / 255.0
+        let b = Double(rgb & 0x0000FF) / 255.0
+
+        self.init(red: r, green: g, blue: b)
+    }
+}
+
 struct ResourceCard: View {
-    let resource: Resource
-    
+    let resource: VanBuilderResource
+
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
     private let desertSand = Color(red: 0.96, green: 0.87, blue: 0.73)
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
@@ -490,7 +414,7 @@ struct ResourceCard: View {
                     Text(resource.title)
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(charcoalColor)
-                    
+
                     Text(resource.category)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(charcoalColor)
@@ -499,27 +423,27 @@ struct ResourceCard: View {
                         .background(desertSand)
                         .clipShape(Capsule())
                 }
-                
+
                 Spacer()
-                
+
                 Image(systemName: "book.fill")
                     .font(.system(size: 20))
                     .foregroundColor(charcoalColor.opacity(0.4))
             }
-            
+
             HStack(spacing: 8) {
                 Text("\(resource.views.formatted()) views")
                     .font(.system(size: 12))
                     .foregroundColor(charcoalColor.opacity(0.5))
-                
+
                 Text("•")
                     .foregroundColor(charcoalColor.opacity(0.5))
-                
+
                 Text("\(resource.saves.formatted()) saves")
                     .font(.system(size: 12))
                     .foregroundColor(charcoalColor.opacity(0.5))
             }
-            
+
             Button(action: {}) {
                 Text("View Resource")
                     .font(.system(size: 14, weight: .medium))

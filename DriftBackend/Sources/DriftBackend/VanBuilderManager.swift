@@ -378,17 +378,21 @@ public class VanBuilderManager: ObservableObject {
     public func subscribeToChannel(_ channelId: String) async {
         currentChannelId = channelId
 
-        messageChannel = client.realtimeV2.channel("channel_messages:\(channelId)")
+        // Create channel and set up postgres change BEFORE subscribing
+        let channel = client.realtimeV2.channel("channel_messages:\(channelId)")
 
-        let insertions = messageChannel?.postgresChange(
+        let insertions = channel.postgresChange(
             InsertAction.self,
             schema: "public",
             table: "channel_messages",
             filter: "channel_id=eq.\(channelId)"
         )
 
+        // Subscribe first, then listen for changes
+        await channel.subscribe()
+        messageChannel = channel
+
         Task {
-            guard let insertions = insertions else { return }
             for await insertion in insertions {
                 // Only add top-level messages (not replies)
                 let record = insertion.record
@@ -416,8 +420,6 @@ public class VanBuilderManager: ObservableObject {
                 }
             }
         }
-
-        await messageChannel?.subscribe()
     }
 
     /// Unsubscribes from the current channel.
