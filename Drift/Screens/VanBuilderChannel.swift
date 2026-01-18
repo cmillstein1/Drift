@@ -6,105 +6,28 @@
 //
 
 import SwiftUI
-
-struct ChannelMessage: Identifiable {
-    let id: String
-    let userId: String
-    let userName: String
-    let userAvatar: String
-    let message: String
-    let timestamp: String
-    let images: [String]?
-    let replies: Int?
-    let likes: Int
-    let isExpert: Bool
-    let isPinned: Bool
-}
+import DriftBackend
 
 struct VanBuilderChannelView: View {
-    let channel: Channel
+    let channel: VanBuilderChannel
     @Environment(\.dismiss) var dismiss
-    @State private var messages: [ChannelMessage] = [
-        ChannelMessage(
-            id: "1",
-            userId: "101",
-            userName: "Mike Thompson",
-            userAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100",
-            message: "Just finished my 400W solar install! Happy to answer questions about wiring and panel mounting. Here are some photos of the setup:",
-            timestamp: "2 hours ago",
-            images: [
-                "https://images.unsplash.com/photo-1509391366360-2e959784a276?w=600",
-                "https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?w=600"
-            ],
-            replies: 12,
-            likes: 24,
-            isExpert: true,
-            isPinned: true
-        ),
-        ChannelMessage(
-            id: "2",
-            userId: "102",
-            userName: "Sarah Chen",
-            userAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100",
-            message: "What size wire did you use from the panels to the charge controller? I'm planning a similar setup.",
-            timestamp: "1 hour ago",
-            images: nil,
-            replies: 3,
-            likes: 5,
-            isExpert: false,
-            isPinned: false
-        ),
-        ChannelMessage(
-            id: "3",
-            userId: "103",
-            userName: "Jake Morrison",
-            userAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100",
-            message: "Has anyone dealt with flexible panels vs rigid? Trying to decide for my Sprinter build.",
-            timestamp: "45 min ago",
-            images: nil,
-            replies: 8,
-            likes: 12,
-            isExpert: false,
-            isPinned: false
-        ),
-        ChannelMessage(
-            id: "4",
-            userId: "104",
-            userName: "Emma Rodriguez",
-            userAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100",
-            message: "Pro tip: Don't cheap out on the charge controller! I learned the hard way. Victron is worth every penny.",
-            timestamp: "30 min ago",
-            images: nil,
-            replies: nil,
-            likes: 18,
-            isExpert: true,
-            isPinned: false
-        ),
-        ChannelMessage(
-            id: "5",
-            userId: "105",
-            userName: "Chris Taylor",
-            userAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100",
-            message: "Looking for help with battery placement. Anyone have experience with lithium battery heating pads?",
-            timestamp: "15 min ago",
-            images: nil,
-            replies: 2,
-            likes: 3,
-            isExpert: false,
-            isPinned: false
-        )
-    ]
-    
+    @StateObject private var vanBuilderManager = VanBuilderManager.shared
+
     @State private var newMessage: String = ""
     @State private var selectedImages: [String] = []
-    @State private var activeThread: String? = nil
+    @State private var activeThread: UUID? = nil
+    @State private var isSending = false
     @FocusState private var isInputFocused: Bool
     
     private let warmWhite = Color(red: 0.98, green: 0.98, blue: 0.96)
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
     private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
-    
+
+    private var channelColor: Color {
+        Color(hex: channel.color) ?? burntOrange
+    }
+
     private var canSend: Bool {
         !newMessage.trimmingCharacters(in: .whitespaces).isEmpty || !selectedImages.isEmpty
     }
@@ -131,20 +54,20 @@ struct VanBuilderChannelView: View {
                     
                     ZStack {
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(channel.color.opacity(0.2))
+                            .fill(channelColor.opacity(0.2))
                             .frame(width: 40, height: 40)
-                        
+
                         Image(systemName: channel.icon)
                             .font(.system(size: 20))
-                            .foregroundColor(channel.color)
+                            .foregroundColor(channelColor)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text(channel.name)
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(charcoalColor)
-                        
-                        Text("\(channel.members.formatted()) members")
+
+                        Text("\(channel.memberCount.formatted()) members")
                             .font(.system(size: 12))
                             .foregroundColor(charcoalColor.opacity(0.6))
                     }
@@ -166,7 +89,7 @@ struct VanBuilderChannelView: View {
                 .padding(.vertical, 12)
                 
                 // Channel Description
-                Text(channel.description)
+                Text(channel.description ?? "")
                     .font(.system(size: 13))
                     .foregroundColor(charcoalColor.opacity(0.7))
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -184,21 +107,44 @@ struct VanBuilderChannelView: View {
             // Messages
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 24) {
-                        ForEach(messages) { message in
-                            MessageBubble(message: message, onLike: {
-                                handleLike(messageId: message.id)
-                            }, onReply: {
-                                activeThread = message.id
-                            })
+                    if vanBuilderManager.isLoading && vanBuilderManager.currentChannelMessages.isEmpty {
+                        VStack(spacing: 16) {
+                            ProgressView()
+                            Text("Loading messages...")
+                                .font(.system(size: 14))
+                                .foregroundColor(charcoalColor.opacity(0.6))
                         }
+                        .padding(.vertical, 48)
+                    } else if vanBuilderManager.currentChannelMessages.isEmpty {
+                        VStack(spacing: 16) {
+                            Image(systemName: "bubble.left.and.bubble.right")
+                                .font(.system(size: 48))
+                                .foregroundColor(charcoalColor.opacity(0.2))
+                            Text("No messages yet")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(charcoalColor.opacity(0.6))
+                            Text("Be the first to start a conversation!")
+                                .font(.system(size: 14))
+                                .foregroundColor(charcoalColor.opacity(0.4))
+                        }
+                        .padding(.vertical, 48)
+                    } else {
+                        LazyVStack(spacing: 24) {
+                            ForEach(vanBuilderManager.currentChannelMessages) { message in
+                                ChannelMessageBubble(message: message, onLike: {
+                                    handleLike(messageId: message.id)
+                                }, onReply: {
+                                    activeThread = message.id
+                                })
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 24)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 24)
                 }
                 .background(warmWhite)
-                .onChange(of: messages.count) { _ in
-                    if let lastMessage = messages.last {
+                .onChange(of: vanBuilderManager.currentChannelMessages.count) { _, _ in
+                    if let lastMessage = vanBuilderManager.currentChannelMessages.last {
                         withAnimation {
                             proxy.scrollTo(lastMessage.id, anchor: .bottom)
                         }
@@ -320,32 +266,51 @@ struct VanBuilderChannelView: View {
                 }
             }
         }
-    }
-    
-    private func handleSendMessage() {
-        if canSend {
-            let message = ChannelMessage(
-                id: UUID().uuidString,
-                userId: "current-user",
-                userName: "You",
-                userAvatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100",
-                message: newMessage,
-                timestamp: "Just now",
-                images: selectedImages.isEmpty ? nil : selectedImages,
-                replies: nil,
-                likes: 0,
-                isExpert: false,
-                isPinned: false
-            )
-            
-            messages.append(message)
-            newMessage = ""
-            selectedImages = []
+        .onAppear {
+            Task {
+                do {
+                    try await vanBuilderManager.fetchChannelMessages(channel.id)
+                    await vanBuilderManager.subscribeToChannel(channel.id)
+                } catch {
+                    print("Failed to fetch channel messages: \(error)")
+                }
+            }
+        }
+        .onDisappear {
+            Task {
+                await vanBuilderManager.unsubscribeFromChannel()
+            }
         }
     }
-    
+
+    private func handleSendMessage() {
+        guard canSend else { return }
+        isSending = true
+
+        Task {
+            do {
+                try await vanBuilderManager.sendChannelMessage(
+                    channelId: channel.id,
+                    content: newMessage,
+                    images: selectedImages
+                )
+                await MainActor.run {
+                    newMessage = ""
+                    selectedImages = []
+                    isSending = false
+                }
+            } catch {
+                print("Failed to send message: \(error)")
+                await MainActor.run {
+                    isSending = false
+                }
+            }
+        }
+    }
+
     private func handleAddImage() {
-        // Simulate image upload
+        // TODO: Implement image picker
+        // For now, simulate with mock images
         let mockImages = [
             "https://images.unsplash.com/photo-1464207687429-7505649dae38?w=600",
             "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600",
@@ -354,36 +319,35 @@ struct VanBuilderChannelView: View {
         let randomImage = mockImages.randomElement() ?? mockImages[0]
         selectedImages.append(randomImage)
     }
-    
-    private func handleLike(messageId: String) {
-        if let index = messages.firstIndex(where: { $0.id == messageId }) {
-            let currentMessage = messages[index]
-            messages[index] = ChannelMessage(
-                id: currentMessage.id,
-                userId: currentMessage.userId,
-                userName: currentMessage.userName,
-                userAvatar: currentMessage.userAvatar,
-                message: currentMessage.message,
-                timestamp: currentMessage.timestamp,
-                images: currentMessage.images,
-                replies: currentMessage.replies,
-                likes: currentMessage.likes + 1,
-                isExpert: currentMessage.isExpert,
-                isPinned: currentMessage.isPinned
-            )
+
+    private func handleLike(messageId: UUID) {
+        Task {
+            do {
+                try await vanBuilderManager.toggleLike(messageId: messageId)
+            } catch {
+                print("Failed to toggle like: \(error)")
+            }
         }
     }
 }
 
-struct MessageBubble: View {
+struct ChannelMessageBubble: View {
     let message: ChannelMessage
     let onLike: () -> Void
     let onReply: () -> Void
-    
+
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
     private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
-    
+
+    private var userName: String {
+        message.user?.displayName ?? "Unknown User"
+    }
+
+    private var userAvatar: String {
+        message.user?.avatarUrl ?? ""
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Pinned Badge
@@ -392,39 +356,45 @@ struct MessageBubble: View {
                     Image(systemName: "pin.fill")
                         .font(.system(size: 12))
                         .foregroundColor(burntOrange)
-                    
+
                     Text("Pinned by moderators")
                         .font(.system(size: 12))
                         .foregroundColor(burntOrange)
                 }
             }
-            
+
             HStack(alignment: .top, spacing: 12) {
                 // Avatar
-                AsyncImage(url: URL(string: message.userAvatar)) { image in
+                AsyncImage(url: URL(string: userAvatar)) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                 } placeholder: {
-                    Color.gray.opacity(0.2)
+                    ZStack {
+                        Circle()
+                            .fill(Color.gray.opacity(0.2))
+                        Text(String(userName.prefix(1)).uppercased())
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(charcoalColor.opacity(0.6))
+                    }
                 }
                 .frame(width: 40, height: 40)
                 .clipShape(Circle())
-                
+
                 // Message Content
                 VStack(alignment: .leading, spacing: 8) {
                     // User Info
                     HStack(spacing: 8) {
-                        Text(message.userName)
+                        Text(userName)
                             .font(.system(size: 15, weight: .medium))
                             .foregroundColor(charcoalColor)
-                        
-                        if message.isExpert {
+
+                        if message.isExpertPost {
                             HStack(spacing: 4) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 12))
                                     .foregroundColor(forestGreen)
-                                
+
                                 Text("Expert")
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundColor(forestGreen)
@@ -434,22 +404,22 @@ struct MessageBubble: View {
                             .background(forestGreen.opacity(0.1))
                             .clipShape(Capsule())
                         }
-                        
+
                         Text(message.timestamp)
                             .font(.system(size: 12))
                             .foregroundColor(charcoalColor.opacity(0.4))
                     }
-                    
+
                     // Message Text
-                    Text(message.message)
+                    Text(message.content)
                         .font(.system(size: 15))
                         .foregroundColor(charcoalColor.opacity(0.9))
                         .lineSpacing(4)
-                    
+
                     // Images
-                    if let images = message.images, !images.isEmpty {
-                        if images.count == 1 {
-                            AsyncImage(url: URL(string: images[0])) { image in
+                    if !message.images.isEmpty {
+                        if message.images.count == 1 {
+                            AsyncImage(url: URL(string: message.images[0])) { image in
                                 image
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
@@ -463,7 +433,7 @@ struct MessageBubble: View {
                                 GridItem(.flexible(), spacing: 8),
                                 GridItem(.flexible(), spacing: 8)
                             ], spacing: 8) {
-                                ForEach(Array(images.enumerated()), id: \.offset) { index, imageUrl in
+                                ForEach(Array(message.images.enumerated()), id: \.offset) { index, imageUrl in
                                     AsyncImage(url: URL(string: imageUrl)) { image in
                                         image
                                             .resizable()
@@ -477,7 +447,7 @@ struct MessageBubble: View {
                             }
                         }
                     }
-                    
+
                     // Actions
                     HStack(spacing: 16) {
                         Button(action: onLike) {
@@ -485,7 +455,7 @@ struct MessageBubble: View {
                                 Image(systemName: "hand.thumbsup.fill")
                                     .font(.system(size: 14))
                                     .foregroundColor(charcoalColor.opacity(0.6))
-                                
+
                                 Text("\(message.likes)")
                                     .font(.system(size: 14))
                                     .foregroundColor(charcoalColor.opacity(0.6))
@@ -495,15 +465,15 @@ struct MessageBubble: View {
                             .background(Color.gray.opacity(0.05))
                             .clipShape(Capsule())
                         }
-                        
-                        if let replies = message.replies {
+
+                        if message.replyCount > 0 {
                             Button(action: onReply) {
                                 HStack(spacing: 6) {
                                     Image(systemName: "message.fill")
                                         .font(.system(size: 14))
                                         .foregroundColor(charcoalColor.opacity(0.6))
-                                    
-                                    Text("\(replies) replies")
+
+                                    Text("\(message.replyCount) replies")
                                         .font(.system(size: 14))
                                         .foregroundColor(charcoalColor.opacity(0.6))
                                 }
@@ -513,7 +483,7 @@ struct MessageBubble: View {
                                 .clipShape(Capsule())
                             }
                         }
-                        
+
                         Spacer()
                     }
                 }
@@ -523,17 +493,39 @@ struct MessageBubble: View {
 }
 
 struct ThreadView: View {
-    let messageId: String
+    let messageId: UUID
     let onClose: () -> Void
-    
+
+    @StateObject private var vanBuilderManager = VanBuilderManager.shared
+    @State private var replies: [ChannelMessage] = []
+    @State private var isLoading = true
+
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
-    
+
     var body: some View {
         NavigationView {
             VStack {
-                Text("Thread view would show all replies here")
-                    .font(.system(size: 14))
-                    .foregroundColor(charcoalColor.opacity(0.6))
+                if isLoading {
+                    ProgressView()
+                } else if replies.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "bubble.left")
+                            .font(.system(size: 32))
+                            .foregroundColor(charcoalColor.opacity(0.3))
+                        Text("No replies yet")
+                            .font(.system(size: 14))
+                            .foregroundColor(charcoalColor.opacity(0.6))
+                    }
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 16) {
+                            ForEach(replies) { reply in
+                                ChannelMessageBubble(message: reply, onLike: {}, onReply: {})
+                            }
+                        }
+                        .padding()
+                    }
+                }
             }
             .navigationTitle("Thread")
             .navigationBarTitleDisplayMode(.inline)
@@ -546,20 +538,30 @@ struct ThreadView: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .onAppear {
+            Task {
+                do {
+                    replies = try await vanBuilderManager.fetchReplies(for: messageId)
+                } catch {
+                    print("Failed to fetch replies: \(error)")
+                }
+                isLoading = false
+            }
+        }
     }
 }
 
 #Preview {
     VanBuilderChannelView(
-        channel: Channel(
+        channel: VanBuilderChannel(
             id: "electrical",
             name: "Electrical & Wiring",
-            icon: "bolt.fill",
-            color: Color(red: 0.80, green: 0.40, blue: 0.20),
             description: "Electrical systems, wiring, batteries, and power management",
-            members: 3421,
-            unreadCount: 12,
-            trending: true
+            icon: "bolt.fill",
+            color: "#CC6633",
+            memberCount: 3421,
+            trending: true,
+            sortOrder: 1
         )
     )
 }

@@ -276,17 +276,21 @@ public class MessagingManager: ObservableObject {
     public func subscribeToMessages(conversationId: UUID) async {
         currentConversationId = conversationId
 
-        messageChannel = client.realtimeV2.channel("messages:\(conversationId)")
+        // Create channel and set up postgres change BEFORE subscribing
+        let channel = client.realtimeV2.channel("messages:\(conversationId)")
 
-        let insertions = messageChannel?.postgresChange(
+        let insertions = channel.postgresChange(
             InsertAction.self,
             schema: "public",
             table: "messages",
             filter: "conversation_id=eq.\(conversationId)"
         )
 
+        // Subscribe first, then listen for changes
+        await channel.subscribe()
+        messageChannel = channel
+
         Task {
-            guard let insertions = insertions else { return }
             for await insertion in insertions {
                 // Fetch the new message with sender info
                 let record = insertion.record
@@ -313,8 +317,6 @@ public class MessagingManager: ObservableObject {
                 }
             }
         }
-
-        await messageChannel?.subscribe()
     }
 
     /// Unsubscribes from the current message channel.
@@ -328,22 +330,24 @@ public class MessagingManager: ObservableObject {
     public func subscribeToConversations() async {
         guard let userId = SupabaseManager.shared.currentUser?.id else { return }
 
-        conversationsChannel = client.realtimeV2.channel("conversations:\(userId)")
+        // Create channel and set up postgres change BEFORE subscribing
+        let channel = client.realtimeV2.channel("conversations:\(userId)")
 
-        let updates = conversationsChannel?.postgresChange(
+        let updates = channel.postgresChange(
             UpdateAction.self,
             schema: "public",
             table: "conversations"
         )
 
+        // Subscribe first, then listen for changes
+        await channel.subscribe()
+        conversationsChannel = channel
+
         Task {
-            guard let updates = updates else { return }
             for await _ in updates {
                 try? await self.fetchConversations()
             }
         }
-
-        await conversationsChannel?.subscribe()
     }
 
     /// Unsubscribes from all channels.
