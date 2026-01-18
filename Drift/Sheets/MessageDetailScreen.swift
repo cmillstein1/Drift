@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct ChatMessage: Identifiable {
     let id: Int
@@ -36,7 +37,7 @@ struct MessageDetailScreen: View {
                 startPoint: .leading,
                 endPoint: .trailing
             )
-        case .friends:
+        case .friends, .activity:
             return LinearGradient(
                 gradient: Gradient(colors: [Color("SkyBlue"), forestGreen]),
                 startPoint: .leading,
@@ -44,7 +45,7 @@ struct MessageDetailScreen: View {
             )
         }
     }
-    
+
     private var sendButtonGradient: LinearGradient {
         switch conversation.type {
         case .dating:
@@ -53,7 +54,7 @@ struct MessageDetailScreen: View {
                 startPoint: .leading,
                 endPoint: .trailing
             )
-        case .friends:
+        case .friends, .activity:
             return LinearGradient(
                 gradient: Gradient(colors: [Color("SkyBlue"), forestGreen]),
                 startPoint: .leading,
@@ -61,7 +62,7 @@ struct MessageDetailScreen: View {
             )
         }
     }
-    
+
     private var badgeBackground: LinearGradient {
         switch conversation.type {
         case .dating:
@@ -70,7 +71,7 @@ struct MessageDetailScreen: View {
                 startPoint: .leading,
                 endPoint: .trailing
             )
-        case .friends:
+        case .friends, .activity:
             return LinearGradient(
                 gradient: Gradient(colors: [Color("SkyBlue"), forestGreen]),
                 startPoint: .leading,
@@ -78,22 +79,26 @@ struct MessageDetailScreen: View {
             )
         }
     }
-    
+
     private var badgeIcon: String {
         switch conversation.type {
         case .dating:
             return "heart.fill"
         case .friends:
             return "person.fill"
+        case .activity:
+            return "calendar"
         }
     }
-    
+
     private var typeLabel: String {
         switch conversation.type {
         case .dating:
             return "Match"
         case .friends:
             return "Friend"
+        case .activity:
+            return "Activity"
         }
     }
     
@@ -116,7 +121,7 @@ struct MessageDetailScreen: View {
                     
                     ZStack(alignment: .bottomTrailing) {
                         // Avatar
-                        AsyncImage(url: URL(string: conversation.avatar)) { phase in
+                        AsyncImage(url: URL(string: conversation.avatarUrl ?? "")) { phase in
                             switch phase {
                             case .empty:
                                 Circle()
@@ -175,7 +180,7 @@ struct MessageDetailScreen: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(conversation.name)
+                        Text(conversation.displayName)
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(charcoalColor)
                         

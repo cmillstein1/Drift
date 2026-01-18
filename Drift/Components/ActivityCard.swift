@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct ActivityCard: View {
     let activity: Activity
@@ -18,7 +19,7 @@ struct ActivityCard: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .topTrailing) {
-                AsyncImage(url: URL(string: activity.imageURL)) { image in
+                AsyncImage(url: URL(string: activity.imageUrl ?? "")) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
@@ -30,7 +31,7 @@ struct ActivityCard: View {
                 }
                 .frame(height: 160)
                 .clipped()
-                
+
                 LinearGradient(
                     gradient: Gradient(colors: [
                         Color.clear,
@@ -40,8 +41,8 @@ struct ActivityCard: View {
                     endPoint: .bottom
                 )
                 .frame(height: 160)
-                
-                Text(activity.category)
+
+                Text(activity.category.displayName)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(charcoalColor)
                     .padding(.horizontal, 12)
@@ -55,56 +56,56 @@ struct ActivityCard: View {
                     .padding(.top, 12)
                     .padding(.trailing, 12)
             }
-            
+
             VStack(alignment: .leading, spacing: 12) {
                 Text(activity.title)
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(charcoalColor)
-                
+
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         Image(systemName: "mappin")
                             .font(.system(size: 14))
                             .foregroundColor(charcoalColor.opacity(0.6))
-                        
+
                         Text(activity.location)
                             .font(.system(size: 14))
                             .foregroundColor(charcoalColor.opacity(0.6))
                     }
-                    
+
                     HStack(spacing: 8) {
                         Image(systemName: "calendar")
                             .font(.system(size: 14))
                             .foregroundColor(charcoalColor.opacity(0.6))
-                        
-                        Text(activity.date)
+
+                        Text(activity.formattedDateTime)
                             .font(.system(size: 14))
                             .foregroundColor(charcoalColor.opacity(0.6))
                     }
-                    
+
                     HStack(spacing: 8) {
                         Image(systemName: "person.2.fill")
                             .font(.system(size: 14))
                             .foregroundColor(charcoalColor.opacity(0.6))
-                        
-                        Text("\(activity.attendees)/\(activity.maxAttendees) going")
+
+                        Text("\(activity.currentAttendees)/\(activity.maxAttendees) going")
                             .font(.system(size: 14))
                             .foregroundColor(charcoalColor.opacity(0.6))
                     }
                 }
-                
+
                 HStack {
                     HStack(spacing: 0) {
                         Text("Hosted by ")
                             .font(.system(size: 14))
                             .foregroundColor(charcoalColor.opacity(0.6))
-                        Text(activity.host)
+                        Text(activity.host?.displayName ?? "Unknown")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(burntOrange)
                     }
-                    
+
                     Spacer()
-                    
+
                     Button(action: {
                         // Handle join
                     }) {
@@ -134,15 +135,14 @@ struct ActivityCard: View {
 #Preview {
     ActivityCard(
         activity: Activity(
-            id: 1,
+            hostId: UUID(),
             title: "Sunrise Hike",
+            category: .outdoor,
             location: "Big Sur Trail",
-            date: "Tomorrow, 6:00 AM",
-            attendees: 4,
+            imageUrl: "https://images.unsplash.com/photo-1603741614953-4187ed84cc50?w=800",
+            startsAt: Date().addingTimeInterval(86400),
             maxAttendees: 8,
-            host: "Sarah",
-            category: "Outdoor",
-            imageURL: "https://images.unsplash.com/photo-1603741614953-4187ed84cc50?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb3VudGFpbiUyMGhpa2luZyUyMGFkdmVudHVyZXxlbnwxfHx8fDE3NjgzODg4MDN8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
+            currentAttendees: 4
         )
     )
     .padding()

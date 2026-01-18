@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct Interest: Identifiable {
     let id = UUID()
@@ -22,8 +23,10 @@ struct InterestCategory: Identifiable {
 
 struct InterestsScreen: View {
     let onContinue: () -> Void
-    
+
+    @StateObject private var profileManager = ProfileManager.shared
     @State private var selectedInterests: Set<String> = []
+    @State private var isSaving = false
     @State private var categories: [InterestCategory] = [
         InterestCategory(
             title: "Food & drink",
@@ -193,19 +196,26 @@ struct InterestsScreen: View {
                     Text("\(selectedInterests.count) selected\(selectedInterests.count < 3 ? " · \(3 - selectedInterests.count) more needed" : "")")
                         .font(.system(size: 14))
                         .foregroundColor(charcoalColor.opacity(0.6))
-                    
+
                     Button(action: {
-                        onContinue()
+                        saveAndContinue()
                     }) {
-                        Text("Continue")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(canContinue ? burntOrange : Color.gray.opacity(0.3))
-                            .clipShape(Capsule())
+                        if isSaving {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        } else {
+                            Text("Continue")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        }
                     }
-                    .disabled(!canContinue)
+                    .background(canContinue ? burntOrange : Color.gray.opacity(0.3))
+                    .clipShape(Capsule())
+                    .disabled(!canContinue || isSaving)
                     .padding(.horizontal, 24)
                     .padding(.bottom, 32)
                     .opacity(buttonOpacity)
@@ -227,6 +237,23 @@ struct InterestsScreen: View {
             withAnimation(.easeOut(duration: 0.5).delay(0.6)) {
                 buttonOpacity = 1
                 buttonOffset = 0
+            }
+        }
+    }
+
+    private func saveAndContinue() {
+        isSaving = true
+        Task {
+            do {
+                try await profileManager.updateProfile(
+                    ProfileUpdateRequest(interests: Array(selectedInterests))
+                )
+            } catch {
+                print("Failed to save interests: \(error)")
+            }
+            await MainActor.run {
+                isSaving = false
+                onContinue()
             }
         }
     }

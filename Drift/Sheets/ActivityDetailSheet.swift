@@ -6,12 +6,7 @@
 //
 
 import SwiftUI
-
-struct Attendee: Identifiable {
-    let id: Int
-    let name: String
-    let avatar: String
-}
+import DriftBackend
 
 struct ActivityDetailSheet: View {
     @Environment(\.dismiss) var dismiss
@@ -24,24 +19,29 @@ struct ActivityDetailSheet: View {
     private let skyBlue = Color("SkyBlue")
     private let softGray = Color("SoftGray")
     private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
-    
-    // Mock attendees data
-    private let mockAttendees: [Attendee] = [
-        Attendee(id: 1, name: "Sarah M.", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop"),
-        Attendee(id: 2, name: "Marcus T.", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop"),
-        Attendee(id: 3, name: "Luna K.", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop"),
-        Attendee(id: 4, name: "Jake R.", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop")
-    ]
-    
-    var displayedAttendees: [Attendee] {
-        Array(mockAttendees.prefix(activity.attendees))
+
+    var displayedAttendees: [ActivityAttendee] {
+        activity.attendees?.filter { $0.status == .confirmed } ?? []
+    }
+
+    private var formattedDuration: String {
+        guard let minutes = activity.durationMinutes else { return "TBD" }
+        if minutes >= 60 {
+            let hours = minutes / 60
+            let remainingMinutes = minutes % 60
+            if remainingMinutes == 0 {
+                return "\(hours) hour\(hours > 1 ? "s" : "")"
+            }
+            return "\(hours)h \(remainingMinutes)m"
+        }
+        return "\(minutes) min"
     }
     
     var body: some View {
         VStack(spacing: 0) {
             // Hero Image Section
             ZStack(alignment: .topLeading) {
-                AsyncImage(url: URL(string: activity.imageURL)) { phase in
+                AsyncImage(url: URL(string: activity.imageUrl ?? "")) { phase in
                         switch phase {
                         case .empty:
                             ZStack {
@@ -125,7 +125,7 @@ struct ActivityDetailSheet: View {
                                 Text("Hosted by")
                                     .font(.system(size: 14))
                                     .foregroundColor(.white.opacity(0.9))
-                                Text(activity.host)
+                                Text(activity.host?.displayName ?? "Unknown")
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(.white)
                             }
@@ -153,11 +153,11 @@ struct ActivityDetailSheet: View {
                                         .foregroundColor(charcoalColor.opacity(0.6))
                                 }
                                 
-                                Text(activity.date)
+                                Text(activity.formattedDate)
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(charcoalColor)
-                                
-                                Text(activity.time ?? "2 hours")
+
+                                Text(formattedDuration)
                                     .font(.system(size: 12))
                                     .foregroundColor(charcoalColor.opacity(0.6))
                             }
@@ -177,7 +177,7 @@ struct ActivityDetailSheet: View {
                                         .foregroundColor(charcoalColor.opacity(0.6))
                                 }
                                 
-                                Text("\(activity.attendees)/\(activity.maxAttendees) joined")
+                                Text("\(activity.currentAttendees)/\(activity.maxAttendees) joined")
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(charcoalColor)
                                 
@@ -197,7 +197,7 @@ struct ActivityDetailSheet: View {
                                                 )
                                             )
                                             .frame(
-                                                width: geometry.size.width * CGFloat(activity.attendees) / CGFloat(activity.maxAttendees),
+                                                width: geometry.size.width * CGFloat(activity.currentAttendees) / CGFloat(activity.maxAttendees),
                                                 height: 6
                                             )
                                     }
@@ -238,7 +238,7 @@ struct ActivityDetailSheet: View {
                                 
                                 Spacer()
                                 
-                                Text(activity.category)
+                                Text(activity.category.displayName)
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(charcoalColor)
                                     .padding(.horizontal, 16)
@@ -290,7 +290,7 @@ struct ActivityDetailSheet: View {
                                 
                                 Spacer()
                                 
-                                Text("\(activity.attendees) \(activity.attendees == 1 ? "person" : "people")")
+                                Text("\(activity.currentAttendees) \(activity.currentAttendees == 1 ? "person" : "people")")
                                     .font(.system(size: 14))
                                     .foregroundColor(charcoalColor.opacity(0.6))
                             }
@@ -299,7 +299,7 @@ struct ActivityDetailSheet: View {
                                 HStack(spacing: 12) {
                                     ForEach(displayedAttendees) { attendee in
                                         HStack(spacing: 8) {
-                                            AsyncImage(url: URL(string: attendee.avatar)) { phase in
+                                            AsyncImage(url: URL(string: attendee.profile?.avatarUrl ?? "")) { phase in
                                                 switch phase {
                                                 case .empty:
                                                     ProgressView()
@@ -321,12 +321,12 @@ struct ActivityDetailSheet: View {
                                                 Circle()
                                                     .stroke(Color.white, lineWidth: 2)
                                             )
-                                            
-                                            Text(attendee.name)
+
+                                            Text(attendee.profile?.displayName ?? "Unknown")
                                                 .font(.system(size: 14, weight: .medium))
                                                 .foregroundColor(charcoalColor)
-                                            
-                                            if attendee.id == 1 {
+
+                                            if attendee.profile?.verified == true {
                                                 Image(systemName: "checkmark.circle.fill")
                                                     .font(.system(size: 16))
                                                     .foregroundColor(forestGreen)
@@ -419,18 +419,17 @@ struct ActivityDetailSheet: View {
 #Preview {
     ActivityDetailSheet(
         activity: Activity(
-            id: 1,
+            hostId: UUID(),
             title: "Sunrise Hike",
-            location: "Big Sur Trail",
-            date: "Tomorrow, 6:00 AM",
-            attendees: 4,
-            maxAttendees: 8,
-            host: "Sarah",
-            category: "Outdoor",
-            imageURL: "https://images.unsplash.com/photo-1603741614953-4187ed84cc50?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb3VudGFpbiUyMGhpa2luZyUyMGFkdmVudHVyZXxlbnwxfHx8fDE3NjgzODg4MDN8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
             description: "Join us for an amazing sunrise hike! This is a great opportunity to meet fellow travelers and create unforgettable memories. All skill levels welcome. Don't forget to bring water and good vibes!",
-            time: "2 hours",
-            exactLocation: "Trailhead parking lot"
+            category: .outdoor,
+            location: "Big Sur Trail",
+            exactLocation: "Trailhead parking lot",
+            imageUrl: "https://images.unsplash.com/photo-1603741614953-4187ed84cc50?w=800",
+            startsAt: Date().addingTimeInterval(86400),
+            durationMinutes: 120,
+            maxAttendees: 8,
+            currentAttendees: 4
         )
     )
 }

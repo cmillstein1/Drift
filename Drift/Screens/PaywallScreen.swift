@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import DriftBackend
 import RevenueCat
 
 // Extension for custom corner radius
@@ -34,11 +35,6 @@ enum PaywallSource {
     case createActivity
     case expertHelp
     case general
-}
-
-enum SubscriptionPlan: String, CaseIterable {
-    case monthly = "monthly"
-    case yearly = "yearly"
 }
 
 struct PaywallScreen: View {

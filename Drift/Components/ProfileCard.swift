@@ -6,9 +6,10 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct ProfileCard: View {
-    let profile: Profile
+    let profile: UserProfile
     let isTop: Bool
     let mode: DiscoverMode
     let scale: Double
@@ -27,11 +28,13 @@ struct ProfileCard: View {
     private let pink500 = Color(red: 0.93, green: 0.36, blue: 0.51) // Keep pink500 as is since it's not in assets
     
     private var shouldShowDatingBadge: Bool {
-        profile.lookingFor == .dating || (profile.lookingFor == .both && mode == .dating)
+        let lookingFor = profile.lookingFor
+        return lookingFor == .dating || (lookingFor == .both && mode == .dating)
     }
-    
+
     private var shouldShowFriendsBadge: Bool {
-        profile.lookingFor == .friends || (profile.lookingFor == .both && mode == .friends)
+        let lookingFor = profile.lookingFor
+        return lookingFor == .friends || (lookingFor == .both && mode == .friends)
     }
     
     var body: some View {
@@ -44,7 +47,7 @@ struct ProfileCard: View {
                 VStack(spacing: 0) {
                     // Image section - 60% height
                     ZStack(alignment: .topLeading) {
-                        AsyncImage(url: URL(string: profile.imageURL)) { phase in
+                        AsyncImage(url: URL(string: profile.avatarUrl ?? "")) { phase in
                             switch phase {
                             case .empty:
                                 ZStack {
@@ -171,32 +174,39 @@ struct ProfileCard: View {
                     // Content section
                     VStack(alignment: .leading, spacing: 16) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("\(profile.name), \(profile.age)")
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(charcoalColor)
-                            
+                            HStack(spacing: 0) {
+                                Text(profile.displayName)
+                                if let age = profile.age {
+                                    Text(", \(age)")
+                                }
+                            }
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(charcoalColor)
+
                             HStack(spacing: 4) {
                                 Image("map_pin")
                                     .resizable()
                                     .frame(width: 18, height: 18)
                                     .foregroundColor(charcoalColor.opacity(0.6))
-                                
-                                Text(profile.location)
+
+                                Text(profile.location ?? "Unknown")
                                     .font(.system(size: 14))
                                     .foregroundColor(charcoalColor.opacity(0.6))
                             }
                         }
-                        
-                        Text(profile.bio)
-                            .font(.system(size: 15))
-                            .foregroundColor(charcoalColor.opacity(0.7))
-                            .lineSpacing(4)
-                            .fixedSize(horizontal: false, vertical: true)
-                        
-                        // Tags
+
+                        if let bio = profile.bio {
+                            Text(bio)
+                                .font(.system(size: 15))
+                                .foregroundColor(charcoalColor.opacity(0.7))
+                                .lineSpacing(4)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        // Tags (interests)
                         HStack(spacing: 8) {
-                            ForEach(profile.tags, id: \.self) { tag in
-                                Text(tag)
+                            ForEach(profile.interests.prefix(4), id: \.self) { interest in
+                                Text(interest)
                                     .font(.system(size: 13))
                                     .foregroundColor(charcoalColor)
                                     .padding(.horizontal, 12)
@@ -205,15 +215,17 @@ struct ProfileCard: View {
                                     .clipShape(Capsule())
                             }
                         }
-                        
-                        HStack(spacing: 4) {
-                            Text("Next:")
-                                .font(.system(size: 14))
-                                .foregroundColor(charcoalColor.opacity(0.6))
-                            
-                            Text(profile.nextDestination)
-                                .font(.system(size: 14))
-                                .foregroundColor(burntOrange)
+
+                        if let nextDestination = profile.nextDestination {
+                            HStack(spacing: 4) {
+                                Text("Next:")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(charcoalColor.opacity(0.6))
+
+                                Text(nextDestination)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(burntOrange)
+                            }
                         }
                     }
                     .padding(24)
@@ -253,17 +265,17 @@ struct ProfileCard: View {
 
 #Preview {
     ProfileCard(
-        profile: Profile(
-            id: 1,
+        profile: UserProfile(
+            id: UUID(),
             name: "Sarah",
             age: 28,
-            location: "Big Sur, CA",
-            imageURL: "https://images.unsplash.com/photo-1682101525282-545b10c4bb55?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkaWdpdGFsJTIwbm9tYWQlMjBiZWFjaHxlbnwxfHx8fDE3Njg1MDYwNTJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
             bio: "Van-lifer and photographer exploring the Pacific Coast. Always up for sunrise hikes and good coffee.",
-            tags: ["Van Life", "Photography", "Surf", "Early Riser"],
+            avatarUrl: "https://images.unsplash.com/photo-1682101525282-545b10c4bb55?w=800",
+            location: "Big Sur, CA",
             verified: true,
-            lifestyle: "Van Life",
+            lifestyle: .vanLife,
             nextDestination: "Portland, OR",
+            interests: ["Van Life", "Photography", "Surf", "Early Riser"],
             lookingFor: .both
         ),
         isTop: true,

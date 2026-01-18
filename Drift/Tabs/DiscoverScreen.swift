@@ -6,26 +6,7 @@
 //
 
 import SwiftUI
-
-enum LookingFor: String {
-    case dating
-    case friends
-    case both
-}
-
-struct Profile: Identifiable {
-    let id: Int
-    let name: String
-    let age: Int
-    let location: String
-    let imageURL: String
-    let bio: String
-    let tags: [String]
-    let verified: Bool
-    let lifestyle: String
-    let nextDestination: String
-    let lookingFor: LookingFor
-}
+import DriftBackend
 
 enum DiscoverMode {
     case dating
@@ -34,66 +15,20 @@ enum DiscoverMode {
 
 struct DiscoverScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
-    @State private var profiles: [Profile] = [
-        Profile(
-            id: 1,
-            name: "Sarah",
-            age: 28,
-            location: "Big Sur, CA",
-            imageURL: "https://images.unsplash.com/photo-1682101525282-545b10c4bb55?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkaWdpdGFsJTIwbm9tYWQlMjBiZWFjaHxlbnwxfHx8fDE3Njg1MDYwNTJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-            bio: "Van-lifer and photographer exploring the Pacific Coast. Always up for sunrise hikes and good coffee.",
-            tags: ["Van Life", "Photography", "Surf", "Early Riser"],
-            verified: true,
-            lifestyle: "Van Life",
-            nextDestination: "Portland, OR",
-            lookingFor: .both
-        ),
-        Profile(
-            id: 2,
-            name: "Marcus",
-            age: 31,
-            location: "Austin, TX",
-            imageURL: "https://images.unsplash.com/photo-1603741614953-4187ed84cc50?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb3VudGFpbiUyMGhpa2luZyUyMGFkdmVudHVyZXxlbnwxfHx8fDE3NjgzODg4MDN8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-            bio: "Software engineer working remotely from my Sprinter van. Building startups and climbing rocks.",
-            tags: ["Remote Dev", "Van Life", "Rock Climbing", "Tech"],
-            verified: true,
-            lifestyle: "Digital Nomad",
-            nextDestination: "Boulder, CO",
-            lookingFor: .both
-        ),
-        Profile(
-            id: 3,
-            name: "Luna",
-            age: 26,
-            location: "Sedona, AZ",
-            imageURL: "https://images.unsplash.com/photo-1638732984003-d2a05a69ebd6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkZXNlcnQlMjBsYW5kc2NhcGUlMjB0cmF2ZWxlcnxlbnwxfHx8fDE3Njg1MDYwNTN8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-            bio: "Yoga instructor and writer. Desert lover seeking authentic connections and shared sunsets.",
-            tags: ["Yoga", "Writing", "Meditation", "Desert Life"],
-            verified: false,
-            lifestyle: "Van Life",
-            nextDestination: "Moab, UT",
-            lookingFor: .dating
-        ),
-        Profile(
-            id: 4,
-            name: "Jake",
-            age: 29,
-            location: "Portland, OR",
-            imageURL: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800",
-            bio: "Outdoor enthusiast and coffee roaster. Always down for a weekend adventure or a chill camping trip.",
-            tags: ["Camping", "Coffee", "Mountain Biking", "Chill Vibes"],
-            verified: true,
-            lifestyle: "Van Life",
-            nextDestination: "Seattle, WA",
-            lookingFor: .friends
-        )
-    ]
-    
+    @StateObject private var profileManager = ProfileManager.shared
+    @StateObject private var friendsManager = FriendsManager.shared
+
+    @State private var swipedIds: [UUID] = []
     @State private var currentIndex: Int = 0
     @State private var mode: DiscoverMode = .dating
-    @State private var originalProfiles: [Profile] = []
-    @State private var selectedProfile: Profile? = nil
+    @State private var selectedProfile: UserProfile? = nil
     @State private var segmentIndex: Int = 0
+    @State private var showMatchAlert: Bool = false
+    @State private var matchedProfile: UserProfile? = nil
+
+    private var profiles: [UserProfile] {
+        profileManager.discoverProfiles
+    }
     
     private var segmentOptions: [SegmentOption] {
         [
@@ -126,26 +61,75 @@ struct DiscoverScreen: View {
     private let forestGreen = Color("ForestGreen")
     private let skyBlue = Color("SkyBlue")
     private let desertSand = Color("DesertSand")
-    private let pink500 = Color(red: 0.93, green: 0.36, blue: 0.51) // Keep pink500 as is since it's not in assets
-    
-    private var currentCard: Profile? {
+    private let pink500 = Color(red: 0.93, green: 0.36, blue: 0.51)
+
+    private var currentCard: UserProfile? {
         guard currentIndex < profiles.count else { return nil }
         return profiles[currentIndex]
     }
-    
+
     private func updateSegmentIndex() {
         segmentIndex = mode == .dating ? 0 : 1
     }
-    
+
+    private func loadProfiles() {
+        Task {
+            do {
+                // Fetch already swiped IDs
+                swipedIds = try await friendsManager.fetchSwipedUserIds()
+
+                // Fetch profiles based on mode
+                let lookingFor: LookingFor = mode == .dating ? .dating : .friends
+                try await profileManager.fetchDiscoverProfiles(
+                    lookingFor: lookingFor,
+                    excludeIds: swipedIds
+                )
+                currentIndex = 0
+            } catch {
+                print("Failed to load profiles: \(error)")
+            }
+        }
+    }
+
     private func handleSwipe(direction: SwipeDirection) {
+        guard let profile = currentCard else { return }
+
+        // Record the swipe in backend
+        Task {
+            do {
+                let swipeDirection: DriftBackend.SwipeDirection
+                switch direction {
+                case .left:
+                    swipeDirection = .left
+                case .right:
+                    swipeDirection = .right
+                case .up:
+                    swipeDirection = .up
+                }
+
+                let match = try await friendsManager.swipe(on: profile.id, direction: swipeDirection)
+
+                // Check if it's a match
+                if let match = match {
+                    await MainActor.run {
+                        matchedProfile = match.otherUserProfile
+                        showMatchAlert = true
+                    }
+                }
+            } catch {
+                print("Failed to record swipe: \(error)")
+            }
+        }
+
+        // Move to next card
         if currentIndex < profiles.count - 1 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 currentIndex += 1
             }
         } else {
+            // Reload profiles when deck is empty
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                currentIndex = 0
-                profiles = originalProfiles
+                loadProfiles()
             }
         }
     }
@@ -240,7 +224,20 @@ struct DiscoverScreen: View {
             }
         }
         .onAppear {
-            originalProfiles = profiles
+            loadProfiles()
+        }
+        .onChange(of: mode) { _ in
+            loadProfiles()
+        }
+        .alert("It's a Match!", isPresented: $showMatchAlert) {
+            Button("Send Message") {
+                // TODO: Navigate to messaging
+            }
+            Button("Keep Swiping", role: .cancel) {}
+        } message: {
+            if let profile = matchedProfile {
+                Text("You and \(profile.displayName) liked each other!")
+            }
         }
         .fullScreenCover(item: $selectedProfile) { profile in
             ProfileDetailView(

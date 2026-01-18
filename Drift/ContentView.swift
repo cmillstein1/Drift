@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import Auth
+import DriftBackend
 
 struct ContentView: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared

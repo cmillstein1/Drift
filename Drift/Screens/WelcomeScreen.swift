@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AuthenticationServices
+import DriftBackend
 
 struct WelcomeScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared

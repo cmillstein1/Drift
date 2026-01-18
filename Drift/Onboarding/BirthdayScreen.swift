@@ -6,11 +6,14 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct BirthdayScreen: View {
     let onContinue: () -> Void
-    
+
+    @StateObject private var profileManager = ProfileManager.shared
     @State private var selectedDate = Date()
+    @State private var isSaving = false
     @State private var titleOpacity: Double = 0
     @State private var titleOffset: CGFloat = -20
     @State private var subtitleOpacity: Double = 0
@@ -86,17 +89,24 @@ struct BirthdayScreen: View {
                     Spacer()
                     
                     Button(action: {
-                        onContinue()
+                        saveAndContinue()
                     }) {
-                        Text("Continue")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(isDateValid ? burntOrange : Color.gray.opacity(0.3))
-                            .clipShape(Capsule())
+                        if isSaving {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        } else {
+                            Text("Continue")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        }
                     }
-                    .disabled(!isDateValid)
+                    .background(isDateValid ? burntOrange : Color.gray.opacity(0.3))
+                    .clipShape(Capsule())
+                    .disabled(!isDateValid || isSaving)
                     .padding(.horizontal, 24)
                     .padding(.bottom, 32)
                     .opacity(buttonOpacity)
@@ -128,6 +138,23 @@ struct BirthdayScreen: View {
             withAnimation(.easeOut(duration: 0.5).delay(0.4)) {
                 buttonOpacity = 1
                 buttonOffset = 0
+            }
+        }
+    }
+
+    private func saveAndContinue() {
+        isSaving = true
+        Task {
+            do {
+                try await profileManager.updateProfile(
+                    ProfileUpdateRequest(birthday: selectedDate)
+                )
+            } catch {
+                print("Failed to save birthday: \(error)")
+            }
+            await MainActor.run {
+                isSaving = false
+                onContinue()
             }
         }
     }

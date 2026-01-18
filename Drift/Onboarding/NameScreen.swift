@@ -6,11 +6,14 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct NameScreen: View {
     let onContinue: () -> Void
-    
+
+    @StateObject private var profileManager = ProfileManager.shared
     @State private var name: String = ""
+    @State private var isSaving = false
     @State private var titleOpacity: Double = 0
     @State private var titleOffset: CGFloat = -20
     @State private var subtitleOpacity: Double = 0
@@ -75,17 +78,24 @@ struct NameScreen: View {
                     Spacer()
                     
                     Button(action: {
-                        onContinue()
+                        saveAndContinue()
                     }) {
-                        Text("Continue")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(name.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray.opacity(0.3) : burntOrange)
-                            .clipShape(Capsule())
+                        if isSaving {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        } else {
+                            Text("Continue")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        }
                     }
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .background(name.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray.opacity(0.3) : burntOrange)
+                    .clipShape(Capsule())
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
                     .padding(.horizontal, 24)
                     .padding(.bottom, 32)
                     .opacity(buttonOpacity)
@@ -117,6 +127,23 @@ struct NameScreen: View {
             // Auto-focus text field after animation
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                 isTextFieldFocused = true
+            }
+        }
+    }
+
+    private func saveAndContinue() {
+        isSaving = true
+        Task {
+            do {
+                try await profileManager.updateProfile(
+                    ProfileUpdateRequest(name: name.trimmingCharacters(in: .whitespaces))
+                )
+            } catch {
+                print("Failed to save name: \(error)")
+            }
+            await MainActor.run {
+                isSaving = false
+                onContinue()
             }
         }
     }

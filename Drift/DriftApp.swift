@@ -6,75 +6,85 @@
 //
 
 import SwiftUI
-import Auth
-
-// Helper function to parse onboarding status from metadata
-private func getOnboardingStatus(from metadata: [String: Any]) -> Bool {
-    guard let value = metadata["onboarding_completed"] else {
-        return false
-    }
-    
-    // Handle both Bool and String representations
-    if let boolValue = value as? Bool {
-        return boolValue
-    } else if let stringValue = value as? String {
-        return stringValue.lowercased() == "true"
-    } else if let intValue = value as? Int {
-        return intValue != 0
-    }
-    
-    return false
-}
+import DriftBackend
+import Supabase
 
 @main
 struct DriftApp: App {
-    @ObservedObject private var supabaseManager = SupabaseManager.shared
-    @StateObject private var revenueCatManager = RevenueCatManager.shared
-    
+    @ObservedObject private var supabaseManager: SupabaseManager
+    @StateObject private var revenueCatManager: RevenueCatManager
+    @StateObject private var profileManager: ProfileManager
+
     init() {
-        // Initialize RevenueCat early
-        _ = RevenueCatManager.shared
+        // Initialize DriftBackend with API keys FIRST
+        initializeDriftBackend()
+
+        // Now safe to access managers
+        self._supabaseManager = ObservedObject(wrappedValue: SupabaseManager.shared)
+        self._revenueCatManager = StateObject(wrappedValue: RevenueCatManager.shared)
+        self._profileManager = StateObject(wrappedValue: ProfileManager.shared)
     }
-    
+
+    /// Check onboarding status - must have both the flag AND actual profile data
+    private var hasCompletedOnboarding: Bool {
+        // Check if profile exists and has required data filled in
+        if let profile = profileManager.currentProfile {
+            // Profile must have name filled in to be considered complete
+            let hasRequiredData = profile.name != nil && !profile.name!.isEmpty
+            let isMarkedComplete = profile.onboardingCompleted ||
+                getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
+
+            // Only consider complete if BOTH conditions are met
+            return hasRequiredData && isMarkedComplete
+        }
+
+        // If profile not loaded yet, check auth metadata but be conservative
+        // Return false to trigger onboarding check
+        return false
+    }
+
     var body: some Scene {
         WindowGroup {
             Group {
                 if supabaseManager.isAuthenticated {
-                    // Check if user has completed onboarding - this is the source of truth
-                    let hasCompletedOnboarding = getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
-                    let hasPreference = supabaseManager.hasSelectedPreference()
-                    
-                    if hasCompletedOnboarding {
+                    if profileManager.isLoading && profileManager.currentProfile == nil {
+                        // Wait for profile to load before deciding
+                        ZStack {
+                            Color(red: 0.98, green: 0.98, blue: 0.96)
+                                .ignoresSafeArea()
+                            ProgressView()
+                        }
+                    } else if hasCompletedOnboarding {
                         // User has completed onboarding - go straight to home (skip WelcomeSplash and onboarding)
                         ContentView()
-                    } else if supabaseManager.showWelcomeSplash {
+                    } else if supabaseManager.isShowingWelcomeSplash {
                         // New user - show welcome splash first (part of onboarding)
                         WelcomeSplash {
-                            print("✅ WelcomeSplash onContinue called - showing preference selection")
-                            supabaseManager.showWelcomeSplash = false
-                            supabaseManager.showPreferenceSelection = true
+                            supabaseManager.isShowingWelcomeSplash = false
+                            supabaseManager.isShowingPreferenceSelection = true
                         }
-                    } else if supabaseManager.showPreferenceSelection {
+                    } else if supabaseManager.isShowingPreferenceSelection {
                         // Show preference selection screen
                         PreferenceSelectionScreen()
-                    } else if supabaseManager.showFriendOnboarding {
+                    } else if supabaseManager.isShowingFriendOnboarding {
                         // Show friend onboarding flow
                         FriendOnboardingFlow {
                             // SafetyScreen will mark onboarding as complete internally
-                            supabaseManager.showFriendOnboarding = false
+                            supabaseManager.isShowingFriendOnboarding = false
                         }
-                    } else if supabaseManager.showOnboarding {
+                    } else if supabaseManager.isShowingOnboarding {
                         // Show onboarding flow
                         OnboardingFlow {
                             // SafetyScreen will mark onboarding as complete
                             // Just need to clear the flag here
-                            supabaseManager.showOnboarding = false
+                            supabaseManager.isShowingOnboarding = false
                         }
                     } else {
-                        // If authenticated but onboarding status is unclear, check auth status again
-                        ContentView()
-                            .task {
-                                await supabaseManager.checkAuthStatus()
+                        // User is authenticated but hasn't completed onboarding
+                        // and no specific flag is set - redirect to preference selection
+                        PreferenceSelectionScreen()
+                            .onAppear {
+                                supabaseManager.isShowingPreferenceSelection = true
                             }
                     }
                 } else {
@@ -82,39 +92,36 @@ struct DriftApp: App {
                     WelcomeScreen()
                 }
             }
-            .onAppear {
-                // Log initial state
-                let hasCompletedOnboarding = getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
-                print("📱 DriftApp appeared - isAuthenticated: \(supabaseManager.isAuthenticated), hasCompletedOnboarding: \(hasCompletedOnboarding), showWelcomeSplash: \(supabaseManager.showWelcomeSplash), showOnboarding: \(supabaseManager.showOnboarding)")
+            .task(id: supabaseManager.isAuthenticated) {
+                // Fetch profile when authenticated to check onboarding status
+                if supabaseManager.isAuthenticated && profileManager.currentProfile == nil {
+                    do {
+                        try await profileManager.fetchCurrentProfile()
+                    } catch {
+                        print("Failed to fetch profile: \(error)")
+                    }
+                }
+            }
+            .onChange(of: supabaseManager.isAuthenticated) { _, isAuthenticated in
+                // Fetch profile when user logs in
+                if isAuthenticated {
+                    Task {
+                        do {
+                            try await profileManager.fetchCurrentProfile()
+                        } catch {
+                            print("Failed to fetch profile: \(error)")
+                        }
+                    }
+                }
             }
             .onChange(of: supabaseManager.currentUser) { oldValue, newValue in
-                // When currentUser changes, re-evaluate onboarding status
-                // Only update if we're not already in the correct state
                 if let user = newValue {
-                    let hasCompletedOnboarding = getOnboardingStatus(from: user.userMetadata)
-                    print("👤 currentUser changed - hasCompletedOnboarding: \(hasCompletedOnboarding), current showOnboarding: \(supabaseManager.showOnboarding)")
-                    
-                    // Only update state if it needs to change AND we're not currently in onboarding flow
-                    if hasCompletedOnboarding {
-                        // If onboarding is complete, always clear flags (prevents loop)
-                        supabaseManager.showWelcomeSplash = false
-                        supabaseManager.showOnboarding = false
-                        print("✅ Updated state: cleared onboarding flags (onboarding complete)")
+                    let metadataComplete = getOnboardingStatus(from: user.userMetadata)
+                    if metadataComplete || hasCompletedOnboarding {
+                        supabaseManager.isShowingWelcomeSplash = false
+                        supabaseManager.isShowingOnboarding = false
                     }
-                    // Don't set showOnboarding to true here - let checkAuthStatus handle it
-                    // This prevents the onChange from triggering a loop
                 }
-            }
-            .onChange(of: supabaseManager.isAuthenticated) { oldValue, newValue in
-                print("🔐 Auth state changed: \(oldValue) -> \(newValue), showWelcomeSplash: \(supabaseManager.showWelcomeSplash)")
-                if newValue && supabaseManager.showWelcomeSplash {
-                    print("✅ User authenticated AND showWelcomeSplash is TRUE - should show WelcomeSplash")
-                } else if newValue && !supabaseManager.showWelcomeSplash {
-                    print("⚠️ User authenticated BUT showWelcomeSplash is FALSE - will show ContentView")
-                }
-            }
-            .onChange(of: supabaseManager.showWelcomeSplash) { oldValue, newValue in
-                print("🎉 Welcome splash state changed: \(oldValue) -> \(newValue), isAuthenticated: \(supabaseManager.isAuthenticated)")
             }
         }
     }
