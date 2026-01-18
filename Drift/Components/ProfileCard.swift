@@ -47,41 +47,6 @@ struct ProfileCard: View {
                 VStack(spacing: 0) {
                     // Image section - 60% height
                     ZStack(alignment: .topLeading) {
-                        AsyncImage(url: URL(string: profile.avatarUrl ?? "")) { phase in
-                            switch phase {
-                            case .empty:
-                                ZStack {
-                                    Color.gray.opacity(0.2)
-                                    ProgressView()
-                                }
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: geometry.size.width, height: geometry.size.height * 0.6)
-                                    .clipped()
-                            case .failure:
-                                ZStack {
-                                    Color.gray.opacity(0.2)
-                                    Image(systemName: "photo")
-                                        .foregroundColor(.gray)
-                                }
-                            @unknown default:
-                                EmptyView()
-                            }
-                        }
-                        .frame(width: geometry.size.width, height: geometry.size.height * 0.6, alignment: .top)
-                        .clipShape(
-                            UnevenRoundedRectangle(
-                                cornerRadii: RectangleCornerRadii(
-                                    topLeading: 24,
-                                    bottomLeading: 0,
-                                    bottomTrailing: 0,
-                                    topTrailing: 24
-                                )
-                            )
-                        )
-                        
                         LinearGradient(
                             gradient: Gradient(colors: [
                                 Color.clear,
@@ -89,17 +54,6 @@ struct ProfileCard: View {
                             ]),
                             startPoint: .top,
                             endPoint: .bottom
-                        )
-                        .frame(width: geometry.size.width, height: geometry.size.height * 0.6, alignment: .top)
-                        .clipShape(
-                            UnevenRoundedRectangle(
-                                cornerRadii: RectangleCornerRadii(
-                                    topLeading: 24,
-                                    bottomLeading: 0,
-                                    bottomTrailing: 0,
-                                    topTrailing: 24
-                                )
-                            )
                         )
                         .allowsHitTesting(false)
                         
@@ -170,6 +124,41 @@ struct ProfileCard: View {
                         .padding(.top, 16)
                         .padding(.horizontal, 16)
                     }
+                    .frame(width: geometry.size.width, height: geometry.size.height * 0.6)
+                    .background(
+                        AsyncImage(url: URL(string: profile.avatarUrl ?? "")) { phase in
+                            switch phase {
+                            case .empty:
+                                ZStack {
+                                    Color.gray.opacity(0.2)
+                                    ProgressView()
+                                }
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            case .failure:
+                                ZStack {
+                                    Color.gray.opacity(0.2)
+                                    Image(systemName: "photo")
+                                        .foregroundColor(.gray)
+                                }
+                            @unknown default:
+                                EmptyView()
+                            }
+                        }
+                        .allowsHitTesting(false)
+                    )
+                    .clipShape(
+                        UnevenRoundedRectangle(
+                            cornerRadii: RectangleCornerRadii(
+                                topLeading: 24,
+                                bottomLeading: 0,
+                                bottomTrailing: 0,
+                                topTrailing: 24
+                            )
+                        )
+                    )
                     
                     // Content section
                     VStack(alignment: .leading, spacing: 16) {
