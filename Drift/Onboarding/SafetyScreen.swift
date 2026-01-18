@@ -6,11 +6,13 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct SafetyScreen: View {
     let onComplete: () -> Void
-    
+
     @ObservedObject private var supabaseManager = SupabaseManager.shared
+    @StateObject private var profileManager = ProfileManager.shared
     
     @State private var iconScale: CGFloat = 0.8
     @State private var iconOpacity: Double = 0
@@ -117,8 +119,18 @@ struct SafetyScreen: View {
                     
                     Button(action: {
                         Task {
-                            // Mark onboarding as complete first
+                            // Mark onboarding as complete in auth metadata
                             await supabaseManager.markOnboardingCompleted()
+
+                            // Also update the profile in the database
+                            do {
+                                try await profileManager.updateProfile(
+                                    ProfileUpdateRequest(onboardingCompleted: true)
+                                )
+                            } catch {
+                                print("Failed to update profile: \(error)")
+                            }
+
                             // Small delay to ensure state updates
                             try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
                             // Then call onComplete

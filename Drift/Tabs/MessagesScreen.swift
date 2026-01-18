@@ -6,36 +6,37 @@
 //
 
 import SwiftUI
+import DriftBackend
+import Auth
 
-enum ConversationType {
+enum MessageMode {
     case dating
     case friends
 }
 
-struct Conversation: Identifiable {
-    let id: Int
-    let name: String
-    let lastMessage: String
-    let time: String
-    let unread: Bool
-    let type: ConversationType
-    let avatar: String
-}
-
 struct MessagesScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
-    @State private var conversations: [Conversation] = [
-        Conversation(id: 1, name: "Sarah", lastMessage: "That sunrise hike sounds perfect! See you tomorrow", time: "2m ago", unread: true, type: .dating, avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop"),
-        Conversation(id: 2, name: "Marcus", lastMessage: "Thanks for the coworking spot recommendation!", time: "1h ago", unread: false, type: .friends, avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop"),
-        Conversation(id: 3, name: "Luna", lastMessage: "Would love to join the campfire tonight", time: "3h ago", unread: false, type: .friends, avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop"),
-        Conversation(id: 4, name: "Jake", lastMessage: "The surf conditions look great this weekend", time: "1d ago", unread: false, type: .dating, avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop"),
-        Conversation(id: 5, name: "Emma", lastMessage: "Hope you enjoy Portland!", time: "2d ago", unread: false, type: .friends, avatar: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=100&h=100&fit=crop")
-    ]
-    
+    @StateObject private var messagingManager = MessagingManager.shared
+
     @State private var searchText: String = ""
-    @State private var selectedMode: ConversationType = .friends
+    @State private var selectedMode: MessageMode = .friends
     @State private var selectedConversation: Conversation? = nil
     @State private var segmentIndex: Int = 1 // Default to friends (index 1)
+
+    private var conversations: [Conversation] {
+        messagingManager.conversations
+    }
+
+    private func loadConversations() {
+        Task {
+            do {
+                try await messagingManager.fetchConversations()
+                await messagingManager.subscribeToConversations()
+            } catch {
+                print("Failed to load conversations: \(error)")
+            }
+        }
+    }
     
     private let softGray = Color("SoftGray")
     private let charcoalColor = Color("Charcoal")
@@ -74,7 +75,14 @@ struct MessagesScreen: View {
     }
     
     private var filteredConversations: [Conversation] {
-        conversations.filter { $0.type == selectedMode }
+        conversations.filter { conv in
+            switch selectedMode {
+            case .dating:
+                return conv.type == .dating
+            case .friends:
+                return conv.type == .friends
+            }
+        }
     }
     
     var body: some View {
@@ -135,7 +143,10 @@ struct MessagesScreen: View {
                     
                     VStack(spacing: 8) {
                         ForEach(filteredConversations) { conversation in
-                            ConversationRow(conversation: conversation) {
+                            ConversationRow(
+                                conversation: conversation,
+                                currentUserId: supabaseManager.currentUser?.id
+                            ) {
                                 selectedConversation = conversation
                             }
                             .padding(.horizontal, 16)
@@ -174,6 +185,7 @@ struct MessagesScreen: View {
                 selectedMode = .friends
                 segmentIndex = 1
             }
+            loadConversations()
         }
         .fullScreenCover(item: $selectedConversation) { conversation in
             MessageDetailScreen(
@@ -188,13 +200,14 @@ struct MessagesScreen: View {
 
 struct ConversationRow: View {
     let conversation: Conversation
+    let currentUserId: UUID?
     let onTap: () -> Void
-    
+
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
     private let forestGreen = Color("ForestGreen")
     private let pink500 = Color(red: 0.93, green: 0.36, blue: 0.51)
-    
+
     private var badgeBackground: LinearGradient {
         switch conversation.type {
         case .dating:
@@ -203,7 +216,7 @@ struct ConversationRow: View {
                 startPoint: .leading,
                 endPoint: .trailing
             )
-        case .friends:
+        case .friends, .activity:
             return LinearGradient(
                 gradient: Gradient(colors: [Color("SkyBlue"), forestGreen]),
                 startPoint: .leading,
@@ -211,22 +224,34 @@ struct ConversationRow: View {
             )
         }
     }
-    
+
     private var badgeIcon: String {
         switch conversation.type {
         case .dating:
             return "heart.fill"
-        case .friends:
+        case .friends, .activity:
             return "person.fill"
         }
     }
-    
+
+    private var hasUnread: Bool {
+        guard let userId = currentUserId else { return false }
+        return conversation.hasUnreadMessages(for: userId)
+    }
+
+    private var displayTime: String {
+        guard let updatedAt = conversation.updatedAt else { return "" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: updatedAt, relativeTo: Date())
+    }
+
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 16) {
                 ZStack(alignment: .bottomTrailing) {
                     // Avatar
-                    AsyncImage(url: URL(string: conversation.avatar)) { phase in
+                    AsyncImage(url: URL(string: conversation.avatarUrl ?? "")) { phase in
                         switch phase {
                         case .empty:
                             Circle()
@@ -238,6 +263,11 @@ struct ConversationRow: View {
                                     )
                                 )
                                 .frame(width: 56, height: 56)
+                                .overlay(
+                                    Text(conversation.otherUser?.initials ?? "?")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundColor(.white)
+                                )
                         case .success(let image):
                             image
                                 .resizable()
@@ -254,6 +284,11 @@ struct ConversationRow: View {
                                     )
                                 )
                                 .frame(width: 56, height: 56)
+                                .overlay(
+                                    Text(conversation.otherUser?.initials ?? "?")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundColor(.white)
+                                )
                         @unknown default:
                             Circle()
                                 .fill(
@@ -266,13 +301,13 @@ struct ConversationRow: View {
                                 .frame(width: 56, height: 56)
                         }
                     }
-                    
+
                     // Match/Friend Badge
                     ZStack {
                         Circle()
                             .fill(badgeBackground)
                             .frame(width: 20, height: 20)
-                        
+
                         Image(systemName: badgeIcon)
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(.white)
@@ -283,28 +318,28 @@ struct ConversationRow: View {
                     )
                     .offset(x: -2, y: -2)
                 }
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text(conversation.name)
+                        Text(conversation.displayName)
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(charcoalColor)
-                        
+
                         Spacer()
-                        
-                        Text(conversation.time)
+
+                        Text(displayTime)
                             .font(.system(size: 12))
                             .foregroundColor(charcoalColor.opacity(0.6))
                     }
-                    
-                    Text(conversation.lastMessage)
+
+                    Text(conversation.lastMessage?.content ?? "Start a conversation")
                         .font(.system(size: 14))
-                        .foregroundColor(conversation.unread ? charcoalColor : charcoalColor.opacity(0.6))
+                        .foregroundColor(hasUnread ? charcoalColor : charcoalColor.opacity(0.6))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                
-                if conversation.unread {
+
+                if hasUnread {
                     Circle()
                         .fill(burntOrange)
                         .frame(width: 12, height: 12)

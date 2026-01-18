@@ -6,13 +6,19 @@
 //
 
 import SwiftUI
+import DriftBackend
 import Supabase
 
 struct ProfileScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
+    @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var revenueCatManager = RevenueCatManager.shared
     @State private var isSigningOut = false
     @State private var showEditProfileSheet = false
+
+    private var profile: UserProfile? {
+        profileManager.currentProfile
+    }
     
     private let softGray = Color(red: 0.96, green: 0.96, blue: 0.96)
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
@@ -29,7 +35,7 @@ struct ProfileScreen: View {
             ScrollView {
                 VStack(spacing: 0) {
                     ZStack(alignment: .topTrailing) {
-                        AsyncImage(url: URL(string: "https://images.unsplash.com/photo-1637690244677-320c56d21de2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx2YW4lMjBsaWZlJTIwc3Vuc2V0fGVufDF8fHx8MTc2ODUwNjA1Mnww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral")) { image in
+                        AsyncImage(url: URL(string: profile?.photos.first ?? profile?.avatarUrl ?? "")) { image in
                             image
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
@@ -106,23 +112,27 @@ struct ProfileScreen: View {
                     VStack(spacing: 0) {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(spacing: 8) {
-                                Text("Alex Turner")
+                                Text(profile?.displayName ?? "")
                                     .font(.system(size: 28, weight: .bold))
                                     .foregroundColor(charcoalColor)
-                                
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 24))
-                                    .foregroundColor(forestGreen)
+
+                                if profile?.verified == true {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundColor(forestGreen)
+                                }
                             }
                             
-                            HStack(spacing: 4) {
-                                Image(systemName: "mappin")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(charcoalColor.opacity(0.6))
-                                
-                                Text("Big Sur, California")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(charcoalColor.opacity(0.6))
+                            if let location = profile?.location {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "mappin")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(charcoalColor.opacity(0.6))
+
+                                    Text(location)
+                                        .font(.system(size: 14))
+                                        .foregroundColor(charcoalColor.opacity(0.6))
+                                }
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -147,7 +157,7 @@ struct ProfileScreen: View {
                                 get: { supabaseManager.isFriendsOnly() },
                                 set: { newValue in
                                     Task {
-                                        await updatePreference(friendsOnly: newValue)
+                                        await updatePreference(isFriendsOnly: newValue)
                                     }
                                 }
                             )) {
@@ -205,17 +215,20 @@ struct ProfileScreen: View {
                                 .font(.system(size: 20, weight: .bold))
                                 .foregroundColor(charcoalColor)
                             
-                            Text("Van-lifer and photographer exploring the West Coast. I love early morning hikes, good coffee, and meeting fellow adventurers on the road.")
-                                .font(.system(size: 15))
-                                .foregroundColor(charcoalColor.opacity(0.7))
-                                .lineSpacing(4)
+                            if let bio = profile?.bio {
+                                Text(bio)
+                                    .font(.system(size: 15))
+                                    .foregroundColor(charcoalColor.opacity(0.7))
+                                    .lineSpacing(4)
+                            }
                             
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    Tag(text: "Van Life")
-                                    Tag(text: "Photography")
-                                    Tag(text: "Surf")
-                                    Tag(text: "Early Riser")
+                            if let interests = profile?.interests, !interests.isEmpty {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 8) {
+                                        ForEach(interests, id: \.self) { interest in
+                                            Tag(text: interest)
+                                        }
+                                    }
                                 }
                             }
                             
@@ -223,28 +236,32 @@ struct ProfileScreen: View {
                                 .background(Color.gray.opacity(0.2))
                             
                             VStack(spacing: 12) {
-                                HStack {
-                                    Text("Travel Pace")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(charcoalColor.opacity(0.6))
-                                    
-                                    Spacer()
-                                    
-                                    Text("Slow Traveler")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(charcoalColor)
+                                if let travelPace = profile?.travelPace {
+                                    HStack {
+                                        Text("Travel Pace")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(charcoalColor.opacity(0.6))
+
+                                        Spacer()
+
+                                        Text(travelPace.displayName)
+                                            .font(.system(size: 14))
+                                            .foregroundColor(charcoalColor)
+                                    }
                                 }
-                                
-                                HStack {
-                                    Text("Next Destination")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(charcoalColor.opacity(0.6))
-                                    
-                                    Spacer()
-                                    
-                                    Text("Portland, OR")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(burntOrange)
+
+                                if let nextDestination = profile?.nextDestination {
+                                    HStack {
+                                        Text("Next Destination")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(charcoalColor.opacity(0.6))
+
+                                        Spacer()
+
+                                        Text(nextDestination)
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(burntOrange)
+                                    }
                                 }
                             }
                         }
@@ -306,6 +323,15 @@ struct ProfileScreen: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
+        .onAppear {
+            Task {
+                do {
+                    try await profileManager.fetchCurrentProfile()
+                } catch {
+                    print("Failed to fetch profile: \(error)")
+                }
+            }
+        }
     }
     
     private func handleSignOut() async {
@@ -329,36 +355,32 @@ struct ProfileScreen: View {
                 supabaseManager.currentUser = updatedUser
                 
                 // Show preference selection screen so user can choose Dating & Friends or Friends Only again
-                supabaseManager.showPreferenceSelection = true
-                supabaseManager.showOnboarding = false
-                supabaseManager.showFriendOnboarding = false
-                supabaseManager.showWelcomeSplash = false
-                
-                print("✅ Onboarding restarted - user will see preference selection screen")
+                supabaseManager.isShowingPreferenceSelection = true
+                supabaseManager.isShowingOnboarding = false
+                supabaseManager.isShowingFriendOnboarding = false
+                supabaseManager.isShowingWelcomeSplash = false
             }
         } catch {
             print("⚠️ Failed to restart onboarding: \(error.localizedDescription)")
         }
     }
     
-    private func updatePreference(friendsOnly: Bool) async {
+    private func updatePreference(isFriendsOnly: Bool) async {
         do {
-            try await supabaseManager.updatePreference(friendsOnly: friendsOnly)
-            print("✅ Preference updated - friendsOnly: \(friendsOnly)")
-            
+            try await supabaseManager.updatePreference(isFriendsOnly: isFriendsOnly)
             // If switching from Friends Only to Dating & Friends, check if onboarding is needed
-            if !friendsOnly {
+            if !isFriendsOnly {
                 let hasCompletedOnboarding = getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
                 if !hasCompletedOnboarding {
                     // User switched to Dating & Friends but hasn't completed onboarding
                     // Trigger onboarding flow
-                    supabaseManager.showOnboarding = true
-                    supabaseManager.showWelcomeSplash = false
-                    supabaseManager.showPreferenceSelection = false
+                    supabaseManager.isShowingOnboarding = true
+                    supabaseManager.isShowingWelcomeSplash = false
+                    supabaseManager.isShowingPreferenceSelection = false
                 }
             }
         } catch {
-            print("⚠️ Failed to update preference: \(error.localizedDescription)")
+            // Error handling silently
         }
     }
     

@@ -6,9 +6,10 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct ProfileDetailView: View {
-    let profile: Profile
+    let profile: UserProfile
     @Binding var isOpen: Bool
     let onLike: () -> Void
     let onPass: () -> Void
@@ -16,13 +17,12 @@ struct ProfileDetailView: View {
     @State private var imageIndex: Int = 0
     @Environment(\.dismiss) var dismiss
     
-    // Mock additional images
+    // Profile images - use photos array with avatar as fallback
     private var images: [String] {
-        [
-            profile.imageURL,
-            "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800",
-            "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=800"
-        ]
+        if profile.photos.isEmpty {
+            return [profile.avatarUrl ?? ""]
+        }
+        return profile.photos
     }
     
     private let charcoalColor = Color("Charcoal")
@@ -166,16 +166,21 @@ struct ProfileDetailView: View {
                         VStack(alignment: .leading, spacing: 24) {
                                 // Name & Age
                                 VStack(alignment: .leading, spacing: 8) {
-                                    Text("\(profile.name), \(profile.age)")
-                                        .font(.system(size: 32, weight: .semibold))
-                                        .foregroundColor(charcoalColor)
-                                    
+                                    HStack(spacing: 0) {
+                                        Text(profile.displayName)
+                                        if let age = profile.age {
+                                            Text(", \(age)")
+                                        }
+                                    }
+                                    .font(.system(size: 32, weight: .semibold))
+                                    .foregroundColor(charcoalColor)
+
                                     HStack(spacing: 8) {
                                         Image(systemName: "mappin")
                                             .font(.system(size: 14))
                                             .foregroundColor(charcoalColor.opacity(0.6))
-                                        
-                                        Text(profile.location)
+
+                                        Text(profile.location ?? "Unknown")
                                             .font(.system(size: 14))
                                             .foregroundColor(charcoalColor.opacity(0.6))
                                     }
@@ -203,70 +208,78 @@ struct ProfileDetailView: View {
                                 .clipShape(Capsule())
                                 
                                 // Bio
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("About")
-                                        .font(.system(size: 18, weight: .semibold))
-                                        .foregroundColor(charcoalColor)
-                                    
-                                    Text(profile.bio)
-                                        .font(.system(size: 15))
-                                        .foregroundColor(charcoalColor.opacity(0.7))
-                                        .lineSpacing(4)
+                                if let bio = profile.bio {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        Text("About")
+                                            .font(.system(size: 18, weight: .semibold))
+                                            .foregroundColor(charcoalColor)
+
+                                        Text(bio)
+                                            .font(.system(size: 15))
+                                            .foregroundColor(charcoalColor.opacity(0.7))
+                                            .lineSpacing(4)
+                                    }
                                 }
-                                
+
                                 // Interests
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("Interests")
-                                        .font(.system(size: 18, weight: .semibold))
-                                        .foregroundColor(charcoalColor)
-                                    
-                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 8)], alignment: .leading, spacing: 8) {
-                                        ForEach(profile.tags, id: \.self) { tag in
-                                            Text(tag)
-                                                .font(.system(size: 14))
-                                                .foregroundColor(charcoalColor)
-                                                .padding(.horizontal, 16)
-                                                .padding(.vertical, 8)
-                                                .background(desertSand)
-                                                .clipShape(Capsule())
-                                                .fixedSize()
-                                                .lineLimit(1)
+                                if !profile.interests.isEmpty {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        Text("Interests")
+                                            .font(.system(size: 18, weight: .semibold))
+                                            .foregroundColor(charcoalColor)
+
+                                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 8)], alignment: .leading, spacing: 8) {
+                                            ForEach(profile.interests, id: \.self) { interest in
+                                                Text(interest)
+                                                    .font(.system(size: 14))
+                                                    .foregroundColor(charcoalColor)
+                                                    .padding(.horizontal, 16)
+                                                    .padding(.vertical, 8)
+                                                    .background(desertSand)
+                                                    .clipShape(Capsule())
+                                                    .fixedSize()
+                                                    .lineLimit(1)
+                                            }
                                         }
                                     }
                                 }
-                                
+
                                 // Travel Info
                                 VStack(spacing: 16) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        HStack(spacing: 8) {
-                                            Image(systemName: "mappin")
-                                                .font(.system(size: 14))
-                                                .foregroundColor(charcoalColor.opacity(0.6))
-                                            
-                                            Text("Next Destination")
-                                                .font(.system(size: 14))
-                                                .foregroundColor(charcoalColor.opacity(0.6))
+                                    if let nextDestination = profile.nextDestination {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            HStack(spacing: 8) {
+                                                Image(systemName: "mappin")
+                                                    .font(.system(size: 14))
+                                                    .foregroundColor(charcoalColor.opacity(0.6))
+
+                                                Text("Next Destination")
+                                                    .font(.system(size: 14))
+                                                    .foregroundColor(charcoalColor.opacity(0.6))
+                                            }
+
+                                            Text(nextDestination)
+                                                .font(.system(size: 16, weight: .medium))
+                                                .foregroundColor(burntOrange)
                                         }
-                                        
-                                        Text(profile.nextDestination)
-                                            .font(.system(size: 16, weight: .medium))
-                                            .foregroundColor(burntOrange)
                                     }
-                                    
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        HStack(spacing: 8) {
-                                            Image(systemName: "sparkles")
-                                                .font(.system(size: 14))
-                                                .foregroundColor(charcoalColor.opacity(0.6))
-                                            
-                                            Text("Lifestyle")
-                                                .font(.system(size: 14))
-                                                .foregroundColor(charcoalColor.opacity(0.6))
+
+                                    if let lifestyle = profile.lifestyle {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            HStack(spacing: 8) {
+                                                Image(systemName: "sparkles")
+                                                    .font(.system(size: 14))
+                                                    .foregroundColor(charcoalColor.opacity(0.6))
+
+                                                Text("Lifestyle")
+                                                    .font(.system(size: 14))
+                                                    .foregroundColor(charcoalColor.opacity(0.6))
+                                            }
+
+                                            Text(lifestyle.displayName)
+                                                .font(.system(size: 16, weight: .medium))
+                                                .foregroundColor(charcoalColor)
                                         }
-                                        
-                                        Text(profile.lifestyle)
-                                            .font(.system(size: 16, weight: .medium))
-                                            .foregroundColor(charcoalColor)
                                     }
                                 }
                                 .padding(16)
@@ -365,17 +378,17 @@ struct ProfileDetailView: View {
 
 #Preview {
     ProfileDetailView(
-        profile: Profile(
-            id: 1,
+        profile: UserProfile(
+            id: UUID(),
             name: "Sarah",
             age: 28,
-            location: "Big Sur, CA",
-            imageURL: "https://images.unsplash.com/photo-1682101525282-545b10c4bb55?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkaWdpdGFsJTIwbm9tYWQlMjBiZWFjaHxlbnwxfHx8fDE3Njg1MDYwNTJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
             bio: "Van-lifer and photographer exploring the Pacific Coast. Always up for sunrise hikes and good coffee.",
-            tags: ["Van Life", "Photography", "Surf", "Early Riser"],
+            avatarUrl: "https://images.unsplash.com/photo-1682101525282-545b10c4bb55?w=800",
+            location: "Big Sur, CA",
             verified: true,
-            lifestyle: "Van Life",
+            lifestyle: .vanLife,
             nextDestination: "Portland, OR",
+            interests: ["Van Life", "Photography", "Surf", "Early Riser"],
             lookingFor: .dating
         ),
         isOpen: .constant(true),

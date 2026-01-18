@@ -9,6 +9,7 @@ import SwiftUI
 import MapKit
 import CoreLocation
 import Combine
+import DriftBackend
 
 class MapLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
@@ -227,7 +228,7 @@ struct MapScreen: View {
         isLoadingCampgrounds = true
         
         do {
-            let campground = try await CampflareManager.shared.getCampground(id: id)
+            let campground = try await CampflareManager.shared.fetchCampground(id: id)
             
             print("✅ Successfully fetched campground: \(campground.name) (ID: \(campground.id))")
             

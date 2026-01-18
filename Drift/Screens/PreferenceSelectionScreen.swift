@@ -6,8 +6,8 @@
 //
 
 import SwiftUI
+import DriftBackend
 import Supabase
-import Auth
 
 struct PreferenceSelectionScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
@@ -151,12 +151,12 @@ struct PreferenceSelectionScreen: View {
                 
                 // If friends only, proceed to friend onboarding
                 if isFriendsOnly {
-                    supabaseManager.showPreferenceSelection = false
-                    supabaseManager.showFriendOnboarding = true
+                    supabaseManager.isShowingPreferenceSelection = false
+                    supabaseManager.isShowingFriendOnboarding = true
                 } else {
                     // If dating and friends, proceed to normal onboarding
-                    supabaseManager.showPreferenceSelection = false
-                    supabaseManager.showOnboarding = true
+                    supabaseManager.isShowingPreferenceSelection = false
+                    supabaseManager.isShowingOnboarding = true
                 }
             }
         } catch {

@@ -21,7 +21,7 @@ struct ChannelMessage: Identifiable {
     let isPinned: Bool
 }
 
-struct VanBuilderChannel: View {
+struct VanBuilderChannelView: View {
     let channel: Channel
     @Environment(\.dismiss) var dismiss
     @State private var messages: [ChannelMessage] = [
@@ -550,7 +550,7 @@ struct ThreadView: View {
 }
 
 #Preview {
-    VanBuilderChannel(
+    VanBuilderChannelView(
         channel: Channel(
             id: "electrical",
             name: "Electrical & Wiring",

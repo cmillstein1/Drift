@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <Group
+      location = "group:DriftBackend"
+      name = "DriftBackend">
+      <FileRef
+         location = "group:Package.swift">
+      </FileRef>
+      <Group
+         location = "group:Sources"
+         name = "Sources">
+         <Group
+            location = "group:DriftBackend"
+            name = "DriftBackend">
+            <FileRef
+               location = "group:RevenueCatManager.swift">
+            </FileRef>
+            <FileRef
+               location = "group:DriftBackend.swift">
+            </FileRef>
+            <Group
+               location = "group:Models"
+               name = "Models">
+               <FileRef
+                  location = "group:CampsiteEquipment.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:CampgroundPhoto.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:Management.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:CampgroundMetadata.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:CampgroundPrice.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:CampgroundLocation.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:CampgroundSearchRequest.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:BoundingBox.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:Address.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:Campground.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:CellService.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:Campsite.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:Connections.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:Availability.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:CampgroundAlert.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:CampgroundAmenities.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:CampgroundSearchResponse.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:CampgroundLink.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:CampsitePrice.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:Contact.swift">
+               </FileRef>
+               <FileRef
+                  location = "group:CampsiteSchedule.swift">
+               </FileRef>
+            </Group>
+            <FileRef
+               location = "group:SupabaseManager.swift">
+            </FileRef>
+            <FileRef
+               location = "group:CampflareManager.swift">
+            </FileRef>
+         </Group>
+      </Group>
+   </Group>
+   <FileRef
+      location = "group:Drift.xcodeproj">
+   </FileRef>
+</Workspace>

@@ -6,51 +6,9 @@
 //
 
 import SwiftUI
+import DriftBackend
 
-struct Activity: Identifiable {
-    let id: Int
-    let title: String
-    let location: String
-    let date: String
-    let attendees: Int
-    let maxAttendees: Int
-    let host: String
-    let category: String
-    let imageURL: String
-    let description: String?
-    let time: String?
-    let exactLocation: String?
-    
-    init(
-        id: Int,
-        title: String,
-        location: String,
-        date: String,
-        attendees: Int,
-        maxAttendees: Int,
-        host: String,
-        category: String,
-        imageURL: String,
-        description: String? = nil,
-        time: String? = nil,
-        exactLocation: String? = nil
-    ) {
-        self.id = id
-        self.title = title
-        self.location = location
-        self.date = date
-        self.attendees = attendees
-        self.maxAttendees = maxAttendees
-        self.host = host
-        self.category = category
-        self.imageURL = imageURL
-        self.description = description
-        self.time = time
-        self.exactLocation = exactLocation
-    }
-}
-
-enum ActivityView {
+enum ActivityViewMode {
     case list
     case map
 }
@@ -58,11 +16,12 @@ enum ActivityView {
 struct ActivitiesScreen: View {
     @State private var showCreateSheet = false
     @State private var showPaywall = false
-    @State private var view: ActivityView = .list
+    @State private var viewMode: ActivityViewMode = .list
     @State private var segmentIndex: Int = 0
     @State private var selectedActivity: Activity? = nil
     @StateObject private var revenueCatManager = RevenueCatManager.shared
-    
+    @StateObject private var activityManager = ActivityManager.shared
+
     private var segmentOptions: [SegmentOption] {
         [
             SegmentOption(
@@ -79,57 +38,34 @@ struct ActivitiesScreen: View {
             )
         ]
     }
-    
-    @State private var activities: [Activity] = [
-        Activity(
-            id: 1,
-            title: "Sunrise Hike",
-            location: "Big Sur Trail",
-            date: "Tomorrow, 6:00 AM",
-            attendees: 4,
-            maxAttendees: 8,
-            host: "Sarah",
-            category: "Outdoor",
-            imageURL: "https://images.unsplash.com/photo-1603741614953-4187ed84cc50?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb3VudGFpbiUyMGhpa2luZyUyMGFkdmVudHVyZXxlbnwxfHx8fDE3NjgzODg4MDN8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-        ),
-        Activity(
-            id: 2,
-            title: "Beach Coworking",
-            location: "Carmel Beach",
-            date: "Today, 10:00 AM",
-            attendees: 3,
-            maxAttendees: 6,
-            host: "Marcus",
-            category: "Work",
-            imageURL: "https://images.unsplash.com/photo-1682101525282-545b10c4bb55?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkaWdpdGFsJTIwbm9tYWQlMjBiZWFjaHxlbnwxfHx8fDE3Njg1MDYwNTJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-        ),
-        Activity(
-            id: 3,
-            title: "Campfire Stories",
-            location: "Pfeiffer Campground",
-            date: "Friday, 7:00 PM",
-            attendees: 7,
-            maxAttendees: 12,
-            host: "Luna",
-            category: "Social",
-            imageURL: "https://images.unsplash.com/photo-1533088339408-74fcf62b8e6a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYW1wZmlyZSUyMGZyaWVuZHN8ZW58MXx8fHwxNzY4NTA2MDUzfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-        ),
-        Activity(
-            id: 4,
-            title: "Morning Surf Session",
-            location: "Mavericks Beach",
-            date: "Saturday, 7:30 AM",
-            attendees: 2,
-            maxAttendees: 5,
-            host: "Jake",
-            category: "Outdoor",
-            imageURL: "https://images.unsplash.com/photo-1723301205328-1079fe589f97?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzdXJmaW5nJTIwb2NlYW58ZW58MXx8fHwxNzY4NDY2NTI0fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-        )
-    ]
-    
+
+    private var activities: [Activity] {
+        activityManager.activities
+    }
+
     @State private var selectedCategory: String = "All"
-    
+
     private let categories = ["All", "Outdoor", "Work", "Social", "Food & Drink"]
+
+    private func loadActivities() {
+        Task {
+            do {
+                let category: ActivityCategory? = {
+                    switch selectedCategory {
+                    case "Outdoor": return .outdoor
+                    case "Work": return .work
+                    case "Social": return .social
+                    case "Food & Drink": return .foodDrink
+                    default: return nil
+                    }
+                }()
+                try await activityManager.fetchActivities(category: category)
+                await activityManager.subscribeToActivities()
+            } catch {
+                print("Failed to load activities: \(error)")
+            }
+        }
+    }
     
     private let softGray = Color("SoftGray")
     private let charcoalColor = Color("Charcoal")
@@ -140,7 +76,17 @@ struct ActivitiesScreen: View {
         if selectedCategory == "All" {
             return activities
         }
-        return activities.filter { $0.category == selectedCategory }
+        let category: ActivityCategory? = {
+            switch selectedCategory {
+            case "Outdoor": return .outdoor
+            case "Work": return .work
+            case "Social": return .social
+            case "Food & Drink": return .foodDrink
+            default: return nil
+            }
+        }()
+        guard let category = category else { return activities }
+        return activities.filter { $0.category == category }
     }
     
     var body: some View {
@@ -191,7 +137,7 @@ struct ActivitiesScreen: View {
                             get: { segmentIndex },
                             set: { newIndex in
                                 segmentIndex = newIndex
-                                view = newIndex == 0 ? .list : .map
+                                viewMode = newIndex == 0 ? .list : .map
                             }
                         )
                     )
@@ -202,14 +148,18 @@ struct ActivitiesScreen: View {
                 .background(softGray)
                 
                 // Content
-                .onChange(of: view) { _ in
-                    segmentIndex = view == .list ? 0 : 1
+                .onChange(of: viewMode) { _ in
+                    segmentIndex = viewMode == .list ? 0 : 1
                 }
                 .onAppear {
-                    segmentIndex = view == .list ? 0 : 1
+                    segmentIndex = viewMode == .list ? 0 : 1
+                    loadActivities()
                 }
-                
-                if view == .map {
+                .onChange(of: selectedCategory) { _ in
+                    loadActivities()
+                }
+
+                if viewMode == .map {
                     MapScreen(embedded: true)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -253,19 +203,37 @@ struct ActivitiesScreen: View {
             // Create Activity Sheet
             .sheet(isPresented: $showCreateSheet) {
                 CreateActivitySheet { activityData in
-                    // Handle activity creation
-                    let newActivity = Activity(
-                        id: activities.count + 1,
-                        title: activityData.title,
-                        location: activityData.location,
-                        date: "\(activityData.date) \(activityData.time)",
-                        attendees: 0,
-                        maxAttendees: activityData.maxAttendees,
-                        host: "You",
-                        category: activityData.category,
-                        imageURL: "" // You can add image URL handling here
-                    )
-                    activities.insert(newActivity, at: 0)
+                    // Handle activity creation via backend
+                    Task {
+                        do {
+                            let category: ActivityCategory = {
+                                switch activityData.category {
+                                case "Outdoor": return .outdoor
+                                case "Work": return .work
+                                case "Social": return .social
+                                case "Food & Drink": return .foodDrink
+                                default: return .social
+                                }
+                            }()
+
+                            // Parse date and time
+                            let dateFormatter = DateFormatter()
+                            dateFormatter.dateFormat = "MMM d, yyyy h:mm a"
+                            let startsAt = dateFormatter.date(from: "\(activityData.date) \(activityData.time)") ?? Date()
+
+                            try await activityManager.createActivity(
+                                title: activityData.title,
+                                description: nil,
+                                category: category,
+                                location: activityData.location,
+                                startsAt: startsAt,
+                                maxAttendees: activityData.maxAttendees,
+                                imageUrl: nil
+                            )
+                        } catch {
+                            print("Failed to create activity: \(error)")
+                        }
+                    }
                 }
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)

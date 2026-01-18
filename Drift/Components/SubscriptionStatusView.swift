@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import DriftBackend
 import RevenueCat
 
 struct SubscriptionStatusView: View {

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct TravelStop: Identifiable {
     var id: String
@@ -17,31 +18,30 @@ struct TravelStop: Identifiable {
 struct EditProfileSheet: View {
     @Binding var isPresented: Bool
     @Environment(\.dismiss) var dismiss
-    
-    @State private var name: String = "Alex Turner"
-    @State private var currentLocation: String = "Big Sur, California"
-    @State private var about: String = "Van-lifer and photographer exploring the West Coast. I love early morning hikes, good coffee, and meeting fellow adventurers on the road."
-    @State private var travelPace: TravelPace = .slow
-    @State private var travelSchedule: [TravelStop] = [
-        TravelStop(id: "1", location: "Portland, OR", startDate: "2026-02-01", endDate: "2026-02-15"),
-        TravelStop(id: "2", location: "Seattle, WA", startDate: "2026-02-16", endDate: "2026-03-01")
-    ]
-    
+    @StateObject private var profileManager = ProfileManager.shared
+
+    @State private var name: String = ""
+    @State private var currentLocation: String = ""
+    @State private var about: String = ""
+    @State private var travelPace: TravelPaceOption = .slow
+    @State private var travelSchedule: [TravelStop] = []
+    @State private var isSaving = false
+
     @State private var showDatePicker = false
     @State private var selectedDateStopId: String = ""
     @State private var selectedDateField: DateFieldType?
     @State private var selectedDate: Date = Date()
-    
+
     enum DateFieldType {
         case startDate
         case endDate
     }
-    
-    enum TravelPace: String, CaseIterable {
+
+    enum TravelPaceOption: String, CaseIterable {
         case slow = "slow"
         case moderate = "moderate"
         case fast = "fast"
-        
+
         var label: String {
             switch self {
             case .slow: return "Slow Traveler"
@@ -49,7 +49,7 @@ struct EditProfileSheet: View {
             case .fast: return "Fast Mover"
             }
         }
-        
+
         var description: String {
             switch self {
             case .slow: return "Months in each location"
@@ -57,8 +57,25 @@ struct EditProfileSheet: View {
             case .fast: return "Days in each location"
             }
         }
+
+        var toBackendType: TravelPace {
+            switch self {
+            case .slow: return .slow
+            case .moderate: return .moderate
+            case .fast: return .fast
+            }
+        }
+
+        static func from(_ backendPace: TravelPace?) -> TravelPaceOption {
+            guard let pace = backendPace else { return .slow }
+            switch pace {
+            case .slow: return .slow
+            case .moderate: return .moderate
+            case .fast: return .fast
+            }
+        }
     }
-    
+
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
     private let softGray = Color("SoftGray")
@@ -209,9 +226,9 @@ struct EditProfileSheet: View {
                                 Text("Travel Pace")
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(charcoalColor)
-                                
+
                                 VStack(spacing: 8) {
-                                    ForEach(TravelPace.allCases, id: \.self) { pace in
+                                    ForEach(TravelPaceOption.allCases, id: \.self) { pace in
                                         Button(action: {
                                             travelPace = pace
                                         }) {
@@ -441,24 +458,31 @@ struct EditProfileSheet: View {
                             // Save Button
                             VStack(spacing: 0) {
                                 Button(action: {
-                                    // TODO: Save changes
-                                    dismiss()
+                                    saveChanges()
                                 }) {
-                                    Text("Save Changes")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 16)
-                                        .background(
-                                            LinearGradient(
-                                                gradient: Gradient(colors: [burntOrange, sunsetRose]),
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                        )
-                                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                                        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                                    if isSaving {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 16)
+                                    } else {
+                                        Text("Save Changes")
+                                            .font(.system(size: 16, weight: .semibold))
+                                            .foregroundColor(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 16)
+                                    }
                                 }
+                                .background(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [burntOrange, sunsetRose]),
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                                .disabled(isSaving)
                                 .padding(.horizontal, 24)
                                 .padding(.top, 16)
                                 .padding(.bottom, 32)
@@ -467,6 +491,9 @@ struct EditProfileSheet: View {
                         }
                     }
                     .background(Color.white)
+        }
+        .onAppear {
+            loadProfileData()
         }
         .sheet(isPresented: $showDatePicker) {
             NavigationView {
@@ -507,6 +534,41 @@ struct EditProfileSheet: View {
                 }
             }
             .presentationDetents([.medium])
+        }
+    }
+
+    private func loadProfileData() {
+        guard let profile = profileManager.currentProfile else { return }
+
+        name = profile.name ?? ""
+        currentLocation = profile.location ?? ""
+        about = profile.bio ?? ""
+        travelPace = TravelPaceOption.from(profile.travelPace)
+    }
+
+    private func saveChanges() {
+        isSaving = true
+
+        Task {
+            do {
+                let updates = ProfileUpdateRequest(
+                    name: name.isEmpty ? nil : name,
+                    bio: about.isEmpty ? nil : about,
+                    location: currentLocation.isEmpty ? nil : currentLocation,
+                    travelPace: travelPace.toBackendType
+                )
+
+                try await profileManager.updateProfile(updates)
+                await MainActor.run {
+                    isSaving = false
+                    dismiss()
+                }
+            } catch {
+                print("Failed to save profile: \(error)")
+                await MainActor.run {
+                    isSaving = false
+                }
+            }
         }
     }
 }

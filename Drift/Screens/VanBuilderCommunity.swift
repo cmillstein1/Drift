@@ -224,7 +224,7 @@ struct VanBuilderCommunity: View {
             }
         }
         .fullScreenCover(item: $selectedChannel) { channel in
-            VanBuilderChannel(channel: channel)
+            VanBuilderChannelView(channel: channel)
         }
     }
     

@@ -7,14 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		16B755182F196ACA0012C1F4 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 16B755172F196ACA0012C1F4 /* Auth */; };
-		16B7551A2F196ACA0012C1F4 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = 16B755192F196ACA0012C1F4 /* Functions */; };
-		16B7551C2F196ACA0012C1F4 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = 16B7551B2F196ACA0012C1F4 /* PostgREST */; };
-		16B7551E2F196ACA0012C1F4 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = 16B7551D2F196ACA0012C1F4 /* Realtime */; };
-		16B755202F196ACA0012C1F4 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = 16B7551F2F196ACA0012C1F4 /* Storage */; };
-		16B755222F196ACA0012C1F4 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 16B755212F196ACA0012C1F4 /* Supabase */; };
 		16B755252F196AD80012C1F4 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 16B755242F196AD80012C1F4 /* RevenueCat */; };
 		16B755272F196AD80012C1F4 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 16B755262F196AD80012C1F4 /* RevenueCatUI */; };
+		26E9DBC02F1C91820057D9BE /* DriftBackend in Frameworks */ = {isa = PBXBuildFile; productRef = 26E9DBBF2F1C91820057D9BE /* DriftBackend */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -76,14 +71,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				16B7551C2F196ACA0012C1F4 /* PostgREST in Frameworks */,
-				16B7551A2F196ACA0012C1F4 /* Functions in Frameworks */,
 				16B755252F196AD80012C1F4 /* RevenueCat in Frameworks */,
-				16B755222F196ACA0012C1F4 /* Supabase in Frameworks */,
+				26E9DBC02F1C91820057D9BE /* DriftBackend in Frameworks */,
 				16B755272F196AD80012C1F4 /* RevenueCatUI in Frameworks */,
-				16B755182F196ACA0012C1F4 /* Auth in Frameworks */,
-				16B755202F196ACA0012C1F4 /* Storage in Frameworks */,
-				16B7551E2F196ACA0012C1F4 /* Realtime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -144,14 +134,9 @@
 			);
 			name = Drift;
 			packageProductDependencies = (
-				16B755172F196ACA0012C1F4 /* Auth */,
-				16B755192F196ACA0012C1F4 /* Functions */,
-				16B7551B2F196ACA0012C1F4 /* PostgREST */,
-				16B7551D2F196ACA0012C1F4 /* Realtime */,
-				16B7551F2F196ACA0012C1F4 /* Storage */,
-				16B755212F196ACA0012C1F4 /* Supabase */,
 				16B755242F196AD80012C1F4 /* RevenueCat */,
 				16B755262F196AD80012C1F4 /* RevenueCatUI */,
+				26E9DBBF2F1C91820057D9BE /* DriftBackend */,
 			);
 			productName = Drift;
 			productReference = 16B754EC2F1961350012C1F4 /* Drift.app */;
@@ -236,8 +221,8 @@
 			mainGroup = 16B754E32F1961350012C1F4;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				16B755232F196AD80012C1F4 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
+				26E9DBBE2F1C91820057D9BE /* XCLocalSwiftPackageReference "DriftBackend" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 16B754ED2F1961350012C1F4 /* Products */;
@@ -442,7 +427,7 @@
 				CODE_SIGN_ENTITLEMENTS = Drift/Drift.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XF766QR2QD;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Drift/Info.plist;
@@ -484,7 +469,7 @@
 				CODE_SIGN_ENTITLEMENTS = Drift/Drift.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XF766QR2QD;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Drift/Info.plist;
@@ -643,15 +628,14 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/supabase/supabase-swift.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.5.1;
-			};
+/* Begin XCLocalSwiftPackageReference section */
+		26E9DBBE2F1C91820057D9BE /* XCLocalSwiftPackageReference "DriftBackend" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = DriftBackend;
 		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
 		16B755232F196AD80012C1F4 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
@@ -663,36 +647,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		16B755172F196ACA0012C1F4 /* Auth */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Auth;
-		};
-		16B755192F196ACA0012C1F4 /* Functions */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Functions;
-		};
-		16B7551B2F196ACA0012C1F4 /* PostgREST */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = PostgREST;
-		};
-		16B7551D2F196ACA0012C1F4 /* Realtime */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Realtime;
-		};
-		16B7551F2F196ACA0012C1F4 /* Storage */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Storage;
-		};
-		16B755212F196ACA0012C1F4 /* Supabase */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 16B755162F196ACA0012C1F4 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Supabase;
-		};
 		16B755242F196AD80012C1F4 /* RevenueCat */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 16B755232F196AD80012C1F4 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
@@ -702,6 +656,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 16B755232F196AD80012C1F4 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
 			productName = RevenueCatUI;
+		};
+		26E9DBBF2F1C91820057D9BE /* DriftBackend */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DriftBackend;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
