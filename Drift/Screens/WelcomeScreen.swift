@@ -120,6 +120,7 @@ struct WelcomeScreen: View {
                     } else {
                         // After invite code validation - Show sign-in options
                         if !showEmailLogin {
+                            VStack(spacing: 16) {
                             // Sign in with Apple
                             SignInWithAppleButton(
                                 onRequest: { request in
@@ -133,8 +134,6 @@ struct WelcomeScreen: View {
                             .frame(height: 56)
                             .clipShape(Capsule())
                             .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-                            .opacity(signInButtonsOpacity)
-                            .offset(y: signInButtonsOffset)
                             
                             // Sign in with Google
                             Button(action: {
@@ -163,8 +162,6 @@ struct WelcomeScreen: View {
                                 .clipShape(Capsule())
                                 .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                             }
-                            .opacity(signInButtonsOpacity)
-                            .offset(y: signInButtonsOffset)
                             
                             // Divider
                             HStack(spacing: 16) {
@@ -181,12 +178,10 @@ struct WelcomeScreen: View {
                                     .frame(height: 1)
                             }
                             .padding(.vertical, 8)
-                            .opacity(signInButtonsOpacity)
-                            .offset(y: signInButtonsOffset)
-                            
+
                             // Email option
                             Button(action: {
-                                withAnimation {
+                                withAnimation(.easeInOut(duration: 0.3)) {
                                     showEmailLogin = true
                                 }
                             }) {
@@ -196,9 +191,7 @@ struct WelcomeScreen: View {
                                     .frame(maxWidth: .infinity)
                                     .frame(height: 56)
                             }
-                            .opacity(signInButtonsOpacity)
-                            .offset(y: signInButtonsOffset)
-                            
+
                             // Terms
                             Text("By continuing, you agree to Drift's Terms of Service\nand Privacy Policy")
                                 .font(.system(size: 12))
@@ -206,37 +199,54 @@ struct WelcomeScreen: View {
                                 .multilineTextAlignment(.center)
                                 .lineSpacing(2)
                                 .padding(.top, 8)
-                                .opacity(signInButtonsOpacity)
-                                .offset(y: signInButtonsOffset)
-                        } else {
+                            }
+                            .opacity(signInButtonsOpacity)
+                            .offset(y: signInButtonsOffset)
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .leading).combined(with: .opacity),
+                                removal: .move(edge: .leading).combined(with: .opacity)
+                            ))
+                        }
+
+                        if showEmailLogin {
                             // Email Login Form
-                            VStack(spacing: 20) {
+                            VStack(spacing: 16) {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Email")
                                         .font(.subheadline)
                                         .foregroundColor(.white.opacity(0.9))
                                     TextField("Enter your email", text: $email)
-                                        .textFieldStyle(.roundedBorder)
                                         .textInputAutocapitalization(.never)
                                         .keyboardType(.emailAddress)
                                         .autocorrectionDisabled()
+                                        .font(.system(size: 16))
+                                        .foregroundColor(charcoalColor)
+                                        .padding(.horizontal, 20)
+                                        .frame(height: 56)
+                                        .background(Color.white)
+                                        .clipShape(Capsule())
                                 }
-                                
+
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Password")
                                         .font(.subheadline)
                                         .foregroundColor(.white.opacity(0.9))
                                     SecureField("Enter your password", text: $password)
-                                        .textFieldStyle(.roundedBorder)
+                                        .font(.system(size: 16))
+                                        .foregroundColor(charcoalColor)
+                                        .padding(.horizontal, 20)
+                                        .frame(height: 56)
+                                        .background(Color.white)
+                                        .clipShape(Capsule())
                                 }
-                                
+
                                 if let errorMessage = errorMessage {
                                     Text(errorMessage)
                                         .font(.caption)
                                         .foregroundColor(.red)
                                         .padding(.top, 4)
                                 }
-                                
+
                                 Button(action: {
                                     Task {
                                         await handleEmailAuth()
@@ -247,7 +257,7 @@ struct WelcomeScreen: View {
                                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                     } else {
                                         Text(isSignUp ? "Sign Up" : "Sign In")
-                                            .fontWeight(.semibold)
+                                            .font(.system(size: 16, weight: .medium))
                                     }
                                 }
                                 .frame(maxWidth: .infinity)
@@ -256,7 +266,7 @@ struct WelcomeScreen: View {
                                 .background(charcoalColor)
                                 .clipShape(Capsule())
                                 .disabled(isLoading)
-                                
+
                                 Button(action: {
                                     isSignUp.toggle()
                                     errorMessage = nil
@@ -266,9 +276,9 @@ struct WelcomeScreen: View {
                                         .foregroundColor(.white.opacity(0.9))
                                 }
                                 .padding(.top, 8)
-                                
+
                                 Button(action: {
-                                    withAnimation {
+                                    withAnimation(.easeInOut(duration: 0.3)) {
                                         showEmailLogin = false
                                         errorMessage = nil
                                         email = ""
@@ -279,9 +289,11 @@ struct WelcomeScreen: View {
                                         .font(.subheadline)
                                         .foregroundColor(.white.opacity(0.9))
                                 }
-                                .padding(.top, 8)
                             }
-                            .padding(.horizontal, 24)
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .trailing).combined(with: .opacity),
+                                removal: .move(edge: .trailing).combined(with: .opacity)
+                            ))
                         }
                     }
                 }

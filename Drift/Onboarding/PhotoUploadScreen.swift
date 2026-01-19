@@ -200,7 +200,8 @@ struct PhotoSlotView: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(height: 180)
+                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 180, maxHeight: 180)
+                    .clipped()
                     .clipShape(RoundedRectangle(cornerRadius: 24))
                     .overlay(
                         Button(action: onRemove) {
