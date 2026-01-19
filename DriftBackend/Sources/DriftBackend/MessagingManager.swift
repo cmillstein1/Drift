@@ -113,31 +113,35 @@ public class MessagingManager: ObservableObject {
             .value
 
         // Find conversation with both users
-        for conv in existing {
+        for var conv in existing {
             let participantIds = conv.participants?.map { $0.userId } ?? []
             if participantIds.contains(currentUserId) && participantIds.contains(userId) {
+                // Ensure otherUser is populated
+                if conv.otherUser == nil {
+                    conv.otherUser = try await ProfileManager.shared.fetchProfile(by: userId)
+                }
                 return conv
             }
         }
 
-        // Create new conversation
-        let createRequest = ConversationCreateRequest(type: type)
-        let newConv: Conversation = try await client
-            .from("conversations")
-            .insert(createRequest)
-            .select()
-            .single()
+        // Create new conversation using RPC function (bypasses RLS)
+        let conversationId: UUID = try await client
+            .rpc("create_conversation_with_participants", params: [
+                "p_type": type.rawValue,
+                "p_user1_id": currentUserId.uuidString,
+                "p_user2_id": userId.uuidString
+            ])
             .execute()
             .value
 
-        // Add participants
-        let participant1 = ParticipantCreateRequest(conversationId: newConv.id, userId: currentUserId)
-        let participant2 = ParticipantCreateRequest(conversationId: newConv.id, userId: userId)
-
-        try await client
-            .from("conversation_participants")
-            .insert([participant1, participant2])
+        // Fetch the created conversation
+        let newConv: Conversation = try await client
+            .from("conversations")
+            .select()
+            .eq("id", value: conversationId)
+            .single()
             .execute()
+            .value
 
         // Fetch the other user's profile
         var conversationWithUser = newConv
