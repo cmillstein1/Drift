@@ -15,6 +15,8 @@ struct ProfileScreen: View {
     @StateObject private var revenueCatManager = RevenueCatManager.shared
     @State private var isSigningOut = false
     @State private var showEditProfileSheet = false
+    @State private var showDatingSettingsSheet = false
+    @State private var showDiscoveryModeSheet = false
 
     private var profile: UserProfile? {
         profileManager.currentProfile
@@ -60,7 +62,7 @@ struct ProfileScreen: View {
                         
                         // Settings button - top right
                         Button(action: {
-                            // Handle settings
+                            showDatingSettingsSheet = true
                         }) {
                             Image(systemName: "gearshape.fill")
                                 .font(.system(size: 20))
@@ -145,37 +147,40 @@ struct ProfileScreen: View {
                             .padding(.horizontal, 16)
                             .padding(.bottom, 24)
                         
-                        // Preference Toggle
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Discovery Mode")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(charcoalColor)
-                                .padding(.horizontal, 20)
-                                .padding(.top, 16)
-                            
-                            Toggle(isOn: Binding(
-                                get: { supabaseManager.isFriendsOnly() },
-                                set: { newValue in
-                                    Task {
-                                        await updatePreference(isFriendsOnly: newValue)
+                        // Discovery Mode Button
+                        Button(action: {
+                            showDiscoveryModeSheet = true
+                        }) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Discovery Mode")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(charcoalColor)
+                                    .padding(.horizontal, 20)
+                                    .padding(.top, 16)
+                                
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(supabaseManager.isFriendsOnly() ? "Friends Only" : "Dating & Friends")
+                                            .font(.system(size: 16, weight: .medium))
+                                            .foregroundColor(charcoalColor)
+                                        
+                                        Text(supabaseManager.isFriendsOnly() ? "See only friends in Discover" : "See both dating and friends in Discover")
+                                            .font(.system(size: 13))
+                                            .foregroundColor(charcoalColor.opacity(0.6))
                                     }
-                                }
-                            )) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(supabaseManager.isFriendsOnly() ? "Friends Only" : "Dating & Friends")
-                                        .font(.system(size: 16, weight: .medium))
-                                        .foregroundColor(charcoalColor)
                                     
-                                    Text(supabaseManager.isFriendsOnly() ? "Only see friends in Discover" : "See both dating and friends in Discover")
-                                        .font(.system(size: 13))
-                                        .foregroundColor(charcoalColor.opacity(0.6))
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(charcoalColor.opacity(0.4))
                                 }
+                                .padding(.horizontal, 20)
+                                .padding(.bottom, 16)
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 16)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
                         }
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
                         .padding(.horizontal, 16)
                         .padding(.bottom, 24)
                         
@@ -322,6 +327,29 @@ struct ProfileScreen: View {
             EditProfileSheet(isPresented: $showEditProfileSheet)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showDatingSettingsSheet) {
+            DatingSettingsSheet(isPresented: $showDatingSettingsSheet)
+                .presentationDetents([.height(380)])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showDiscoveryModeSheet) {
+            DiscoveryModeSheet(
+                isPresented: $showDiscoveryModeSheet,
+                onSelectDatingAndFriends: {
+                    Task {
+                        await updatePreference(isFriendsOnly: false)
+                    }
+                },
+                onSelectFriendsOnly: {
+                    Task {
+                        await updatePreference(isFriendsOnly: true)
+                    }
+                },
+                hasCompletedDatingOnboarding: getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
+            )
+            .presentationDetents([.height(520)])
+            .presentationDragIndicator(.visible)
         }
         .onAppear {
             Task {
