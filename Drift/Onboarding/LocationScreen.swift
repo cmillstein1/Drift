@@ -60,7 +60,7 @@ struct LocationScreen: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                ProgressIndicator(currentStep: 7, totalSteps: 8)
+                ProgressIndicator(currentStep: 7, totalSteps: 9)
                     .padding(.top, 32)
                     .padding(.bottom, 48)
                 
@@ -126,9 +126,6 @@ struct LocationScreen: View {
                     VStack(spacing: 12) {
                         Button(action: {
                             locationManager.requestLocationPermission()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                onContinue()
-                            }
                         }) {
                             Text("Enable Location")
                                 .font(.system(size: 17, weight: .semibold))
@@ -156,6 +153,12 @@ struct LocationScreen: View {
                     .padding(.horizontal, 24)
                     .padding(.bottom, 32)
                 }
+            }
+        }
+        .onChange(of: locationManager.authorizationStatus) { oldValue, newValue in
+            // Continue after user responds to permission dialog
+            if oldValue == .notDetermined && newValue != .notDetermined {
+                onContinue()
             }
         }
         .onAppear {

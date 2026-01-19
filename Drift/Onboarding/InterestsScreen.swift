@@ -74,7 +74,7 @@ struct InterestsScreen: View {
                 Interest(emoji: "🎸", label: "Music"),
                 Interest(emoji: "💃", label: "Dancing")
             ],
-            expanded: false
+            expanded: true
         ),
         InterestCategory(
             title: "Active",
@@ -86,7 +86,7 @@ struct InterestsScreen: View {
                 Interest(emoji: "🏊", label: "Swimming"),
                 Interest(emoji: "⛷️", label: "Skiing")
             ],
-            expanded: false
+            expanded: true
         )
     ]
     
@@ -111,7 +111,7 @@ struct InterestsScreen: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                ProgressIndicator(currentStep: 6, totalSteps: 8)
+                ProgressIndicator(currentStep: 6, totalSteps: 9)
                     .padding(.top, 32)
                     .padding(.bottom, 24)
                 

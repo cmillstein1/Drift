@@ -13,6 +13,12 @@ struct FriendsScreen: View {
     @StateObject private var friendsManager = FriendsManager.shared
     @ObservedObject private var supabaseManager = SupabaseManager.shared
 
+    @State private var isLoading = true
+    @State private var swipedIds: [UUID] = []
+    @State private var showMessageSheet = false
+    @State private var selectedProfileForMessage: UserProfile? = nil
+    @State private var friendRequestMessage = ""
+
     private var profiles: [UserProfile] {
         profileManager.discoverProfiles
     }
@@ -24,11 +30,25 @@ struct FriendsScreen: View {
     }
 
     private func loadProfiles() {
+        isLoading = true
         Task {
             do {
-                try await profileManager.fetchDiscoverProfiles(lookingFor: .friends)
+                // Fetch already swiped IDs
+                swipedIds = try await friendsManager.fetchSwipedUserIds()
+
+                // Fetch sent friend requests
+                try await friendsManager.fetchSentRequests()
+
+                // Fetch friends profiles excluding already swiped
+                try await profileManager.fetchDiscoverProfiles(
+                    lookingFor: .friends,
+                    excludeIds: swipedIds
+                )
             } catch {
                 print("Failed to load friends profiles: \(error)")
+            }
+            await MainActor.run {
+                isLoading = false
             }
         }
     }
@@ -40,15 +60,32 @@ struct FriendsScreen: View {
     private func handleConnect(profileId: UUID) {
         Task {
             do {
-                _ = try await friendsManager.swipe(on: profileId, direction: .right)
+                try await friendsManager.sendFriendRequest(to: profileId)
             } catch {
-                print("Failed to connect: \(error)")
+                print("Failed to send friend request: \(error)")
             }
         }
     }
-    
-    @State private var cardOpacities: [Double] = []
-    @State private var cardOffsets: [CGFloat] = []
+
+    private func handleConnectWithMessage(profile: UserProfile) {
+        selectedProfileForMessage = profile
+        friendRequestMessage = ""
+        showMessageSheet = true
+    }
+
+    private func sendFriendRequestWithMessage() {
+        guard let profile = selectedProfileForMessage else { return }
+        Task {
+            do {
+                try await friendsManager.sendFriendRequest(to: profile.id, message: friendRequestMessage)
+            } catch {
+                print("Failed to send friend request: \(error)")
+            }
+        }
+        showMessageSheet = false
+        selectedProfileForMessage = nil
+        friendRequestMessage = ""
+    }
     
     private let softGray = Color("SoftGray")
     private let charcoalColor = Color("Charcoal")
@@ -71,28 +108,51 @@ struct FriendsScreen: View {
                         .foregroundColor(charcoalColor.opacity(0.6))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 16)
                 .padding(.top, 16)
                 .padding(.bottom, 24)
 
-                // Friends Cards
-                VStack(spacing: 16) {
-                    ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
-                        FriendCard(
-                            profile: profile,
-                            index: index,
-                            opacity: index < cardOpacities.count ? cardOpacities[index] : 0,
-                            offset: index < cardOffsets.count ? cardOffsets[index] : 30,
-                            mutualInterests: getMutualInterests(for: profile),
-                            onConnect: handleConnect
-                        )
+                // Loading state
+                if isLoading {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                        Text("Finding friends nearby...")
+                            .font(.system(size: 14))
+                            .foregroundColor(charcoalColor.opacity(0.6))
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 60)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 24)
+
+                // Friends Cards
+                if !isLoading {
+                    VStack(spacing: 16) {
+                        ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
+                            FriendCard(
+                                profile: profile,
+                                index: index,
+                                opacity: 1,
+                                offset: 0,
+                                mutualInterests: getMutualInterests(for: profile),
+                                requestSent: friendsManager.hasSentRequest(to: profile.id),
+                                onConnect: { profileId in
+                                    handleConnect(profileId: profileId)
+                                },
+                                onConnectWithMessage: { _ in
+                                    handleConnectWithMessage(profile: profile)
+                                }
+                            )
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 24)
+                    .animation(.easeOut(duration: 0.3), value: profiles.count)
+                }
 
                 // Empty state
-                if profiles.isEmpty && !profileManager.isLoading {
+                if profiles.isEmpty && !isLoading {
                     VStack(spacing: 8) {
                         Text("No friends nearby")
                             .font(.system(size: 16, weight: .medium))
@@ -134,22 +194,101 @@ struct FriendsScreen: View {
         .onAppear {
             loadProfiles()
         }
-        .onChange(of: profiles.count) { count in
-            // Initialize animation arrays
-            cardOpacities = Array(repeating: 0, count: count)
-            cardOffsets = Array(repeating: 30, count: count)
+        .sheet(isPresented: $showMessageSheet) {
+            FriendRequestMessageSheet(
+                profileName: selectedProfileForMessage?.displayName ?? "",
+                message: $friendRequestMessage,
+                onSend: sendFriendRequestWithMessage,
+                onSkip: {
+                    // Send without message
+                    if let profile = selectedProfileForMessage {
+                        handleConnect(profileId: profile.id)
+                    }
+                    showMessageSheet = false
+                    selectedProfileForMessage = nil
+                    friendRequestMessage = ""
+                }
+            )
+            .presentationDetents([.height(300)])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
 
-            // Animate cards with staggered delays
-            for index in 0..<count {
-                withAnimation(.easeOut(duration: 0.4).delay(0.2 + Double(index) * 0.1)) {
-                    if index < cardOpacities.count {
-                        cardOpacities[index] = 1
+// MARK: - Friend Request Message Sheet
+
+struct FriendRequestMessageSheet: View {
+    let profileName: String
+    @Binding var message: String
+    let onSend: () -> Void
+    let onSkip: () -> Void
+
+    @FocusState private var isFocused: Bool
+
+    private let charcoalColor = Color("Charcoal")
+    private let forestGreen = Color("ForestGreen")
+    private let skyBlue = Color("SkyBlue")
+
+    var body: some View {
+        VStack(spacing: 20) {
+            // Header
+            VStack(spacing: 8) {
+                Text("Send a message with your request?")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(charcoalColor)
+
+                Text("Stand out by saying something to \(profileName)")
+                    .font(.system(size: 14))
+                    .foregroundColor(charcoalColor.opacity(0.6))
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.top, 8)
+
+            // Message input
+            TextField("Write a message (optional)", text: $message, axis: .vertical)
+                .font(.system(size: 16))
+                .padding(16)
+                .background(Color.gray.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .lineLimit(3...5)
+                .focused($isFocused)
+
+            // Buttons
+            HStack(spacing: 12) {
+                Button(action: onSkip) {
+                    Text("Skip")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(charcoalColor)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color.gray.opacity(0.1))
+                        .clipShape(Capsule())
+                }
+
+                Button(action: onSend) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "person.badge.plus")
+                            .font(.system(size: 16))
+                        Text(message.isEmpty ? "Connect" : "Send")
+                            .font(.system(size: 16, weight: .semibold))
                     }
-                    if index < cardOffsets.count {
-                        cardOffsets[index] = 0
-                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [skyBlue, forestGreen]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(Capsule())
                 }
             }
+        }
+        .padding(24)
+        .onAppear {
+            isFocused = true
         }
     }
 }

@@ -216,12 +216,47 @@ public class SupabaseManager: ObservableObject {
 
     // MARK: - Preferences
 
+    /// Discovery mode options
+    public enum DiscoveryMode: String {
+        case friends = "friends"
+        case dating = "dating"
+        case both = "both"
+    }
+
+    /// Gets the user's current discovery mode.
+    ///
+    /// - Returns: The discovery mode (friends, dating, or both).
+    public func getDiscoveryMode() -> DiscoveryMode {
+        guard let user = currentUser else { return .both }
+
+        // Check new discoveryMode key first
+        if let modeValue = user.userMetadata["discoveryMode"] {
+            let modeString = String(describing: modeValue).lowercased().replacingOccurrences(of: "\"", with: "")
+            if let mode = DiscoveryMode(rawValue: modeString) {
+                return mode
+            }
+        }
+
+        // Backward compatibility: check old friendsOnly key
+        if parseBoolFromMetadata(user.userMetadata, key: "friendsOnly") {
+            return .friends
+        }
+
+        return .both
+    }
+
     /// Whether the user has selected friends-only mode.
     ///
     /// - Returns: `true` if the user prefers friends-only mode.
     public func isFriendsOnly() -> Bool {
-        guard let user = currentUser else { return false }
-        return parseBoolFromMetadata(user.userMetadata, key: "friendsOnly")
+        return getDiscoveryMode() == .friends
+    }
+
+    /// Whether the user has selected dating-only mode.
+    ///
+    /// - Returns: `true` if the user prefers dating-only mode.
+    public func isDatingOnly() -> Bool {
+        return getDiscoveryMode() == .dating
     }
 
     /// Whether the user has made a preference selection.
@@ -229,14 +264,14 @@ public class SupabaseManager: ObservableObject {
     /// - Returns: `true` if the user has selected a preference.
     public func hasSelectedPreference() -> Bool {
         guard let user = currentUser else { return false }
-        return user.userMetadata["friendsOnly"] != nil
+        return user.userMetadata["discoveryMode"] != nil || user.userMetadata["friendsOnly"] != nil
     }
 
-    /// Updates the user's friends-only preference.
+    /// Updates the user's discovery mode preference.
     ///
-    /// - Parameter isFriendsOnly: Whether to enable friends-only mode.
+    /// - Parameter mode: The discovery mode to set.
     /// - Throws: An error if the update fails.
-    public func updatePreference(isFriendsOnly: Bool) async throws {
+    public func updateDiscoveryMode(_ mode: DiscoveryMode) async throws {
         guard let currentUser = currentUser else {
             throw NSError(
                 domain: "SupabaseManager",
@@ -245,9 +280,19 @@ public class SupabaseManager: ObservableObject {
             )
         }
         var updatedMetadata = currentUser.userMetadata
-        updatedMetadata["friendsOnly"] = AnyJSON.string(isFriendsOnly ? "true" : "false")
+        updatedMetadata["discoveryMode"] = AnyJSON.string(mode.rawValue)
+        // Clear old key for cleanliness
+        updatedMetadata["friendsOnly"] = nil
         let updatedUser = try await client.auth.update(user: UserAttributes(data: updatedMetadata))
         self.currentUser = updatedUser
+    }
+
+    /// Updates the user's friends-only preference (legacy support).
+    ///
+    /// - Parameter isFriendsOnly: Whether to enable friends-only mode.
+    /// - Throws: An error if the update fails.
+    public func updatePreference(isFriendsOnly: Bool) async throws {
+        try await updateDiscoveryMode(isFriendsOnly ? .friends : .both)
     }
 
     // MARK: - Private

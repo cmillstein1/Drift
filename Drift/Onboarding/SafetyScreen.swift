@@ -42,7 +42,7 @@ struct SafetyScreen: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                ProgressIndicator(currentStep: 8, totalSteps: 8)
+                ProgressIndicator(currentStep: 9, totalSteps: 9)
                     .padding(.top, 32)
                     .padding(.bottom, 48)
                 

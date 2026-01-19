@@ -21,7 +21,29 @@ struct ProfileScreen: View {
     private var profile: UserProfile? {
         profileManager.currentProfile
     }
-    
+
+    private var discoveryModeTitle: String {
+        switch supabaseManager.getDiscoveryMode() {
+        case .friends:
+            return "Friends Only"
+        case .dating:
+            return "Dating Only"
+        case .both:
+            return "Dating & Friends"
+        }
+    }
+
+    private var discoveryModeDescription: String {
+        switch supabaseManager.getDiscoveryMode() {
+        case .friends:
+            return "See only friends in Discover"
+        case .dating:
+            return "See only dating profiles in Discover"
+        case .both:
+            return "See both dating and friends in Discover"
+        }
+    }
+
     private let softGray = Color(red: 0.96, green: 0.96, blue: 0.96)
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
@@ -157,20 +179,20 @@ struct ProfileScreen: View {
                                     .foregroundColor(charcoalColor)
                                     .padding(.horizontal, 20)
                                     .padding(.top, 16)
-                                
+
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text(supabaseManager.isFriendsOnly() ? "Friends Only" : "Dating & Friends")
+                                        Text(discoveryModeTitle)
                                             .font(.system(size: 16, weight: .medium))
                                             .foregroundColor(charcoalColor)
-                                        
-                                        Text(supabaseManager.isFriendsOnly() ? "See only friends in Discover" : "See both dating and friends in Discover")
+
+                                        Text(discoveryModeDescription)
                                             .font(.system(size: 13))
                                             .foregroundColor(charcoalColor.opacity(0.6))
                                     }
-                                    
+
                                     Spacer()
-                                    
+
                                     Image(systemName: "chevron.right")
                                         .font(.system(size: 14, weight: .medium))
                                         .foregroundColor(charcoalColor.opacity(0.4))
@@ -338,17 +360,22 @@ struct ProfileScreen: View {
                 isPresented: $showDiscoveryModeSheet,
                 onSelectDatingAndFriends: {
                     Task {
-                        await updatePreference(isFriendsOnly: false)
+                        await updateDiscoveryMode(.both)
                     }
                 },
                 onSelectFriendsOnly: {
                     Task {
-                        await updatePreference(isFriendsOnly: true)
+                        await updateDiscoveryMode(.friends)
+                    }
+                },
+                onSelectDatingOnly: {
+                    Task {
+                        await updateDiscoveryMode(.dating)
                     }
                 },
                 hasCompletedDatingOnboarding: getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
             )
-            .presentationDetents([.height(520)])
+            .presentationDetents([.height(620)])
             .presentationDragIndicator(.visible)
         }
         .onAppear {
@@ -405,14 +432,14 @@ struct ProfileScreen: View {
         }
     }
     
-    private func updatePreference(isFriendsOnly: Bool) async {
+    private func updateDiscoveryMode(_ mode: SupabaseManager.DiscoveryMode) async {
         do {
-            try await supabaseManager.updatePreference(isFriendsOnly: isFriendsOnly)
-            // If switching from Friends Only to Dating & Friends, check if onboarding is needed
-            if !isFriendsOnly {
+            try await supabaseManager.updateDiscoveryMode(mode)
+            // If switching to a dating mode, check if onboarding is needed
+            if mode == .both || mode == .dating {
                 let hasCompletedOnboarding = getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
                 if !hasCompletedOnboarding {
-                    // User switched to Dating & Friends but hasn't completed onboarding
+                    // User switched to dating mode but hasn't completed onboarding
                     // Trigger onboarding flow
                     supabaseManager.isShowingOnboarding = true
                     supabaseManager.isShowingWelcomeSplash = false

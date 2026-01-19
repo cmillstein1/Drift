@@ -25,6 +25,9 @@ struct DiscoverScreen: View {
     @State private var segmentIndex: Int = 0
     @State private var showMatchAlert: Bool = false
     @State private var matchedProfile: UserProfile? = nil
+    @State private var showLikePrompt: Bool = false
+    @State private var likeMessage: String = ""
+    @State private var swipeProgress: CGFloat = 0
 
     private var profiles: [UserProfile] {
         profileManager.discoverProfiles
@@ -133,17 +136,171 @@ struct DiscoverScreen: View {
             }
         }
     }
-    
+
+    @ViewBuilder
+    private var datingCardStack: some View {
+        ZStack {
+            GeometryReader { geometry in
+                if let profile = currentCard {
+                    // Single card view - Hinge style (no stack peek)
+                    ProfileCard(
+                        profile: profile,
+                        isTop: true,
+                        mode: mode,
+                        scale: 1.0,
+                        offset: 0,
+                        onSwipe: handleSwipe,
+                        onTap: {
+                            selectedProfile = profile
+                        },
+                        onSwipeProgress: { progress in
+                            swipeProgress = progress
+                        }
+                    )
+                    .padding(.horizontal, 8)
+                } else {
+                    // Empty state
+                    VStack(spacing: 16) {
+                        Image(systemName: "heart.slash")
+                            .font(.system(size: 48))
+                            .foregroundColor(charcoalColor.opacity(0.3))
+
+                        Text("No more profiles")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(charcoalColor)
+
+                        Text("Check back later for new matches")
+                            .font(.system(size: 14))
+                            .foregroundColor(charcoalColor.opacity(0.6))
+
+                        Button {
+                            loadProfiles()
+                        } label: {
+                            Text("Refresh")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(DriftUI.burntOrange)
+                                .clipShape(Capsule())
+                        }
+                        .padding(.top, 8)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+
+            // Fixed action buttons at bottom
+            if currentCard != nil {
+                VStack {
+                    Spacer()
+                    fixedActionButtons
+                }
+            }
+        }
+        .ignoresSafeArea(edges: .bottom)
+        .sheet(isPresented: $showLikePrompt) {
+            LikeMessageSheet(
+                profileName: currentCard?.displayName ?? "",
+                message: $likeMessage,
+                onSend: {
+                    showLikePrompt = false
+                    handleSwipe(direction: .right)
+                    likeMessage = ""
+                },
+                onSkip: {
+                    showLikePrompt = false
+                    handleSwipe(direction: .right)
+                    likeMessage = ""
+                }
+            )
+            .presentationDetents([.height(280)])
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    // Scale factor for X button (scales up when swiping left)
+    private var xButtonScale: CGFloat {
+        let baseScale: CGFloat = 1.0
+        let maxScale: CGFloat = 1.3
+        // Negative swipe progress means swiping left
+        let progress = max(-swipeProgress, 0)
+        return baseScale + (maxScale - baseScale) * progress
+    }
+
+    // Scale factor for heart button (scales up when swiping right)
+    private var heartButtonScale: CGFloat {
+        let baseScale: CGFloat = 1.0
+        let maxScale: CGFloat = 1.3
+        // Positive swipe progress means swiping right
+        let progress = max(swipeProgress, 0)
+        return baseScale + (maxScale - baseScale) * progress
+    }
+
+    @ViewBuilder
+    private var fixedActionButtons: some View {
+        HStack {
+            // Pass button (left)
+            Button {
+                handleSwipe(direction: .left)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(charcoalColor)
+                    .frame(width: 56, height: 56)
+                    .background(Color.white)
+                    .clipShape(Circle())
+                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+            }
+            .scaleEffect(xButtonScale)
+            .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.7), value: swipeProgress)
+
+            Spacer()
+
+            // Like button (right)
+            Button {
+                showLikePrompt = true
+            } label: {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 26))
+                    .foregroundColor(.white)
+                    .frame(width: 64, height: 64)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [burntOrange, pink500]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .clipShape(Circle())
+                    .shadow(color: burntOrange.opacity(0.4), radius: 8, x: 0, y: 4)
+            }
+            .scaleEffect(heartButtonScale)
+            .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.7), value: swipeProgress)
+        }
+        .padding(.horizontal, 32)
+        .padding(.bottom, 100) // Space for tab bar
+    }
+
     var body: some View {
         ZStack {
             softGray
                 .ignoresSafeArea()
-            
-            // Check if user is friendsOnly - if so, show FriendsScreen directly
-            if supabaseManager.isFriendsOnly() {
+
+            // Check discovery mode
+            let discoveryMode = supabaseManager.getDiscoveryMode()
+
+            if discoveryMode == .friends {
+                // Friends only - show FriendsScreen directly
                 FriendsScreen()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if discoveryMode == .dating {
+                // Dating only - show dating cards directly without toggle
+                VStack(spacing: 0) {
+                    datingCardStack
+                }
             } else {
+                // Both - show segment toggle
                 VStack(spacing: 0) {
                     // Mode Toggle
                     SegmentToggle(
@@ -160,7 +317,7 @@ struct DiscoverScreen: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
                     .padding(.bottom, 16)
-                    
+
                     // Content based on mode
                     .onChange(of: mode) { _ in
                         updateSegmentIndex()
@@ -168,66 +325,29 @@ struct DiscoverScreen: View {
                     .onAppear {
                         updateSegmentIndex()
                     }
-                    
+
                     if mode == .friends {
                         FriendsScreen()
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
-                    // Card Stack for Dating
-                    GeometryReader { geometry in
-                        HStack {
-                            Spacer()
-                            
-                            if let card = currentCard {
-                                ZStack {
-                                    // Show up to 2 cards
-                                    ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
-                                        if index >= currentIndex && index < currentIndex + 2 {
-                                            let offset = index - currentIndex
-                                            let isTop = offset == 0
-                                            
-                                            ProfileCard(
-                                                profile: profile,
-                                                isTop: isTop,
-                                                mode: mode,
-                                                scale: 1.0 - Double(offset) * 0.05,
-                                                offset: Double(offset) * -10,
-                                                onSwipe: handleSwipe,
-                                                onTap: {
-                                                    selectedProfile = profile
-                                                }
-                                            )
-                                            .zIndex(Double(profiles.count - index))
-                                        }
-                                    }
-                                }
-                                .frame(width: min(448, geometry.size.width - 16))
-                                .frame(height: geometry.size.height)
-                            } else {
-                                VStack {
-                                    Spacer()
-                                    Text("No more profiles")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(charcoalColor.opacity(0.6))
-                                    Spacer()
-                                }
-                            }
-                            
-                            Spacer()
-                        }
+                        datingCardStack
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 8)
-                    .offset(y: -8)
-                }
                 }
             }
         }
         .onAppear {
-            loadProfiles()
+            // Load dating profiles on appear for dating modes
+            // FriendsScreen handles its own loading when in "both" mode
+            let discoveryMode = supabaseManager.getDiscoveryMode()
+            if discoveryMode == .dating || (discoveryMode == .both && mode == .dating) {
+                loadProfiles()
+            }
         }
-        .onChange(of: mode) { _ in
-            loadProfiles()
+        .onChange(of: mode) { newMode in
+            // Only load when switching to dating - FriendsScreen handles friends loading
+            if newMode == .dating {
+                loadProfiles()
+            }
         }
         .alert("It's a Match!", isPresented: $showMatchAlert) {
             Button("Send Message") {

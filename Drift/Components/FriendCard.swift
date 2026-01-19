@@ -8,30 +8,73 @@
 import SwiftUI
 import DriftBackend
 
+struct FriendCardInterest: Identifiable {
+    let id: String
+    let label: String
+    let emoji: String?
+    let isExtra: Bool
+    let isMutual: Bool
+
+    init(_ label: String, isExtra: Bool = false, isMutual: Bool = false) {
+        self.id = label
+        self.label = label
+        self.emoji = DriftUI.emoji(for: label)
+        self.isExtra = isExtra
+        self.isMutual = isMutual
+    }
+}
+
 struct FriendCard: View {
     let profile: UserProfile
     let index: Int
     let opacity: Double
     let offset: CGFloat
     var mutualInterests: [String]
+    var requestSent: Bool
     var onConnect: ((UUID) -> Void)?
-    var onMessage: ((UUID) -> Void)?
+    var onConnectWithMessage: ((UUID) -> Void)?
 
-    init(profile: UserProfile, index: Int = 0, opacity: Double = 1.0, offset: CGFloat = 0, mutualInterests: [String] = [], onConnect: ((UUID) -> Void)? = nil, onMessage: ((UUID) -> Void)? = nil) {
+    init(profile: UserProfile, index: Int = 0, opacity: Double = 1.0, offset: CGFloat = 0, mutualInterests: [String] = [], requestSent: Bool = false, onConnect: ((UUID) -> Void)? = nil, onConnectWithMessage: ((UUID) -> Void)? = nil) {
         self.profile = profile
         self.index = index
         self.opacity = opacity
         self.offset = offset
         self.mutualInterests = mutualInterests
+        self.requestSent = requestSent
         self.onConnect = onConnect
-        self.onMessage = onMessage
+        self.onConnectWithMessage = onConnectWithMessage
     }
-    
-    private let charcoalColor = Color("Charcoal")
-    private let burntOrange = Color("BurntOrange")
-    private let forestGreen = Color("ForestGreen")
-    private let skyBlue = Color("SkyBlue")
-    private let desertSand = Color("DesertSand")
+
+    // Use DriftUI design system colors
+    private var charcoalColor: Color { DriftUI.charcoal }
+    private var burntOrange: Color { DriftUI.burntOrange }
+    private var forestGreen: Color { DriftUI.forestGreen }
+    private var skyBlue: Color { DriftUI.skyBlue }
+    private var desertSand: Color { DriftUI.desertSand }
+
+    private var interestTags: [FriendCardInterest] {
+        let maxVisible = 4
+        let mutualSet = Set(mutualInterests)
+
+        // Sort interests: mutual first, then others
+        let sortedInterests = profile.interests.sorted { a, b in
+            let aIsMutual = mutualSet.contains(a)
+            let bIsMutual = mutualSet.contains(b)
+            if aIsMutual != bIsMutual {
+                return aIsMutual // mutual interests come first
+            }
+            return false // keep original order otherwise
+        }
+
+        var tags = sortedInterests.prefix(maxVisible).map { interest in
+            FriendCardInterest(interest, isMutual: mutualSet.contains(interest))
+        }
+        let remaining = profile.interests.count - maxVisible
+        if remaining > 0 {
+            tags.append(FriendCardInterest("+\(remaining) more", isExtra: true))
+        }
+        return tags
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -39,7 +82,7 @@ struct FriendCard: View {
             HStack(alignment: .top, spacing: 16) {
                 // Profile Image
                 FriendCardImage(
-                    imageUrl: profile.avatarUrl ?? "",
+                    imageUrl: profile.photos.first ?? profile.avatarUrl ?? "",
                     verified: profile.verified
                 )
 
@@ -93,37 +136,16 @@ struct FriendCard: View {
             }
             .padding(16)
 
-            // Tags (interests)
-            HStack(spacing: 8) {
-                ForEach(Array(profile.interests.prefix(3).enumerated()), id: \.offset) { _, interest in
-                    Text(interest)
-                        .font(.system(size: 12))
-                        .foregroundColor(charcoalColor)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(desertSand)
-                        .clipShape(Capsule())
-                        .fixedSize()
-                        .lineLimit(1)
-                }
-
-                if profile.interests.count > 3 {
-                    Text("+\(profile.interests.count - 3) more")
-                        .font(.system(size: 12))
-                        .foregroundColor(charcoalColor.opacity(0.6))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Color.gray.opacity(0.1))
-                        .clipShape(Capsule())
-                        .fixedSize()
-                        .lineLimit(1)
-                }
+            // Tags (interests) - FlowLayout with max 4 visible + overflow indicator
+            FlowLayout(data: interestTags, spacing: 6) { tag in
+                InterestTag(
+                    tag.label,
+                    emoji: tag.isExtra ? nil : tag.emoji,
+                    variant: tag.isExtra ? .extra : (tag.isMutual ? .highlighted : .default)
+                )
             }
-            .padding(.leading, 16)
-            .padding(.trailing, 16)
+            .padding(.horizontal, 16)
             .padding(.bottom, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
 
             // Travel Info & Actions
             VStack(spacing: 12) {
@@ -134,7 +156,7 @@ struct FriendCard: View {
                                 .font(.system(size: 12))
                                 .foregroundColor(charcoalColor.opacity(0.6))
 
-                            HStack(spacing: 0) {
+                            HStack(spacing: 0) { 
                                 Text("Next: ")
                                 Text(nextDestination)
                                     .fontWeight(.medium)
@@ -162,52 +184,70 @@ struct FriendCard: View {
 
                 // Action Buttons
                 HStack(spacing: 8) {
-                    Button(action: {
-                        if let onConnect = onConnect {
-                            onConnect(profile.id)
-                        } else {
-                            print("Connected with: \(profile.displayName)")
-                        }
-                    }) {
+                    if requestSent {
+                        // Request Sent state
                         HStack(spacing: 8) {
-                            Image("person_plus")
-                                .resizable()
-                                .frame(width: 16, height: 16)
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 14, weight: .medium))
 
-                            Text("Connect")
+                            Text("Request Sent")
                                 .font(.system(size: 14, weight: .medium))
                         }
-                        .foregroundColor(.white)
+                        .foregroundColor(forestGreen)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
-                        .background(
-                            LinearGradient(
-                                gradient: Gradient(colors: [skyBlue, forestGreen]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
+                        .background(Color.white)
+                        .overlay(
+                            Capsule()
+                                .stroke(forestGreen, lineWidth: 2)
                         )
                         .clipShape(Capsule())
-                    }
+                    } else {
+                        // Connect button (no message)
+                        Button(action: {
+                            if let onConnect = onConnect {
+                                onConnect(profile.id)
+                            }
+                        }) {
+                            HStack(spacing: 8) {
+                                Image("person_plus")
+                                    .resizable()
+                                    .frame(width: 16, height: 16)
 
-                    Button(action: {
-                        if let onMessage = onMessage {
-                            onMessage(profile.id)
-                        } else {
-                            print("Message: \(profile.displayName)")
-                        }
-                    }) {
-                        Image(systemName: "message")
-                            .font(.system(size: 14))
-                            .foregroundColor(charcoalColor)
-                            .padding(.horizontal, 16)
+                                Text("Connect")
+                                    .font(.system(size: 14, weight: .medium))
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
-                            .background(Color.white)
-                            .overlay(
-                                Capsule()
-                                    .stroke(Color.gray.opacity(0.2), lineWidth: 2)
+                            .background(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [skyBlue, forestGreen]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
                             )
                             .clipShape(Capsule())
+                        }
+
+                        // Connect with message button
+                        Button(action: {
+                            if let onConnectWithMessage = onConnectWithMessage {
+                                onConnectWithMessage(profile.id)
+                            }
+                        }) {
+                            Image(systemName: "message")
+                                .font(.system(size: 14))
+                                .foregroundColor(charcoalColor)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color.white)
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Color.gray.opacity(0.2), lineWidth: 2)
+                                )
+                                .clipShape(Capsule())
+                        }
                     }
                 }
             }
@@ -223,22 +263,43 @@ struct FriendCard: View {
 }
 
 #Preview {
-    FriendCard(
-        profile: UserProfile(
-            id: UUID(),
-            name: "Sarah",
-            age: 28,
-            bio: "Van-lifer and photographer exploring the Pacific Coast. Always up for sunrise hikes and good coffee.",
-            avatarUrl: "https://images.unsplash.com/photo-1682101525282-545b10c4bb55?w=800",
-            location: "Big Sur, CA",
-            verified: true,
-            lifestyle: .vanLife,
-            nextDestination: "Portland, OR",
-            interests: ["Van Life", "Photography", "Surf", "Early Riser"],
-            lookingFor: .friends
-        ),
-        mutualInterests: ["Photography", "Surf"]
-    )
+    VStack(spacing: 16) {
+        FriendCard(
+            profile: UserProfile(
+                id: UUID(),
+                name: "Sarah",
+                age: 28,
+                bio: "Van-lifer and photographer exploring the Pacific Coast. Always up for sunrise hikes and good coffee.",
+                avatarUrl: "https://images.unsplash.com/photo-1682101525282-545b10c4bb55?w=800",
+                location: "Big Sur, CA",
+                verified: true,
+                lifestyle: .vanLife,
+                nextDestination: "Portland, OR",
+                interests: ["Van Life", "Photography", "Surf", "Early Riser"],
+                lookingFor: .friends
+            ),
+            mutualInterests: ["Photography", "Surf"],
+            requestSent: false
+        )
+
+        FriendCard(
+            profile: UserProfile(
+                id: UUID(),
+                name: "Mike",
+                age: 32,
+                bio: "RV enthusiast",
+                avatarUrl: nil,
+                location: "Denver, CO",
+                verified: false,
+                lifestyle: .rvLife,
+                nextDestination: nil,
+                interests: ["Hiking", "Camping"],
+                lookingFor: .friends
+            ),
+            mutualInterests: [],
+            requestSent: true
+        )
+    }
     .padding()
     .background(Color("SoftGray"))
 }

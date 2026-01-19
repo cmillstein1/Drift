@@ -13,9 +13,10 @@ struct PreferenceSelectionScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @State private var selectedPreference: PreferenceType? = nil
     @State private var isSaving = false
-    
+
     enum PreferenceType {
         case datingAndFriends
+        case datingOnly
         case friendsOnly
     }
     
@@ -50,11 +51,11 @@ struct PreferenceSelectionScreen: View {
                 .padding(.bottom, 48)
                 
                 // Preference Options
-                VStack(spacing: 20) {
+                VStack(spacing: 16) {
                     // Dating and Friends Option
                     PreferenceCard(
                         title: "Dating & Friends",
-                        description: "Explore both romantic connections and friendships. Full access to all features.",
+                        description: "Explore both romantic connections and friendships.",
                         icon: "heart.fill",
                         gradient: LinearGradient(
                             colors: [burntOrange, pink500],
@@ -68,11 +69,29 @@ struct PreferenceSelectionScreen: View {
                             }
                         }
                     )
-                    
+
+                    // Dating Only Option
+                    PreferenceCard(
+                        title: "Dating Only",
+                        description: "Focus on finding romantic connections only.",
+                        icon: "heart.circle.fill",
+                        gradient: LinearGradient(
+                            colors: [pink500, burntOrange],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        isSelected: selectedPreference == .datingOnly,
+                        onTap: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                selectedPreference = .datingOnly
+                            }
+                        }
+                    )
+
                     // Friends Only Option
                     PreferenceCard(
                         title: "Friends Only",
-                        description: "Focus on building meaningful friendships. Skip dating features for now.",
+                        description: "Focus on building meaningful friendships.",
                         icon: "person.2.fill",
                         gradient: LinearGradient(
                             colors: [skyBlue, forestGreen],
@@ -132,37 +151,47 @@ struct PreferenceSelectionScreen: View {
     
     private func handleContinue() async {
         guard let preference = selectedPreference else { return }
-        
+
         isSaving = true
-        
+
         do {
-            // Save preference to user metadata
-            let isFriendsOnly = preference == .friendsOnly
-            
             if let currentUser = supabaseManager.currentUser {
-                // Update metadata
+                // Update metadata based on preference
                 var updatedMetadata = currentUser.userMetadata
-                updatedMetadata["friendsOnly"] = AnyJSON.string(isFriendsOnly ? "true" : "false")
-                
+
+                switch preference {
+                case .datingAndFriends:
+                    updatedMetadata["friendsOnly"] = AnyJSON.string("false")
+                    updatedMetadata["discoveryMode"] = AnyJSON.string("both")
+                case .datingOnly:
+                    updatedMetadata["friendsOnly"] = AnyJSON.string("false")
+                    updatedMetadata["discoveryMode"] = AnyJSON.string("dating")
+                case .friendsOnly:
+                    updatedMetadata["friendsOnly"] = AnyJSON.string("true")
+                    updatedMetadata["discoveryMode"] = AnyJSON.string("friends")
+                }
+
                 let updatedUser = try await supabaseManager.client.auth.update(
                     user: UserAttributes(data: updatedMetadata)
                 )
                 supabaseManager.currentUser = updatedUser
-                
-                // If friends only, proceed to friend onboarding
-                if isFriendsOnly {
+
+                // Navigate based on preference
+                switch preference {
+                case .friendsOnly:
+                    // Friends only - proceed to friend onboarding
                     supabaseManager.isShowingPreferenceSelection = false
                     supabaseManager.isShowingFriendOnboarding = true
-                } else {
-                    // If dating and friends, proceed to normal onboarding
+                case .datingAndFriends, .datingOnly:
+                    // Dating modes - proceed to normal onboarding
                     supabaseManager.isShowingPreferenceSelection = false
                     supabaseManager.isShowingOnboarding = true
                 }
             }
         } catch {
-            print("❌ Failed to save preference: \(error.localizedDescription)")
+            print("Failed to save preference: \(error.localizedDescription)")
         }
-        
+
         isSaving = false
     }
 }

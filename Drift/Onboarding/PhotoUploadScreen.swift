@@ -7,6 +7,7 @@
 
 import SwiftUI
 import PhotosUI
+import DriftBackend
 
 struct PhotoSlot: Identifiable {
     let id: Int
@@ -15,7 +16,8 @@ struct PhotoSlot: Identifiable {
 
 struct PhotoUploadScreen: View {
     let onContinue: () -> Void
-    
+
+    @StateObject private var profileManager = ProfileManager.shared
     @State private var photos: [PhotoSlot] = [
         PhotoSlot(id: 1, image: nil),
         PhotoSlot(id: 2, image: nil),
@@ -25,6 +27,7 @@ struct PhotoUploadScreen: View {
         PhotoSlot(id: 6, image: nil)
     ]
     @State private var selectedPhotoIndex: Int? = nil
+    @State private var isSaving = false
     @State private var titleOpacity: Double = 0
     @State private var titleOffset: CGFloat = -20
     @State private var subtitleOpacity: Double = 0
@@ -33,7 +36,7 @@ struct PhotoUploadScreen: View {
     @State private var gridScale: [Double] = Array(repeating: 0.9, count: 6)
     @State private var buttonOpacity: Double = 0
     @State private var buttonOffset: CGFloat = 20
-    
+
     private let warmWhite = Color(red: 0.98, green: 0.98, blue: 0.96)
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
@@ -52,7 +55,7 @@ struct PhotoUploadScreen: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                ProgressIndicator(currentStep: 5, totalSteps: 8)
+                ProgressIndicator(currentStep: 5, totalSteps: 9)
                     .padding(.top, 32)
                     .padding(.bottom, 24)
                 
@@ -125,19 +128,26 @@ struct PhotoUploadScreen: View {
                             .font(.system(size: 14))
                             .foregroundColor(burntOrange)
                     }
-                    
+
                     Button(action: {
-                        onContinue()
+                        saveAndContinue()
                     }) {
-                        Text("Continue")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(canContinue ? burntOrange : Color.gray.opacity(0.3))
-                            .clipShape(Capsule())
+                        if isSaving {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        } else {
+                            Text("Continue")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        }
                     }
-                    .disabled(!canContinue)
+                    .background(canContinue ? burntOrange : Color.gray.opacity(0.3))
+                    .clipShape(Capsule())
+                    .disabled(!canContinue || isSaving)
                     .padding(.horizontal, 24)
                     .padding(.bottom, 32)
                     .opacity(buttonOpacity)
@@ -159,22 +169,64 @@ struct PhotoUploadScreen: View {
                 titleOpacity = 1
                 titleOffset = 0
             }
-            
+
             withAnimation(.easeOut(duration: 0.5).delay(0.1)) {
                 subtitleOpacity = 1
                 subtitleOffset = 0
             }
-            
+
             for index in 0..<6 {
                 withAnimation(.easeOut(duration: 0.4).delay(0.2 + Double(index) * 0.1)) {
                     gridOpacity[index] = 1
                     gridScale[index] = 1
                 }
             }
-            
+
             withAnimation(.easeOut(duration: 0.5).delay(0.8)) {
                 buttonOpacity = 1
                 buttonOffset = 0
+            }
+        }
+    }
+
+    private func compressImage(_ image: UIImage, maxFileSizeMB: Double) -> Data? {
+        let maxFileSizeBytes = Int(maxFileSizeMB * 1024 * 1024)
+        var compressionQuality: CGFloat = 1.0
+        var imageData = image.jpegData(compressionQuality: compressionQuality)
+
+        while let data = imageData, data.count > maxFileSizeBytes && compressionQuality > 0.1 {
+            compressionQuality -= 0.1
+            imageData = image.jpegData(compressionQuality: compressionQuality)
+        }
+
+        return imageData
+    }
+
+    private func saveAndContinue() {
+        isSaving = true
+        Task {
+            do {
+                // Get photos in order (non-nil images only)
+                let uploadImages = photos.compactMap { $0.image }
+
+                // Upload first photo as avatar
+                if let firstImage = uploadImages.first,
+                   let avatarData = compressImage(firstImage, maxFileSizeMB: 2.0) {
+                    _ = try await profileManager.uploadAvatar(avatarData)
+                }
+
+                // Upload all photos to photos array
+                for image in uploadImages {
+                    if let photoData = compressImage(image, maxFileSizeMB: 2.0) {
+                        _ = try await profileManager.uploadPhoto(photoData)
+                    }
+                }
+            } catch {
+                print("Failed to upload photos: \(error)")
+            }
+            await MainActor.run {
+                isSaving = false
+                onContinue()
             }
         }
     }

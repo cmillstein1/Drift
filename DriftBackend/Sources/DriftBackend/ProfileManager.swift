@@ -145,9 +145,9 @@ public class ProfileManager: ObservableObject {
             // Filter by what users are looking for
             switch lookingFor {
             case .dating:
-                query = query.or("looking_for.eq.dating,looking_for.eq.both")
+                query = query.in("looking_for", values: ["dating", "both"])
             case .friends:
-                query = query.or("looking_for.eq.friends,looking_for.eq.both")
+                query = query.in("looking_for", values: ["friends", "both"])
             case .both:
                 break
             }

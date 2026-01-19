@@ -29,15 +29,11 @@ struct EditProfileSheet: View {
     @State private var isSaving = false
 
     // Image upload states
-    @State private var avatarItem: PhotosPickerItem?
-    @State private var headerItem: PhotosPickerItem?
-    @State private var avatarImage: Image?
-    @State private var headerImage: Image?
-    @State private var avatarUrl: String?
-    @State private var headerUrl: String?
     @State private var photos: [String] = []
-    @State private var isUploadingAvatar = false
-    @State private var isUploadingHeader = false
+    @State private var photoImages: [Int: Image] = [:] // Index -> preview image
+    @State private var selectedPhotoIndex: Int?
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var isUploadingPhoto: Int? = nil
     @State private var uploadError: String?
     @State private var showUploadError = false
 
@@ -131,117 +127,47 @@ struct EditProfileSheet: View {
             // Content
             ScrollView {
                         VStack(spacing: 0) {
-                            // Header & Profile Image Section
-                            VStack(spacing: 0) {
-                                // Header Image
-                                ZStack(alignment: .bottomTrailing) {
-                                    if let headerImage = headerImage {
-                                        headerImage
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                            .frame(height: 150)
-                                            .clipped()
-                                    } else if let headerUrl = headerUrl ?? photos.first, !headerUrl.isEmpty {
-                                        AsyncImage(url: URL(string: headerUrl)) { image in
-                                            image
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                        } placeholder: {
-                                            Color.gray.opacity(0.2)
-                                        }
-                                        .frame(height: 150)
-                                        .clipped()
-                                    } else {
-                                        Rectangle()
-                                            .fill(
-                                                LinearGradient(
-                                                    gradient: Gradient(colors: [forestGreen, skyBlue]),
-                                                    startPoint: .leading,
-                                                    endPoint: .trailing
-                                                )
-                                            )
-                                            .frame(height: 150)
-                                    }
+                            // Photo Grid Section (Bumble/Hinge style)
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("My Photos")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(charcoalColor)
 
-                                    PhotosPicker(selection: $headerItem, matching: .images) {
-                                        HStack(spacing: 6) {
-                                            if isUploadingHeader {
-                                                ProgressView()
-                                                    .progressViewStyle(CircularProgressViewStyle(tint: charcoalColor))
-                                                    .scaleEffect(0.8)
-                                            } else {
-                                                Image(systemName: "camera.fill")
-                                                    .font(.system(size: 14))
+                                Text("First photo is your profile picture")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(charcoalColor.opacity(0.6))
+
+                                LazyVGrid(columns: [
+                                    GridItem(.flexible(), spacing: 12),
+                                    GridItem(.flexible(), spacing: 12),
+                                    GridItem(.flexible(), spacing: 12)
+                                ], spacing: 12) {
+                                    ForEach(0..<6, id: \.self) { index in
+                                        EditPhotoSlot(
+                                            index: index,
+                                            photoUrl: index < photos.count ? photos[index] : nil,
+                                            previewImage: photoImages[index],
+                                            isUploading: isUploadingPhoto == index,
+                                            isMainPhoto: index == 0,
+                                            onSelect: {
+                                                selectedPhotoIndex = index
+                                            },
+                                            onRemove: {
+                                                removePhoto(at: index)
                                             }
-                                            Text("Edit Cover")
-                                                .font(.system(size: 12, weight: .medium))
-                                        }
-                                        .foregroundColor(charcoalColor)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 8)
-                                        .background(Color.white.opacity(0.9))
-                                        .clipShape(Capsule())
+                                        )
                                     }
-                                    .padding(12)
-                                    .disabled(isUploadingHeader)
                                 }
-
-                                // Profile Avatar (overlapping header)
-                                HStack {
-                                    ZStack(alignment: .bottomTrailing) {
-                                        if let avatarImage = avatarImage {
-                                            avatarImage
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                                .frame(width: 100, height: 100)
-                                                .clipShape(Circle())
-                                                .overlay(Circle().stroke(Color.white, lineWidth: 4))
-                                        } else {
-                                            AsyncImage(url: URL(string: avatarUrl ?? "")) { image in
-                                                image
-                                                    .resizable()
-                                                    .aspectRatio(contentMode: .fill)
-                                            } placeholder: {
-                                                ZStack {
-                                                    Circle()
-                                                        .fill(Color.gray.opacity(0.2))
-                                                    Image(systemName: "person.fill")
-                                                        .font(.system(size: 40))
-                                                        .foregroundColor(charcoalColor.opacity(0.4))
-                                                }
-                                            }
-                                            .frame(width: 100, height: 100)
-                                            .clipShape(Circle())
-                                            .overlay(Circle().stroke(Color.white, lineWidth: 4))
-                                        }
-
-                                        PhotosPicker(selection: $avatarItem, matching: .images) {
-                                            ZStack {
-                                                Circle()
-                                                    .fill(burntOrange)
-                                                    .frame(width: 32, height: 32)
-
-                                                if isUploadingAvatar {
-                                                    ProgressView()
-                                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                                        .scaleEffect(0.7)
-                                                } else {
-                                                    Image(systemName: "camera.fill")
-                                                        .font(.system(size: 14))
-                                                        .foregroundColor(.white)
-                                                }
-                                            }
-                                        }
-                                        .disabled(isUploadingAvatar)
-                                    }
-                                    .offset(y: -50)
-
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 24)
-                                .padding(.bottom, -30)
                             }
-                            .padding(.bottom, 24)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 24)
+                            .background(Color.white)
+                            .overlay(
+                                Rectangle()
+                                    .frame(height: 1)
+                                    .foregroundColor(Color.gray.opacity(0.2)),
+                                alignment: .bottom
+                            )
 
                             // Name
                             VStack(alignment: .leading, spacing: 8) {
@@ -621,14 +547,18 @@ struct EditProfileSheet: View {
         .onAppear {
             loadProfileData()
         }
-        .onChange(of: avatarItem) { _, newItem in
-            if let newItem = newItem {
-                uploadAvatar(newItem)
-            }
-        }
-        .onChange(of: headerItem) { _, newItem in
-            if let newItem = newItem {
-                uploadHeaderPhoto(newItem)
+        .photosPicker(
+            isPresented: Binding(
+                get: { selectedPhotoIndex != nil },
+                set: { if !$0 { selectedPhotoIndex = nil } }
+            ),
+            selection: $selectedPhotoItem,
+            matching: .images
+        )
+        .onChange(of: selectedPhotoItem) { _, newItem in
+            if let item = newItem, let index = selectedPhotoIndex {
+                uploadPhoto(item, at: index)
+                selectedPhotoItem = nil
             }
         }
         .alert("Upload Error", isPresented: $showUploadError) {
@@ -692,18 +622,28 @@ struct EditProfileSheet: View {
     }
 
     private func loadProfileData() {
-        guard let profile = profileManager.currentProfile else { return }
+        // Fetch fresh profile data from server
+        Task {
+            do {
+                try await profileManager.fetchCurrentProfile()
+            } catch {
+                print("Failed to fetch profile: \(error)")
+            }
 
-        name = profile.name ?? ""
-        currentLocation = profile.location ?? ""
-        about = profile.bio ?? ""
-        travelPace = TravelPaceOption.from(profile.travelPace)
-        avatarUrl = profile.avatarUrl
-        photos = profile.photos
+            await MainActor.run {
+                guard let profile = profileManager.currentProfile else { return }
+
+                name = profile.name ?? ""
+                currentLocation = profile.location ?? ""
+                about = profile.bio ?? ""
+                travelPace = TravelPaceOption.from(profile.travelPace)
+                photos = profile.photos
+            }
+        }
     }
 
-    private func uploadAvatar(_ item: PhotosPickerItem) {
-        isUploadingAvatar = true
+    private func uploadPhoto(_ item: PhotosPickerItem, at index: Int) {
+        isUploadingPhoto = index
 
         Task {
             do {
@@ -714,7 +654,7 @@ struct EditProfileSheet: View {
                 // Show preview immediately
                 if let uiImage = UIImage(data: data) {
                     await MainActor.run {
-                        avatarImage = Image(uiImage: uiImage)
+                        photoImages[index] = Image(uiImage: uiImage)
                     }
                 }
 
@@ -724,92 +664,61 @@ struct EditProfileSheet: View {
                     throw NSError(domain: "EditProfile", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not compress image"])
                 }
 
-                let url = try await profileManager.uploadAvatar(compressed)
+                // Upload photo
+                let url = try await profileManager.uploadPhoto(compressed)
+
+                // If this is the first photo (index 0), also set it as avatar
+                if index == 0 {
+                    _ = try await profileManager.uploadAvatar(compressed)
+                }
+
                 await MainActor.run {
-                    avatarUrl = url
-                    isUploadingAvatar = false
+                    // Update photos array at the correct index
+                    if index < photos.count {
+                        photos[index] = url
+                    } else {
+                        // Fill gaps with empty strings if needed, then add
+                        while photos.count < index {
+                            photos.append("")
+                        }
+                        photos.append(url)
+                    }
+                    isUploadingPhoto = nil
                 }
             } catch {
-                print("------- DETAILED UPLOAD ERROR (AVATAR) -------")
-                print("Error Type: \(type(of: error))")
-                print("Error: \(error)")
-                print("Localized Description: \(error.localizedDescription)")
-                
-                let nsError = error as NSError
-                print("NSError Domain: \(nsError.domain)")
-                print("NSError Code: \(nsError.code)")
-                print("NSError UserInfo: \(nsError.userInfo)")
-
-                if let decodingError = error as? DecodingError {
-                    print("DECODING ERROR: \(decodingError)")
-                }
-                
-                print("------------------------------------")
-                
-                print("Failed to upload avatar: \(error)")
+                print("Failed to upload photo: \(error)")
                 await MainActor.run {
-                    uploadError = "Failed to upload profile photo: \(error.localizedDescription)"
+                    uploadError = "Failed to upload photo: \(error.localizedDescription)"
                     showUploadError = true
-                    isUploadingAvatar = false
-                    avatarImage = nil // Clear preview on error
+                    isUploadingPhoto = nil
+                    photoImages.removeValue(forKey: index)
                 }
             }
         }
     }
 
-    private func uploadHeaderPhoto(_ item: PhotosPickerItem) {
-        isUploadingHeader = true
+    private func removePhoto(at index: Int) {
+        guard index < photos.count else { return }
 
-        Task {
-            do {
-                guard let data = try await item.loadTransferable(type: Data.self) else {
-                    throw NSError(domain: "EditProfile", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not load image data"])
-                }
+        let photoUrl = photos[index]
+        photos.remove(at: index)
+        photoImages.removeValue(forKey: index)
 
-                // Show preview immediately
-                if let uiImage = UIImage(data: data) {
-                    await MainActor.run {
-                        headerImage = Image(uiImage: uiImage)
-                    }
-                }
-
-                // Compress image
-                guard let uiImage = UIImage(data: data),
-                      let compressed = compressImage(uiImage, maxFileSizeMB: 2.0) else {
-                    throw NSError(domain: "EditProfile", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not compress image"])
-                }
-
-                let url = try await profileManager.uploadPhoto(compressed)
-                await MainActor.run {
-                    // Insert at the beginning for header
-                    photos.insert(url, at: 0)
-                    isUploadingHeader = false
-                }
-            } catch {
-                print("------- DETAILED UPLOAD ERROR -------")
-                print("Error Type: \(type(of: error))")
-                print("Error: \(error)")
-                print("Localized Description: \(error.localizedDescription)")
-                
-                let nsError = error as NSError
-                print("NSError Domain: \(nsError.domain)")
-                print("NSError Code: \(nsError.code)")
-                print("NSError UserInfo: \(nsError.userInfo)")
-
-                if let decodingError = error as? DecodingError {
-                    print("DECODING ERROR: \(decodingError)")
-                }
-                
-                print("------------------------------------")
-                
-                print("Failed to upload header photo: \(error)")
-                await MainActor.run {
-                    uploadError = "Failed to upload cover photo: \(error.localizedDescription)"
-                    showUploadError = true
-                    isUploadingHeader = false
-                    headerImage = nil // Clear preview on error
+        // If removing the first photo, update avatar to next available
+        if index == 0 && !photos.isEmpty {
+            // Set new first photo as avatar
+            Task {
+                if let firstPhotoUrl = photos.first,
+                   let url = URL(string: firstPhotoUrl),
+                   let data = try? Data(contentsOf: url) {
+                    _ = try? await profileManager.uploadAvatar(data)
                 }
             }
+        }
+
+        // Delete from storage
+        Task {
+            try? await profileManager.deletePhoto(photoUrl)
         }
     }
 
@@ -837,6 +746,134 @@ struct EditProfileSheet: View {
                     isSaving = false
                 }
             }
+        }
+    }
+}
+
+struct EditPhotoSlot: View {
+    let index: Int
+    let photoUrl: String?
+    let previewImage: Image?
+    let isUploading: Bool
+    let isMainPhoto: Bool
+    let onSelect: () -> Void
+    let onRemove: () -> Void
+
+    private let charcoalColor = Color("Charcoal")
+    private let burntOrange = Color("BurntOrange")
+    private let softGray = Color("SoftGray")
+
+    var body: some View {
+        ZStack {
+            if isUploading {
+                // Loading state
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(softGray)
+                    .aspectRatio(3/4, contentMode: .fit)
+                    .overlay(
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: burntOrange))
+                    )
+            } else if let previewImage = previewImage {
+                // Preview image (while uploading completes)
+                previewImage
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(minWidth: 0, maxWidth: .infinity)
+                    .aspectRatio(3/4, contentMode: .fit)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(photoOverlay)
+            } else if let url = photoUrl, !url.isEmpty {
+                // Existing photo
+                AsyncImage(url: URL(string: url)) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(softGray)
+                        .overlay(
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: charcoalColor.opacity(0.4)))
+                        )
+                }
+                .frame(minWidth: 0, maxWidth: .infinity)
+                .aspectRatio(3/4, contentMode: .fit)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(photoOverlay)
+            } else {
+                // Empty slot
+                Button(action: onSelect) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16)
+                            .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [6]))
+                            .foregroundColor(Color.gray.opacity(0.3))
+                            .aspectRatio(3/4, contentMode: .fit)
+
+                        VStack(spacing: 8) {
+                            ZStack {
+                                Circle()
+                                    .fill(burntOrange)
+                                    .frame(width: 32, height: 32)
+
+                                Image(systemName: "plus")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+
+                            if isMainPhoto {
+                                Text("Main")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(charcoalColor.opacity(0.6))
+                            }
+                        }
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+    }
+
+    private var photoOverlay: some View {
+        ZStack(alignment: .topTrailing) {
+            // Main photo badge
+            if isMainPhoto {
+                VStack {
+                    HStack {
+                        Text("MAIN")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(burntOrange)
+                            .clipShape(Capsule())
+                            .padding(6)
+
+                        Spacer()
+                    }
+                    Spacer()
+                }
+            }
+
+            // Remove button
+            Button(action: onRemove) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 24, height: 24)
+                    .background(Color.black.opacity(0.6))
+                    .clipShape(Circle())
+            }
+            .padding(6)
+
+            // Tap to replace
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    onSelect()
+                }
         }
     }
 }

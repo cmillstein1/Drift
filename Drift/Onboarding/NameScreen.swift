@@ -34,7 +34,7 @@ struct NameScreen: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                ProgressIndicator(currentStep: 1, totalSteps: 8)
+                ProgressIndicator(currentStep: 1, totalSteps: 9)
                     .padding(.top, 32)
                     .padding(.bottom, 48)
                 
