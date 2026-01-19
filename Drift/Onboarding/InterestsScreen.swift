@@ -9,13 +9,13 @@ import SwiftUI
 import DriftBackend
 
 struct Interest: Identifiable {
-    let id = UUID()
+    var id: String { label }
     let emoji: String
     let label: String
 }
 
 struct InterestCategory: Identifiable {
-    let id = UUID()
+    var id: String { title }
     var title: String
     var interests: [Interest]
     var expanded: Bool
@@ -164,25 +164,20 @@ struct InterestsScreen: View {
                                 
                                 // Interest Pills
                                 if category.expanded {
-                                    LazyVGrid(columns: [
-                                        GridItem(.flexible()),
-                                        GridItem(.flexible())
-                                    ], alignment: .leading, spacing: 8) {
-                                        ForEach(category.interests) { interest in
-                                            InterestPill(
-                                                interest: interest,
-                                                isSelected: selectedInterests.contains(interest.label),
-                                                onTap: {
-                                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                                        if selectedInterests.contains(interest.label) {
-                                                            selectedInterests.remove(interest.label)
-                                                        } else {
-                                                            selectedInterests.insert(interest.label)
-                                                        }
+                                    FlowLayout(data: category.interests, spacing: 8) { interest in
+                                        InterestPill(
+                                            interest: interest,
+                                            isSelected: selectedInterests.contains(interest.label),
+                                            onTap: {
+                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                    if selectedInterests.contains(interest.label) {
+                                                        selectedInterests.remove(interest.label)
+                                                    } else {
+                                                        selectedInterests.insert(interest.label)
                                                     }
                                                 }
-                                            )
-                                        }
+                                            }
+                                        )
                                     }
                                 }
                             }

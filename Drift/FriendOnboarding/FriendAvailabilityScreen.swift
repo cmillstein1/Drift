@@ -264,18 +264,17 @@ struct MeetupFrequencyCard: View {
                 }
                 
                 Spacer()
-                
-                if isSelected {
-                    ZStack {
-                        Circle()
-                            .fill(burntOrange)
-                            .frame(width: 24, height: 24)
-                        
-                        Circle()
-                            .fill(Color.white)
-                            .frame(width: 8, height: 8)
-                    }
+
+                ZStack {
+                    Circle()
+                        .fill(burntOrange)
+                        .frame(width: 24, height: 24)
+
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 8, height: 8)
                 }
+                .opacity(isSelected ? 1 : 0)
             }
             .padding(16)
             .background(Color.white)
@@ -338,18 +337,17 @@ struct LocationStatusCard: View {
                 }
                 
                 Spacer()
-                
-                if isSelected {
-                    ZStack {
-                        Circle()
-                            .fill(forestGreen)
-                            .frame(width: 24, height: 24)
-                        
-                        Circle()
-                            .fill(Color.white)
-                            .frame(width: 8, height: 8)
-                    }
+
+                ZStack {
+                    Circle()
+                        .fill(forestGreen)
+                        .frame(width: 24, height: 24)
+
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 8, height: 8)
                 }
+                .opacity(isSelected ? 1 : 0)
             }
             .padding(16)
             .background(Color.white)

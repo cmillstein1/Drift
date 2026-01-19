@@ -181,14 +181,13 @@ struct OrientationOption: View {
                     .font(.system(size: 17))
                     .foregroundColor(charcoalColor)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(burntOrange)
-                        .scaleEffect(checkmarkScale)
-                        .rotationEffect(.degrees(checkmarkRotation))
-                }
+
+                Image(systemName: "checkmark")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(burntOrange)
+                    .scaleEffect(checkmarkScale)
+                    .rotationEffect(.degrees(checkmarkRotation))
+                    .opacity(isSelected ? 1 : 0)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)

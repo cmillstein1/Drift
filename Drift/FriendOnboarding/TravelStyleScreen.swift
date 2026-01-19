@@ -263,18 +263,17 @@ struct TravelStyleCard: View {
                 }
                 
                 Spacer()
-                
-                if isSelected {
-                    ZStack {
-                        Circle()
-                            .fill(Color.white)
-                            .frame(width: 24, height: 24)
-                        
-                        Circle()
-                            .fill(forestGreen)
-                            .frame(width: 12, height: 12)
-                    }
+
+                ZStack {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 24, height: 24)
+
+                    Circle()
+                        .fill(forestGreen)
+                        .frame(width: 12, height: 12)
                 }
+                .opacity(isSelected ? 1 : 0)
             }
             .padding(16)
             .background(
@@ -346,24 +345,23 @@ struct SocialPreferenceCard: View {
                 }
                 
                 Spacer()
-                
-                if isSelected {
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [skyBlue, forestGreen]),
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
+
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [skyBlue, forestGreen]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
                             )
-                            .frame(width: 24, height: 24)
-                        
-                        Circle()
-                            .fill(Color.white)
-                            .frame(width: 12, height: 12)
-                    }
+                        )
+                        .frame(width: 24, height: 24)
+
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 12, height: 12)
                 }
+                .opacity(isSelected ? 1 : 0)
             }
             .padding(16)
             .background(Color.white)
