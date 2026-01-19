@@ -203,11 +203,25 @@ public class CampflareManager: ObservableObject {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         urlRequest.httpBody = try encoder.encode(request)
+
+        // Debug: Print the request body
+        if let body = urlRequest.httpBody, let bodyString = String(data: body, encoding: .utf8) {
+            print("🔍 Search request body: \(bodyString)")
+        }
+
         do {
             let (data, response) = try await URLSession.shared.data(for: urlRequest)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw CampflareError.invalidResponse
             }
+
+            // Debug: Print response body on error
+            if httpResponse.statusCode >= 400 {
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("❌ API error response (\(httpResponse.statusCode)): \(responseString)")
+                }
+            }
+
             try validateResponse(httpResponse)
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase

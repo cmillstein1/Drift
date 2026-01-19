@@ -90,10 +90,12 @@ struct MessagesScreen: View {
                     with: friendUserId,
                     type: .friends
                 )
+                // Refresh conversations list first
+                try await messagingManager.fetchConversations()
+                // Then open the conversation
                 await MainActor.run {
                     selectedConversation = conversation
                 }
-                try await messagingManager.fetchConversations()
             } catch {
                 print("Failed to create conversation: \(error)")
             }
@@ -175,20 +177,6 @@ struct MessagesScreen: View {
             
             ScrollView {
                 VStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Messages")
-                            .font(.system(size: 32, weight: .bold))
-                            .foregroundColor(charcoalColor)
-                        
-                        Text("Your conversations")
-                            .font(.system(size: 14))
-                            .foregroundColor(charcoalColor.opacity(0.6))
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 24)
-                    
                     // Dating/Friends Toggle - only show if dating is enabled
                     if isDatingEnabled {
                         SegmentToggle(
@@ -203,7 +191,8 @@ struct MessagesScreen: View {
                         )
                         .frame(maxWidth: 448)
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 24)
+                        .padding(.top, 16)
+                        .padding(.bottom, 16)
                     }
                     
                     HStack(spacing: 12) {

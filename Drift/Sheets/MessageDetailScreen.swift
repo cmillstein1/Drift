@@ -7,21 +7,21 @@
 
 import SwiftUI
 import DriftBackend
+import Auth
 
-struct ChatMessage: Identifiable {
-    let id: Int
-    let text: String
-    let time: String
-    let sent: Bool
-}
 
 struct MessageDetailScreen: View {
     let conversation: Conversation
     let onClose: () -> Void
-    
+
+    @StateObject private var messagingManager = MessagingManager.shared
+    @ObservedObject private var supabaseManager = SupabaseManager.shared
     @State private var messageText: String = ""
-    @State private var messages: [ChatMessage] = []
     @FocusState private var isInputFocused: Bool
+
+    private var currentUserId: UUID? {
+        supabaseManager.currentUser?.id
+    }
     
     private let softGray = Color("SoftGray")
     private let charcoalColor = Color("Charcoal")
@@ -209,22 +209,24 @@ struct MessageDetailScreen: View {
                     ScrollView {
                         VStack(spacing: 16) {
                             // Date Divider
-                            Text("Today")
-                                .font(.system(size: 12))
-                                .foregroundColor(charcoalColor.opacity(0.6))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.white)
-                                        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-                                )
-                                .padding(.top, 16)
-                            
-                            ForEach(messages) { message in
+                            if !messagingManager.currentMessages.isEmpty {
+                                Text("Today")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(charcoalColor.opacity(0.6))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.white)
+                                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                                    )
+                                    .padding(.top, 16)
+                            }
+
+                            ForEach(messagingManager.currentMessages) { message in
                                 ChatMessageBubble(
                                     message: message,
-                                    isSent: message.sent,
+                                    isSent: message.senderId == currentUserId,
                                     gradient: messageBubbleGradient,
                                     conversationType: conversation.type
                                 )
@@ -244,8 +246,8 @@ struct MessageDetailScreen: View {
                                 }
                             }
                     )
-                    .onChange(of: messages.count) { _ in
-                        if let lastMessage = messages.last {
+                    .onChange(of: messagingManager.currentMessages.count) { _ in
+                        if let lastMessage = messagingManager.currentMessages.last {
                             withAnimation {
                                 proxy.scrollTo(lastMessage.id, anchor: .bottom)
                             }
@@ -309,58 +311,67 @@ struct MessageDetailScreen: View {
             }
         }
         .onAppear {
-            // Load mock messages
-            messages = [
-                ChatMessage(id: 1, text: "Hey! I saw you're heading to Big Sur this week", time: "10:32 AM", sent: false),
-                ChatMessage(id: 2, text: "Yes! So excited! Have you been there before?", time: "10:35 AM", sent: true),
-                ChatMessage(id: 3, text: "Totally! It's incredible. The sunsets are unreal 🌅", time: "10:36 AM", sent: false),
-                ChatMessage(id: 4, text: "I heard there are some great hiking trails too", time: "10:38 AM", sent: true),
-                ChatMessage(id: 5, text: "Absolutely! I'm organizing a sunrise hike tomorrow morning if you want to join?", time: "10:40 AM", sent: false),
-                ChatMessage(id: 6, text: "That sunrise hike sounds perfect! See you tomorrow", time: "10:42 AM", sent: true)
-            ]
+            loadMessages()
+        }
+        .onDisappear {
+            Task {
+                await messagingManager.unsubscribeFromMessages()
+            }
         }
     }
-    
+
+    private func loadMessages() {
+        Task {
+            do {
+                try await messagingManager.fetchMessages(for: conversation.id)
+                await messagingManager.subscribeToMessages(conversationId: conversation.id)
+            } catch {
+                print("Failed to load messages: \(error)")
+            }
+        }
+    }
+
     private func handleSend() {
         let trimmedText = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else { return }
-        
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        let timeString = formatter.string(from: Date())
-        
-        let newMessage = ChatMessage(
-            id: messages.count + 1,
-            text: trimmedText,
-            time: timeString,
-            sent: true
-        )
-        
-        withAnimation {
-            messages.append(newMessage)
-        }
-        
+
+        let textToSend = trimmedText
         messageText = ""
+
+        Task {
+            do {
+                try await messagingManager.sendMessage(to: conversation.id, content: textToSend)
+            } catch {
+                print("Failed to send message: \(error)")
+            }
+        }
     }
 }
 
 struct ChatMessageBubble: View {
-    let message: ChatMessage
+    let message: Message
     let isSent: Bool
     let gradient: LinearGradient
     let conversationType: ConversationType
-    
+
     private let charcoalColor = Color("Charcoal")
-    
+
+    private var timeString: String {
+        guard let createdAt = message.createdAt else { return "" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter.string(from: createdAt)
+    }
+
     var body: some View {
         HStack {
             if isSent {
                 Spacer()
             }
-            
+
             VStack(alignment: isSent ? .trailing : .leading, spacing: 4) {
                 if isSent {
-                    Text(message.text)
+                    Text(message.content)
                         .font(.system(size: 15))
                         .foregroundColor(.white)
                         .padding(.horizontal, 16)
@@ -368,7 +379,7 @@ struct ChatMessageBubble: View {
                         .background(gradient)
                         .clipShape(RoundedCorner(radius: 20, corners: [.topLeft, .topRight, .bottomLeft]))
                 } else {
-                    Text(message.text)
+                    Text(message.content)
                         .font(.system(size: 15))
                         .foregroundColor(charcoalColor)
                         .padding(.horizontal, 16)
@@ -376,14 +387,14 @@ struct ChatMessageBubble: View {
                         .background(Color.white)
                         .clipShape(RoundedCorner(radius: 20, corners: [.topLeft, .topRight, .bottomRight]))
                 }
-                
-                Text(message.time)
+
+                Text(timeString)
                     .font(.system(size: 11))
                     .foregroundColor(charcoalColor.opacity(0.5))
                     .padding(.horizontal, 8)
             }
             .frame(maxWidth: UIScreen.main.bounds.width * 0.75, alignment: isSent ? .trailing : .leading)
-            
+
             if !isSent {
                 Spacer()
             }
