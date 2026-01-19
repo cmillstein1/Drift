@@ -8,39 +8,79 @@
 import SwiftUI
 import DriftBackend
 
+enum AppTab: String, CaseIterable {
+    case discover
+    case activities
+    case builder
+    case messages
+    case profile
+
+    var title: String {
+        switch self {
+        case .discover: return "Discover"
+        case .activities: return "Activities"
+        case .builder: return "Builder"
+        case .messages: return "Messages"
+        case .profile: return "Profile"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .discover: return "compass"
+        case .activities: return "calendar"
+        case .builder: return "wrench.and.screwdriver"
+        case .messages: return "message"
+        case .profile: return "person"
+        }
+    }
+}
+
 struct ContentView: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
-    @State private var activeTab: String = "discover"
-    
+    @State private var selectedTab: AppTab = .discover
+
+    private let burntOrange = Color("BurntOrange")
+
     var body: some View {
-        ZStack {
-            VStack(spacing: 0) {
-                Group {
-                    switch activeTab {
-                    case "discover":
-                        DiscoverScreen()
-                    case "map":
-                        MapScreen()
-                    case "activities":
-                        ActivitiesScreen()
-                    case "builder":
-                        BuilderScreen()
-                    case "messages":
-                        MessagesScreen()
-                    case "profile":
-                        ProfileScreen()
-                    default:
-                        DiscoverScreen()
+        TabView(selection: $selectedTab) {
+            DiscoverScreen()
+                .tabItem {
+                    Label {
+                        Text(AppTab.discover.title)
+                    } icon: {
+                        Image("discover_rv")
+                            .renderingMode(.template)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                
-                BottomNav(activeTab: $activeTab) { tab in
-                    activeTab = tab
+                .tag(AppTab.discover)
+
+            ActivitiesScreen()
+                .tabItem {
+                    Label(AppTab.activities.title, systemImage: AppTab.activities.systemImage)
                 }
-            }
+                .tag(AppTab.activities)
+
+            BuilderScreen()
+                .tabItem {
+                    Label(AppTab.builder.title, systemImage: AppTab.builder.systemImage)
+                }
+                .tag(AppTab.builder)
+
+            MessagesScreen()
+                .tabItem {
+                    Label(AppTab.messages.title, systemImage: AppTab.messages.systemImage)
+                }
+                .tag(AppTab.messages)
+
+            ProfileScreen()
+                .tabItem {
+                    Label(AppTab.profile.title, systemImage: AppTab.profile.systemImage)
+                }
+                .tag(AppTab.profile)
         }
-        .ignoresSafeArea(.keyboard)
+        .tint(burntOrange)
+        .tabBarMinimizeBehavior(.onScrollDown)
     }
 }
 

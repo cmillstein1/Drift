@@ -14,6 +14,8 @@ public class FriendsManager: ObservableObject {
     @Published public var friends: [Friend] = []
     /// Pending incoming friend requests.
     @Published public var pendingRequests: [Friend] = []
+    /// Pending outgoing friend requests (requests we sent).
+    @Published public var sentRequests: [Friend] = []
     /// Dating matches (mutual likes).
     @Published public var matches: [Match] = []
     /// Whether data is currently loading.
@@ -86,20 +88,73 @@ public class FriendsManager: ObservableObject {
         }
     }
 
+    /// Fetches pending outgoing friend requests (requests we sent).
+    public func fetchSentRequests() async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw FriendsError.notAuthenticated
+        }
+
+        do {
+            let requests: [Friend] = try await client
+                .from("friends")
+                .select("*, addressee:profiles!addressee_id(*)")
+                .eq("requester_id", value: userId)
+                .eq("status", value: "pending")
+                .execute()
+                .value
+
+            self.sentRequests = requests
+        } catch {
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    /// Check if a friend request has already been sent to a user.
+    public func hasSentRequest(to userId: UUID) -> Bool {
+        sentRequests.contains { $0.addresseeId == userId }
+    }
+
     /// Sends a friend request to another user.
     ///
-    /// - Parameter userId: The ID of the user to send a request to.
-    public func sendFriendRequest(to userId: UUID) async throws {
+    /// - Parameters:
+    ///   - userId: The ID of the user to send a request to.
+    ///   - message: Optional message to include with the request (becomes first message when accepted).
+    /// - Returns: The created Friend request.
+    @discardableResult
+    public func sendFriendRequest(to userId: UUID, message: String? = nil) async throws -> Friend {
         guard let currentUserId = SupabaseManager.shared.currentUser?.id else {
             throw FriendsError.notAuthenticated
         }
 
         let request = FriendRequest(requesterId: currentUserId, addresseeId: userId)
 
-        try await client
+        let createdRequest: Friend = try await client
             .from("friends")
             .insert(request)
+            .select()
+            .single()
             .execute()
+            .value
+
+        // If there's a message, store it for when the request is accepted
+        if let message = message, !message.isEmpty {
+            try await client
+                .from("friend_request_messages")
+                .insert([
+                    "friend_id": createdRequest.id.uuidString,
+                    "sender_id": currentUserId.uuidString,
+                    "content": message
+                ])
+                .execute()
+        }
+
+        // Update local state
+        var requestWithProfile = createdRequest
+        requestWithProfile.addresseeProfile = try? await ProfileManager.shared.fetchProfile(by: userId)
+        sentRequests.append(requestWithProfile)
+
+        return createdRequest
     }
 
     /// Responds to a friend request.
@@ -107,7 +162,12 @@ public class FriendsManager: ObservableObject {
     /// - Parameters:
     ///   - requestId: The ID of the friend request.
     ///   - accept: Whether to accept or decline the request.
-    public func respondToFriendRequest(_ requestId: UUID, accept: Bool) async throws {
+    /// - Returns: The created conversation if accepted, nil otherwise.
+    @discardableResult
+    public func respondToFriendRequest(_ requestId: UUID, accept: Bool) async throws -> Conversation? {
+        // First fetch the request to get the requester's ID
+        let request: Friend? = pendingRequests.first { $0.id == requestId }
+
         let newStatus: FriendStatus = accept ? .accepted : .declined
 
         try await client
@@ -118,9 +178,24 @@ public class FriendsManager: ObservableObject {
 
         // Refresh lists
         try await fetchPendingRequests()
+
+        var conversation: Conversation? = nil
+
         if accept {
             try await fetchFriends()
+
+            // Create a conversation with the new friend
+            if let requesterId = request?.requesterId {
+                conversation = try await MessagingManager.shared.fetchOrCreateConversation(
+                    with: requesterId,
+                    type: .friends
+                )
+                // Refresh conversations
+                try await MessagingManager.shared.fetchConversations()
+            }
         }
+
+        return conversation
     }
 
     /// Removes a friend connection.

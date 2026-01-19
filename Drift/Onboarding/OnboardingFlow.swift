@@ -31,7 +31,7 @@ class OnboardingFlowManager: ObservableObject {
     }
 
     func isLastStep() -> Bool {
-        return currentStep == 7 // 8 screens total (0-7)
+        return currentStep == 8 // 9 screens total (0-8)
     }
 }
 
@@ -51,13 +51,21 @@ struct OnboardingFlow: View {
         return flowManager.direction == .forward ? insertion : removal
     }
 
+    private let warmWhite = Color(red: 0.98, green: 0.98, blue: 0.96)
+
     var body: some View {
         ZStack {
-            currentScreen
-                .id(flowManager.currentStep)
-                .transition(slideTransition)
+            // Background that extends into safe areas
+            warmWhite
+                .ignoresSafeArea()
+
+            ZStack {
+                currentScreen
+                    .id(flowManager.currentStep)
+                    .transition(slideTransition)
+            }
+            .clipped()
         }
-        .clipped()
     }
 
     @ViewBuilder
@@ -92,6 +100,10 @@ struct OnboardingFlow: View {
                 flowManager.nextStep()
             }
         case 7:
+            HometownScreen {
+                flowManager.nextStep()
+            }
+        case 8:
             SafetyScreen {
                 // SafetyScreen handles marking onboarding as complete internally
                 onComplete()

@@ -17,14 +17,36 @@ enum MessageMode {
 struct MessagesScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var messagingManager = MessagingManager.shared
+    @StateObject private var friendsManager = FriendsManager.shared
 
     @State private var searchText: String = ""
     @State private var selectedMode: MessageMode = .friends
     @State private var selectedConversation: Conversation? = nil
     @State private var segmentIndex: Int = 1 // Default to friends (index 1)
+    @State private var selectedProfileToView: UserProfile? = nil
 
     private var conversations: [Conversation] {
         messagingManager.conversations
+    }
+
+    private var pendingFriendRequests: [Friend] {
+        friendsManager.pendingRequests
+    }
+
+    private var acceptedFriends: [Friend] {
+        friendsManager.friends
+    }
+
+    // Friends who don't have a conversation yet
+    private var friendsWithoutConversation: [Friend] {
+        let conversationUserIds = Set(
+            filteredConversations.compactMap { $0.otherUser?.id }
+        )
+        return acceptedFriends.filter { friend in
+            guard let currentUserId = supabaseManager.currentUser?.id else { return false }
+            let friendUserId = friend.requesterId == currentUserId ? friend.addresseeId : friend.requesterId
+            return !conversationUserIds.contains(friendUserId)
+        }
     }
 
     private func loadConversations() {
@@ -34,6 +56,67 @@ struct MessagesScreen: View {
                 await messagingManager.subscribeToConversations()
             } catch {
                 print("Failed to load conversations: \(error)")
+            }
+        }
+    }
+
+    private func loadFriendRequests() {
+        Task {
+            do {
+                try await friendsManager.fetchPendingRequests()
+            } catch {
+                print("Failed to load friend requests: \(error)")
+            }
+        }
+    }
+
+    private func loadFriends() {
+        Task {
+            do {
+                try await friendsManager.fetchFriends()
+            } catch {
+                print("Failed to load friends: \(error)")
+            }
+        }
+    }
+
+    private func startConversationWithFriend(_ friend: Friend) {
+        guard let currentUserId = supabaseManager.currentUser?.id else { return }
+        let friendUserId = friend.requesterId == currentUserId ? friend.addresseeId : friend.requesterId
+
+        Task {
+            do {
+                let conversation = try await messagingManager.fetchOrCreateConversation(
+                    with: friendUserId,
+                    type: .friends
+                )
+                await MainActor.run {
+                    selectedConversation = conversation
+                }
+                try await messagingManager.fetchConversations()
+            } catch {
+                print("Failed to create conversation: \(error)")
+            }
+        }
+    }
+
+    private func handleAcceptRequest(_ request: Friend) {
+        Task {
+            do {
+                _ = try await friendsManager.respondToFriendRequest(request.id, accept: true)
+                // Conversations are refreshed inside respondToFriendRequest
+            } catch {
+                print("Failed to accept request: \(error)")
+            }
+        }
+    }
+
+    private func handleDeclineRequest(_ request: Friend) {
+        Task {
+            do {
+                try await friendsManager.respondToFriendRequest(request.id, accept: false)
+            } catch {
+                print("Failed to decline request: \(error)")
             }
         }
     }
@@ -141,26 +224,75 @@ struct MessagesScreen: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 24)
                     
-                    VStack(spacing: 8) {
-                        ForEach(filteredConversations) { conversation in
-                            ConversationRow(
-                                conversation: conversation,
-                                currentUserId: supabaseManager.currentUser?.id
-                            ) {
-                                selectedConversation = conversation
+                    // Friend Requests Section (only show in friends mode)
+                    if selectedMode == .friends && !pendingFriendRequests.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Friend Requests")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(charcoalColor)
+
+                                Text("\(pendingFriendRequests.count)")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(burntOrange)
+                                    .clipShape(Capsule())
+
+                                Spacer()
                             }
                             .padding(.horizontal, 16)
+
+                            VStack(spacing: 8) {
+                                ForEach(pendingFriendRequests) { request in
+                                    FriendRequestCard(
+                                        friendRequest: request,
+                                        onAccept: { handleAcceptRequest(request) },
+                                        onDecline: { handleDeclineRequest(request) },
+                                        onViewProfile: {
+                                            selectedProfileToView = request.requesterProfile
+                                        }
+                                    )
+                                    .padding(.horizontal, 16)
+                                }
+                            }
                         }
+                        .padding(.bottom, 24)
                     }
-                    .padding(.bottom, 24)
-                    
+
+                    // Conversations
+                    if !filteredConversations.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            if selectedMode == .friends && !pendingFriendRequests.isEmpty {
+                                Text("Conversations")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(charcoalColor)
+                                    .padding(.horizontal, 16)
+                            }
+
+                            VStack(spacing: 8) {
+                                ForEach(filteredConversations) { conversation in
+                                    ConversationRow(
+                                        conversation: conversation,
+                                        currentUserId: supabaseManager.currentUser?.id
+                                    ) {
+                                        selectedConversation = conversation
+                                    }
+                                    .padding(.horizontal, 16)
+                                }
+                            }
+                        }
+                        .padding(.bottom, 24)
+                    }
+
                     // Empty State
-                    if filteredConversations.isEmpty {
+                    if filteredConversations.isEmpty && (selectedMode == .dating || pendingFriendRequests.isEmpty) {
                         VStack(spacing: 8) {
                             Text("No \(selectedMode == .dating ? "dating" : "friends") messages yet")
                                 .font(.system(size: 16, weight: .medium))
                                 .foregroundColor(charcoalColor)
-                            
+
                             Text(selectedMode == .dating
                                  ? "Match with someone to start a conversation"
                                  : "Connect with friends to start chatting")
@@ -186,12 +318,37 @@ struct MessagesScreen: View {
                 segmentIndex = 1
             }
             loadConversations()
+            loadFriendRequests()
+            loadFriends()
         }
         .fullScreenCover(item: $selectedConversation) { conversation in
             MessageDetailScreen(
                 conversation: conversation,
                 onClose: {
                     selectedConversation = nil
+                }
+            )
+        }
+        .fullScreenCover(item: $selectedProfileToView) { profile in
+            ProfileDetailView(
+                profile: profile,
+                isOpen: Binding(
+                    get: { selectedProfileToView != nil },
+                    set: { if !$0 { selectedProfileToView = nil } }
+                ),
+                onLike: {
+                    // Find the request for this profile and accept it
+                    if let request = pendingFriendRequests.first(where: { $0.requesterProfile?.id == profile.id }) {
+                        handleAcceptRequest(request)
+                    }
+                    selectedProfileToView = nil
+                },
+                onPass: {
+                    // Find the request for this profile and decline it
+                    if let request = pendingFriendRequests.first(where: { $0.requesterProfile?.id == profile.id }) {
+                        handleDeclineRequest(request)
+                    }
+                    selectedProfileToView = nil
                 }
             )
         }
