@@ -22,66 +22,35 @@ struct DiscoverScreen: View {
     @State private var currentIndex: Int = 0
     @State private var mode: DiscoverMode = .dating
     @State private var selectedProfile: UserProfile? = nil
-    @State private var segmentIndex: Int = 0
     @State private var showMatchAlert: Bool = false
     @State private var matchedProfile: UserProfile? = nil
     @State private var showLikePrompt: Bool = false
     @State private var likeMessage: String = ""
     @State private var swipeProgress: CGFloat = 0
+    @State private var showFilters: Bool = false
+
+    // Colors from HTML
+    private let softGray = Color("SoftGray")
+    private let coralPrimary = Color(red: 1.0, green: 0.37, blue: 0.37) // #FF5E5E
+    private let inkMain = Color(red: 0.07, green: 0.09, blue: 0.15) // #111827
+    private let inkSub = Color(red: 0.42, green: 0.44, blue: 0.50) // #6B7280
+    private let tealPrimary = Color(red: 0.18, green: 0.83, blue: 0.75) // #2DD4BF
+    private let gray100 = Color(red: 0.95, green: 0.95, blue: 0.96) // bg-gray-100
+    private let gray700 = Color(red: 0.37, green: 0.37, blue: 0.42) // text-gray-700
 
     private var profiles: [UserProfile] {
         profileManager.discoverProfiles
     }
-    
-    private var segmentOptions: [SegmentOption] {
-        [
-            SegmentOption(
-                id: 0,
-                title: "Dating",
-                icon: "heart.fill",
-                activeGradient: LinearGradient(
-                    gradient: Gradient(colors: [burntOrange, pink500]),
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            ),
-            SegmentOption(
-                id: 1,
-                title: "Friends",
-                icon: "person.2.fill",
-                activeGradient: LinearGradient(
-                    gradient: Gradient(colors: [skyBlue, forestGreen]),
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-        ]
-    }
-    
-    private let softGray = Color("SoftGray")
-    private let charcoalColor = Color("Charcoal")
-    private let burntOrange = Color("BurntOrange")
-    private let forestGreen = Color("ForestGreen")
-    private let skyBlue = Color("SkyBlue")
-    private let desertSand = Color("DesertSand")
-    private let pink500 = Color(red: 0.93, green: 0.36, blue: 0.51)
 
     private var currentCard: UserProfile? {
         guard currentIndex < profiles.count else { return nil }
         return profiles[currentIndex]
     }
 
-    private func updateSegmentIndex() {
-        segmentIndex = mode == .dating ? 0 : 1
-    }
-
     private func loadProfiles() {
         Task {
             do {
-                // Fetch already swiped IDs
                 swipedIds = try await friendsManager.fetchSwipedUserIds()
-
-                // Fetch profiles based on mode
                 let lookingFor: LookingFor = mode == .dating ? .dating : .friends
                 try await profileManager.fetchDiscoverProfiles(
                     lookingFor: lookingFor,
@@ -97,7 +66,6 @@ struct DiscoverScreen: View {
     private func handleSwipe(direction: SwipeDirection) {
         guard let profile = currentCard else { return }
 
-        // Record the swipe in backend
         Task {
             do {
                 let swipeDirection: DriftBackend.SwipeDirection
@@ -112,7 +80,6 @@ struct DiscoverScreen: View {
 
                 let match = try await friendsManager.swipe(on: profile.id, direction: swipeDirection)
 
-                // Check if it's a match
                 if let match = match {
                     await MainActor.run {
                         matchedProfile = match.otherUserProfile
@@ -124,235 +91,56 @@ struct DiscoverScreen: View {
             }
         }
 
-        // Move to next card
         if currentIndex < profiles.count - 1 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 currentIndex += 1
             }
         } else {
-            // Reload profiles when deck is empty
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 loadProfiles()
             }
         }
     }
 
-    @ViewBuilder
-    private var datingCardStack: some View {
-        ZStack {
-            GeometryReader { geometry in
-                if let profile = currentCard {
-                    // Single card view - Hinge style (no stack peek)
-                    ProfileCard(
-                        profile: profile,
-                        isTop: true,
-                        mode: mode,
-                        scale: 1.0,
-                        offset: 0,
-                        onSwipe: handleSwipe,
-                        onTap: {
-                            selectedProfile = profile
-                        },
-                        onSwipeProgress: { progress in
-                            swipeProgress = progress
-                        }
-                    )
-                    .padding(.horizontal, 8)
-                } else {
-                    // Empty state
-                    VStack(spacing: 16) {
-                        Image(systemName: "heart.slash")
-                            .font(.system(size: 48))
-                            .foregroundColor(charcoalColor.opacity(0.3))
-
-                        Text("No more profiles")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(charcoalColor)
-
-                        Text("Check back later for new matches")
-                            .font(.system(size: 14))
-                            .foregroundColor(charcoalColor.opacity(0.6))
-
-                        Button {
-                            loadProfiles()
-                        } label: {
-                            Text("Refresh")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 12)
-                                .background(DriftUI.burntOrange)
-                                .clipShape(Capsule())
-                        }
-                        .padding(.top, 8)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
-
-            // Fixed action buttons at bottom
-            if currentCard != nil {
-                VStack {
-                    Spacer()
-                    fixedActionButtons
-                }
-            }
-        }
-        .ignoresSafeArea(edges: .bottom)
-        .sheet(isPresented: $showLikePrompt) {
-            LikeMessageSheet(
-                profileName: currentCard?.displayName ?? "",
-                message: $likeMessage,
-                onSend: {
-                    showLikePrompt = false
-                    handleSwipe(direction: .right)
-                    likeMessage = ""
-                },
-                onSkip: {
-                    showLikePrompt = false
-                    handleSwipe(direction: .right)
-                    likeMessage = ""
-                }
-            )
-            .presentationDetents([.height(280)])
-            .presentationDragIndicator(.visible)
-        }
-    }
-
-    // Scale factor for X button (scales up when swiping left)
+    // Scale factor for X button
     private var xButtonScale: CGFloat {
         let baseScale: CGFloat = 1.0
-        let maxScale: CGFloat = 1.3
-        // Negative swipe progress means swiping left
+        let maxScale: CGFloat = 1.1
         let progress = max(-swipeProgress, 0)
         return baseScale + (maxScale - baseScale) * progress
     }
 
-    // Scale factor for heart button (scales up when swiping right)
-    private var heartButtonScale: CGFloat {
-        let baseScale: CGFloat = 1.0
-        let maxScale: CGFloat = 1.3
-        // Positive swipe progress means swiping right
-        let progress = max(swipeProgress, 0)
-        return baseScale + (maxScale - baseScale) * progress
-    }
-
-    @ViewBuilder
-    private var fixedActionButtons: some View {
-        HStack {
-            // Pass button (left)
-            Button {
-                handleSwipe(direction: .left)
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(charcoalColor)
-                    .frame(width: 56, height: 56)
-                    .background(Color.white)
-                    .clipShape(Circle())
-                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-            }
-            .scaleEffect(xButtonScale)
-            .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.7), value: swipeProgress)
-
-            Spacer()
-
-            // Like button (right)
-            Button {
-                showLikePrompt = true
-            } label: {
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 26))
-                    .foregroundColor(.white)
-                    .frame(width: 64, height: 64)
-                    .background(
-                        LinearGradient(
-                            gradient: Gradient(colors: [burntOrange, pink500]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .clipShape(Circle())
-                    .shadow(color: burntOrange.opacity(0.4), radius: 8, x: 0, y: 4)
-            }
-            .scaleEffect(heartButtonScale)
-            .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.7), value: swipeProgress)
-        }
-        .padding(.horizontal, 32)
-        .padding(.bottom, 100) // Space for tab bar
-    }
-
     var body: some View {
         ZStack {
-            softGray
-                .ignoresSafeArea()
+            Color.white.ignoresSafeArea()
 
-            // Check discovery mode
             let discoveryMode = supabaseManager.getDiscoveryMode()
 
             if discoveryMode == .friends {
-                // Friends only - show FriendsScreen directly
-                FriendsScreen()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                friendsView
             } else if discoveryMode == .dating {
-                // Dating only - show dating cards directly without toggle
-                VStack(spacing: 0) {
-                    datingCardStack
-                }
+                datingView
             } else {
-                // Both - show segment toggle
-                VStack(spacing: 0) {
-                    // Mode Toggle
-                    SegmentToggle(
-                        options: segmentOptions,
-                        selectedIndex: Binding(
-                            get: { segmentIndex },
-                            set: { newIndex in
-                                segmentIndex = newIndex
-                                mode = newIndex == 0 ? .dating : .friends
-                            }
-                        )
-                    )
-                    .frame(maxWidth: 448) // max-w-md equivalent
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 16)
-
-                    // Content based on mode
-                    .onChange(of: mode) { _ in
-                        updateSegmentIndex()
-                    }
-                    .onAppear {
-                        updateSegmentIndex()
-                    }
-
-                    if mode == .friends {
-                        FriendsScreen()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        datingCardStack
-                    }
+                if mode == .dating {
+                    datingView
+                } else {
+                    friendsView
                 }
             }
         }
         .onAppear {
-            // Load dating profiles on appear for dating modes
-            // FriendsScreen handles its own loading when in "both" mode
             let discoveryMode = supabaseManager.getDiscoveryMode()
             if discoveryMode == .dating || (discoveryMode == .both && mode == .dating) {
                 loadProfiles()
             }
         }
         .onChange(of: mode) { newMode in
-            // Only load when switching to dating - FriendsScreen handles friends loading
             if newMode == .dating {
                 loadProfiles()
             }
         }
         .alert("It's a Match!", isPresented: $showMatchAlert) {
-            Button("Send Message") {
-                // TODO: Navigate to messaging
-            }
+            Button("Send Message") {}
             Button("Keep Swiping", role: .cancel) {}
         } message: {
             if let profile = matchedProfile {
@@ -373,6 +161,755 @@ struct DiscoverScreen: View {
                     handleSwipe(direction: .left)
                 }
             )
+        }
+    }
+
+    // MARK: - Dating View (Connected to Real Data)
+    @ViewBuilder
+    private var datingView: some View {
+        ZStack {
+            Color.white.ignoresSafeArea()
+
+            if let profile = currentCard {
+                // Main scrollable content
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        // ==========================================
+                        // HERO SECTION - h-[500px]
+                        // ==========================================
+                        GeometryReader { geo in
+                            ZStack(alignment: .bottom) {
+                                // Hero image (first photo or avatar)
+                                if let heroUrl = profile.photos.first ?? profile.avatarUrl,
+                                   let url = URL(string: heroUrl) {
+                                    AsyncImage(url: url) { phase in
+                                        if let image = phase.image {
+                                            image
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: geo.size.width, height: 500)
+                                        } else if phase.error != nil {
+                                            placeholderGradient
+                                        } else {
+                                            placeholderGradient
+                                                .overlay(ProgressView().tint(.white))
+                                        }
+                                    }
+                                    .frame(width: geo.size.width, height: 500)
+                                    .clipped()
+                                } else {
+                                    placeholderGradient
+                                        .frame(width: geo.size.width, height: 500)
+                                }
+
+                                // Gradient overlay
+                                LinearGradient(
+                                    stops: [
+                                        .init(color: .black.opacity(0.8), location: 0.0),
+                                        .init(color: .clear, location: 0.4)
+                                    ],
+                                    startPoint: .bottom,
+                                    endPoint: .top
+                                )
+                                .frame(width: geo.size.width, height: 500)
+
+                                // Hero overlay content
+                                HStack(alignment: .bottom, spacing: 16) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("\(profile.displayName), \(profile.age ?? 0)")
+                                            .font(.system(size: 36, weight: .heavy))
+                                            .tracking(-0.5)
+                                            .foregroundColor(.white)
+
+                                        if let location = profile.location {
+                                            HStack(spacing: 8) {
+                                                Image(systemName: "mappin")
+                                                    .font(.system(size: 14))
+                                                Text(location)
+                                            }
+                                            .font(.system(size: 16, weight: .medium))
+                                            .foregroundColor(.white.opacity(0.9))
+                                        }
+                                    }
+
+                                    Spacer()
+
+                                    // Like button
+                                    Button {
+                                        handleSwipe(direction: .right)
+                                    } label: {
+                                        Image(systemName: "heart.fill")
+                                            .font(.system(size: 24))
+                                            .foregroundColor(.white)
+                                            .frame(width: 56, height: 56)
+                                            .background(Color.white.opacity(0.2))
+                                            .clipShape(Circle())
+                                            .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
+                                            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+                                    }
+                                }
+                                .padding(24)
+                            }
+                        }
+                        .frame(height: 500)
+
+                        // ==========================================
+                        // BIO SECTION - p-6 space-y-6
+                        // ==========================================
+                        VStack(alignment: .leading, spacing: 24) {
+                            if let bio = profile.bio, !bio.isEmpty {
+                                Text(bio)
+                                    .font(.system(size: 18))
+                                    .foregroundColor(inkMain)
+                                    .lineSpacing(6)
+                            }
+
+                            // Tags row (interests)
+                            if !profile.interests.isEmpty {
+                                WrappingHStack(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                                    ForEach(profile.interests, id: \.self) { interest in
+                                        Text(interest)
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(gray700)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(gray100)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    }
+                                }
+                            }
+                        }
+                        .padding(24)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.white)
+
+                        // ==========================================
+                        // PROMPT SECTION 1 - "My simple pleasure"
+                        // ==========================================
+                        if let simplePleasure = profile.simplePleasure, !simplePleasure.isEmpty {
+                            HStack(spacing: 0) {
+                                Rectangle()
+                                    .fill(coralPrimary)
+                                    .frame(width: 4)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("MY SIMPLE PLEASURE")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .tracking(1)
+                                        .foregroundColor(coralPrimary)
+
+                                    Text(simplePleasure)
+                                        .font(.system(size: 20, weight: .medium))
+                                        .foregroundColor(inkMain)
+                                }
+                                .padding(.leading, 16)
+                                .padding(.vertical, 4)
+
+                                Spacer()
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 8)
+                            .background(Color.white)
+                        }
+
+                        // ==========================================
+                        // RIG PHOTO SECTION - mt-6 h-[400px]
+                        // ==========================================
+                        if profile.photos.count > 1 {
+                            GeometryReader { geo in
+                                ZStack {
+                                    AsyncImage(url: URL(string: profile.photos[1])) { phase in
+                                        if let image = phase.image {
+                                            image
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: geo.size.width, height: 400)
+                                        } else {
+                                            placeholderGradient
+                                        }
+                                    }
+                                    .frame(width: geo.size.width, height: 400)
+                                    .clipped()
+
+                                    // Like button top-right
+                                    VStack {
+                                        HStack {
+                                            Spacer()
+                                            Button {
+                                                handleSwipe(direction: .right)
+                                            } label: {
+                                                Image(systemName: "heart.fill")
+                                                    .font(.system(size: 20))
+                                                    .foregroundColor(.white)
+                                                    .frame(width: 48, height: 48)
+                                                    .background(Color.white.opacity(0.2))
+                                                    .clipShape(Circle())
+                                                    .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
+                                                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                                            }
+                                            .padding(.trailing, 24)
+                                            .padding(.top, 16)
+                                        }
+                                        Spacer()
+                                    }
+
+                                    // Rig info card bottom-left (only if rigInfo exists)
+                                    if let rigInfo = profile.rigInfo, !rigInfo.isEmpty {
+                                        VStack {
+                                            Spacer()
+                                            HStack {
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    HStack(spacing: 8) {
+                                                        Image(systemName: "box.truck.fill")
+                                                            .font(.system(size: 14))
+                                                            .foregroundColor(coralPrimary)
+                                                        Text("The Rig")
+                                                            .font(.system(size: 14, weight: .bold))
+                                                            .foregroundColor(inkMain)
+                                                    }
+                                                    Text(rigInfo)
+                                                        .font(.system(size: 12))
+                                                        .foregroundColor(inkSub)
+                                                }
+                                                .padding(12)
+                                                .frame(maxWidth: 200, alignment: .leading)
+                                                .background(Color.white.opacity(0.95))
+                                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                                .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+
+                                                Spacer()
+                                            }
+                                            .padding(.leading, 24)
+                                            .padding(.bottom, 24)
+                                        }
+                                    }
+                                }
+                            }
+                            .frame(height: 400)
+                            .padding(.top, 24)
+                        }
+
+                        // ==========================================
+                        // PROMPT SECTION 2 - "Dating me looks like"
+                        // ==========================================
+                        if let datingLooksLike = profile.datingLooksLike, !datingLooksLike.isEmpty {
+                            VStack(spacing: 16) {
+                                Text("DATING ME LOOKS LIKE")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .tracking(1)
+                                    .foregroundColor(Color.gray)
+
+                                Text(datingLooksLike)
+                                    .font(.system(size: 18))
+                                    .foregroundColor(inkMain)
+                                    .multilineTextAlignment(.center)
+                                    .padding(20)
+                                    .frame(maxWidth: .infinity)
+                                    .background(Color.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                                    )
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 32)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.gray.opacity(0.05))
+                        }
+
+                        // ==========================================
+                        // ADDITIONAL PHOTOS
+                        // ==========================================
+                        ForEach(Array(profile.photos.dropFirst(2).enumerated()), id: \.offset) { index, photoUrl in
+                            GeometryReader { geo in
+                                ZStack {
+                                    AsyncImage(url: URL(string: photoUrl)) { phase in
+                                        if let image = phase.image {
+                                            image
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: geo.size.width, height: 400)
+                                        } else {
+                                            placeholderGradient
+                                        }
+                                    }
+                                    .frame(width: geo.size.width, height: 400)
+                                    .clipped()
+
+                                    // Like button top-right
+                                    VStack {
+                                        HStack {
+                                            Spacer()
+                                            Button {
+                                                handleSwipe(direction: .right)
+                                            } label: {
+                                                Image(systemName: "heart.fill")
+                                                    .font(.system(size: 20))
+                                                    .foregroundColor(.white)
+                                                    .frame(width: 48, height: 48)
+                                                    .background(Color.white.opacity(0.2))
+                                                    .clipShape(Circle())
+                                                    .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
+                                                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                                            }
+                                            .padding(.trailing, 24)
+                                            .padding(.top, 16)
+                                        }
+                                        Spacer()
+                                    }
+                                }
+                            }
+                            .frame(height: 400)
+                        }
+
+                        // Bottom padding for tab bar
+                        Spacer().frame(height: LayoutConstants.tabBarBottomPadding)
+                    }
+                }
+
+                // ==========================================
+                // FLOATING HEADER - just the "more" button
+                // ==========================================
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button { } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 20))
+                                .foregroundColor(.white)
+                                .frame(width: 40, height: 40)
+                                .background(Color.white.opacity(0.2))
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
+                                .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 12)
+
+                    Spacer()
+                }
+
+                // ==========================================
+                // PASS BUTTON - bottom above tab bar
+                // ==========================================
+                VStack {
+                    Spacer()
+                    HStack {
+                        Button {
+                            handleSwipe(direction: .left)
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 28, weight: .medium))
+                                .foregroundColor(Color.gray)
+                                .frame(width: 64, height: 64)
+                                .background(Color.white)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.gray.opacity(0.15), lineWidth: 1))
+                                .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 4)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.leading, 24)
+                    .padding(.bottom, LayoutConstants.tabBarBottomPadding)
+                }
+            } else {
+                // Empty state when no profiles
+                emptyState
+            }
+        }
+    }
+
+    // Placeholder gradient for missing images
+    private var placeholderGradient: some View {
+        LinearGradient(
+            colors: [Color(red: 0.4, green: 0.5, blue: 0.6), Color(red: 0.3, green: 0.4, blue: 0.5)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    // Simple wrapping HStack for tags
+    struct WrappingHStack: Layout {
+        var alignment: HorizontalAlignment = .leading
+        var horizontalSpacing: CGFloat = 8
+        var verticalSpacing: CGFloat = 8
+
+        func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+            let containerWidth = proposal.width ?? .infinity
+            var currentX: CGFloat = 0
+            var currentY: CGFloat = 0
+            var lineHeight: CGFloat = 0
+
+            for subview in subviews {
+                let size = subview.sizeThatFits(.unspecified)
+                if currentX + size.width > containerWidth && currentX > 0 {
+                    currentX = 0
+                    currentY += lineHeight + verticalSpacing
+                    lineHeight = 0
+                }
+                currentX += size.width + horizontalSpacing
+                lineHeight = max(lineHeight, size.height)
+            }
+
+            return CGSize(width: containerWidth, height: currentY + lineHeight)
+        }
+
+        func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+            var currentX: CGFloat = bounds.minX
+            var currentY: CGFloat = bounds.minY
+            var lineHeight: CGFloat = 0
+
+            for subview in subviews {
+                let size = subview.sizeThatFits(.unspecified)
+                if currentX + size.width > bounds.maxX && currentX > bounds.minX {
+                    currentX = bounds.minX
+                    currentY += lineHeight + verticalSpacing
+                    lineHeight = 0
+                }
+                subview.place(at: CGPoint(x: currentX, y: currentY), proposal: .unspecified)
+                currentX += size.width + horizontalSpacing
+                lineHeight = max(lineHeight, size.height)
+            }
+        }
+    }
+
+    // MARK: - Dating Mode Switcher (overlaid on image with backdrop blur)
+    @ViewBuilder
+    private var datingModeSwitcher: some View {
+        HStack(spacing: 0) {
+            // Dating button - selected (white bg, coral icon, dark text)
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    mode = .dating
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(mode == .dating ? coralPrimary : .white.opacity(0.9))
+                    Text("Dating")
+                        .font(.system(size: 12, weight: mode == .dating ? .bold : .medium))
+                        .tracking(0.5)
+                        .foregroundColor(mode == .dating ? inkMain : .white.opacity(0.9))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(mode == .dating ? Color.white : Color.clear)
+                .clipShape(Capsule())
+                .shadow(color: mode == .dating ? .black.opacity(0.1) : .clear, radius: 2, x: 0, y: 1)
+            }
+
+            // Friends button - not selected (white text, no bg)
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    mode = .friends
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(mode == .friends ? .white : .white.opacity(0.9))
+                    Text("Friends")
+                        .font(.system(size: 12, weight: mode == .friends ? .bold : .medium))
+                        .tracking(0.5)
+                        .foregroundColor(mode == .friends ? .white : .white.opacity(0.9))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(mode == .friends ? tealPrimary : Color.clear)
+                .clipShape(Capsule())
+            }
+        }
+        .padding(4)
+        .background(.ultraThinMaterial.opacity(0.5))
+        .background(Color.black.opacity(0.2))
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+    }
+
+    // MARK: - Dating Filter Button
+    @ViewBuilder
+    private var datingFilterButton: some View {
+        Button {
+            showFilters = true
+        } label: {
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 20))
+                .foregroundColor(.white)
+                .frame(width: 40, height: 40)
+                .background(.ultraThinMaterial.opacity(0.5))
+                .background(Color.black.opacity(0.2))
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+        }
+    }
+
+    // MARK: - Empty State
+    @ViewBuilder
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "heart.slash")
+                .font(.system(size: 48))
+                .foregroundColor(inkMain.opacity(0.3))
+
+            Text("No more profiles")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(inkMain)
+
+            Text("Check back later for new matches")
+                .font(.system(size: 14))
+                .foregroundColor(inkSub)
+
+            Button {
+                loadProfiles()
+            } label: {
+                Text("Refresh")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(coralPrimary)
+                    .clipShape(Capsule())
+            }
+            .padding(.top, 8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(softGray)
+    }
+
+    // MARK: - Friends View
+    @ViewBuilder
+    private var friendsView: some View {
+        VStack(spacing: 0) {
+            // Header with switcher
+            VStack(spacing: 0) {
+                HStack {
+                    friendsModeSwitcher
+                    Spacer()
+                    friendsFilterButton
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
+
+                // Title section
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Nearby Friends")
+                        .font(.system(size: 24, weight: .heavy))
+                        .foregroundColor(inkMain)
+
+                    Text("Connect instantly - no matching required!")
+                        .font(.system(size: 14))
+                        .foregroundColor(inkSub)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
+            }
+            .background(softGray)
+
+            FriendsListContent()
+        }
+        .background(softGray)
+    }
+
+    // MARK: - Friends Mode Switcher (on light background)
+    @ViewBuilder
+    private var friendsModeSwitcher: some View {
+        HStack(spacing: 0) {
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    mode = .dating
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(mode == .dating ? coralPrimary : .gray.opacity(0.6))
+                    Text("Dating")
+                        .font(.system(size: 12, weight: mode == .dating ? .bold : .medium))
+                        .tracking(0.5)
+                        .foregroundColor(mode == .dating ? inkMain : .gray.opacity(0.6))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(mode == .dating ? Color.white : Color.clear)
+                .clipShape(Capsule())
+            }
+
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    mode = .friends
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(mode == .friends ? .white : .gray.opacity(0.6))
+                    Text("Friends")
+                        .font(.system(size: 12, weight: mode == .friends ? .bold : .medium))
+                        .tracking(0.5)
+                        .foregroundColor(mode == .friends ? .white : .gray.opacity(0.6))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(mode == .friends ? tealPrimary : Color.clear)
+                .clipShape(Capsule())
+            }
+        }
+        .padding(4)
+        .background(Color.white)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+    }
+
+    // MARK: - Friends Filter Button
+    @ViewBuilder
+    private var friendsFilterButton: some View {
+        Button {
+            showFilters = true
+        } label: {
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 18))
+                .foregroundColor(inkMain)
+                .frame(width: 40, height: 40)
+                .background(Color.white)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+        }
+    }
+}
+
+// MARK: - Interest Item
+private struct DiscoverInterestItem: Identifiable {
+    let id: String
+    let name: String
+
+    init(_ name: String) {
+        self.id = name
+        self.name = name
+    }
+}
+
+// MARK: - Friends List Content
+
+struct FriendsListContent: View {
+    @StateObject private var profileManager = ProfileManager.shared
+    @StateObject private var friendsManager = FriendsManager.shared
+    @ObservedObject private var supabaseManager = SupabaseManager.shared
+
+    @State private var isLoading = true
+    @State private var swipedIds: [UUID] = []
+
+    private var profiles: [UserProfile] {
+        profileManager.discoverProfiles
+    }
+
+    private var currentUserInterests: [String] {
+        supabaseManager.currentUser.flatMap { _ in
+            profileManager.currentProfile?.interests
+        } ?? []
+    }
+
+    private func loadProfiles() {
+        isLoading = true
+        Task {
+            do {
+                swipedIds = try await friendsManager.fetchSwipedUserIds()
+                try await friendsManager.fetchSentRequests()
+                try await profileManager.fetchDiscoverProfiles(
+                    lookingFor: .friends,
+                    excludeIds: swipedIds
+                )
+            } catch {
+                print("Failed to load friends profiles: \(error)")
+            }
+            await MainActor.run {
+                isLoading = false
+            }
+        }
+    }
+
+    private func getMutualInterests(for profile: UserProfile) -> [String] {
+        Set(currentUserInterests).intersection(Set(profile.interests)).map { $0 }
+    }
+
+    private func handleConnect(profileId: UUID) {
+        Task {
+            do {
+                try await friendsManager.sendFriendRequest(to: profileId)
+            } catch {
+                print("Failed to send friend request: \(error)")
+            }
+        }
+    }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                if isLoading {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                        Text("Finding friends nearby...")
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 60)
+                } else if profiles.isEmpty {
+                    VStack(spacing: 8) {
+                        Text("No friends nearby")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(DriftUI.charcoal)
+
+                        Text("Check back later or expand your search radius")
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(24)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .padding(.horizontal, 16)
+                } else {
+                    ForEach(profiles) { profile in
+                        FriendCard(
+                            profile: profile,
+                            mutualInterests: getMutualInterests(for: profile),
+                            requestSent: friendsManager.hasSentRequest(to: profile.id),
+                            onConnect: { profileId in
+                                handleConnect(profileId: profileId)
+                            }
+                        )
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, LayoutConstants.tabBarBottomPadding)
+        }
+        .onAppear {
+            loadProfiles()
         }
     }
 }

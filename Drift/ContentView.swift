@@ -10,16 +10,16 @@ import DriftBackend
 
 enum AppTab: String, CaseIterable {
     case discover
-    case activities
-    case builder
+    case community
+    case map
     case messages
     case profile
 
     var title: String {
         switch self {
         case .discover: return "Discover"
-        case .activities: return "Activities"
-        case .builder: return "Builder"
+        case .community: return "Community"
+        case .map: return "Map"
         case .messages: return "Messages"
         case .profile: return "Profile"
         }
@@ -28,10 +28,10 @@ enum AppTab: String, CaseIterable {
     var systemImage: String {
         switch self {
         case .discover: return "compass"
-        case .activities: return "calendar"
-        case .builder: return "wrench.and.screwdriver"
-        case .messages: return "message"
-        case .profile: return "person"
+        case .community: return "person.3.fill"
+        case .map: return "map.fill"
+        case .messages: return "message.fill"
+        case .profile: return "person.fill"
         }
     }
 }
@@ -41,46 +41,83 @@ struct ContentView: View {
     @State private var selectedTab: AppTab = .discover
 
     private let burntOrange = Color("BurntOrange")
+    private let charcoal = Color("Charcoal")
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            DiscoverScreen()
-                .tabItem {
-                    Label {
-                        Text(AppTab.discover.title)
-                    } icon: {
-                        Image("discover_rv")
-                            .renderingMode(.template)
+        ZStack(alignment: .bottom) {
+            // Tab content
+            Group {
+                switch selectedTab {
+                case .discover:
+                    DiscoverScreen()
+                case .community:
+                    CommunityScreen()
+                case .map:
+                    MapScreen()
+                case .messages:
+                    MessagesScreen()
+                case .profile:
+                    ProfileScreen()
+                }
+            }
+
+            // Custom floating tab bar
+            floatingTabBar
+        }
+        .ignoresSafeArea(.keyboard)
+    }
+
+    private var floatingTabBar: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                ForEach(AppTab.allCases, id: \.self) { tab in
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            selectedTab = tab
+                        }
+                    } label: {
+                        VStack(spacing: 4) {
+                            Group {
+                                if tab == .discover {
+                                    Image("discover_rv")
+                                        .resizable()
+                                        .renderingMode(.template)
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 24, height: 24)
+                                } else {
+                                    Image(systemName: tab.systemImage)
+                                        .font(.system(size: 20))
+                                }
+                            }
+                            .foregroundColor(selectedTab == tab ? burntOrange : charcoal.opacity(0.5))
+
+                            Text(tab.title)
+                                .font(.system(size: 10, weight: selectedTab == tab ? .semibold : .regular))
+                                .foregroundColor(selectedTab == tab ? burntOrange : charcoal.opacity(0.5))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
                     }
                 }
-                .tag(AppTab.discover)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
 
-            ActivitiesScreen()
-                .tabItem {
-                    Label(AppTab.activities.title, systemImage: AppTab.activities.systemImage)
-                }
-                .tag(AppTab.activities)
-
-            BuilderScreen()
-                .tabItem {
-                    Label(AppTab.builder.title, systemImage: AppTab.builder.systemImage)
-                }
-                .tag(AppTab.builder)
-
-            MessagesScreen()
-                .tabItem {
-                    Label(AppTab.messages.title, systemImage: AppTab.messages.systemImage)
-                }
-                .tag(AppTab.messages)
-
-            ProfileScreen()
-                .tabItem {
-                    Label(AppTab.profile.title, systemImage: AppTab.profile.systemImage)
-                }
-                .tag(AppTab.profile)
+            Spacer()
         }
-        .tint(burntOrange)
-        .tabBarMinimizeBehavior(.onScrollDown)
+        .frame(height: LayoutConstants.tabBarHeight)
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: -4)
+                .ignoresSafeArea(.all, edges: .bottom)
+        )
+        .overlay(
+            Rectangle()
+                .fill(Color.gray.opacity(0.1))
+                .frame(height: 1),
+            alignment: .top
+        )
     }
 }
 

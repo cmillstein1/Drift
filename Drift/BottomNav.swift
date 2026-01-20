@@ -16,8 +16,7 @@ struct BottomNav: View {
     
     private let tabs: [TabItem] = [
         TabItem(id: "discover", label: "Discover", icon: "discover_rv"),
-        TabItem(id: "activities", label: "Activities", icon: "calendar"),
-        TabItem(id: "builder", label: "Builder", icon: "wrench"),
+        TabItem(id: "community", label: "Community", icon: "person.3"),
         TabItem(id: "messages", label: "Messages", icon: "message"),
         TabItem(id: "profile", label: "Profile", icon: "person")
     ]

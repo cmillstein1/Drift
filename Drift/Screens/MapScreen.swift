@@ -62,7 +62,8 @@ struct MapScreen: View {
     @State private var selectedCampground: Campground? = nil
     @State private var pulseScale: CGFloat = 1.0
     @State private var hasCenteredOnUser = false
-    @State private var cameraPosition: MapCameraPosition = .automatic
+    @State private var hasFetchedInitialCampgrounds = false
+    @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
     
     // Track search center and radius
     @State private var searchCenter: CLLocationCoordinate2D?
@@ -177,48 +178,55 @@ struct MapScreen: View {
             withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
                 pulseScale = 1.3
             }
-            
+
             // Request location permission if not already granted
             if locationManager.authorizationStatus == .notDetermined {
                 locationManager.requestLocationPermission()
             }
-            
-            // Test API access with a known campground ID
-            Task {
-            }
-        }
-        .onChange(of: locationManager.locationUpdated) { oldValue, newValue in
-            // When location is updated, center map and fetch campgrounds
+
+            // If we already have user location, center on it and fetch campgrounds
             if let location = locationManager.userLocation {
-                // Center on user location only on first update
                 if !hasCenteredOnUser {
                     hasCenteredOnUser = true
-                    withAnimation(.easeInOut(duration: 1.0)) {
-                        cameraPosition = .region(
-                            MKCoordinateRegion(
-                                center: location,
-                                span: MKCoordinateSpan(latitudeDelta: 2.0, longitudeDelta: 2.0)
-                            )
+                    cameraPosition = .region(
+                        MKCoordinateRegion(
+                            center: location,
+                            span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
                         )
-                    }
-                    
-                    // Fetch campgrounds for user's location
+                    )
+                }
+
+                // Fetch campgrounds only once on initial load
+                if !hasFetchedInitialCampgrounds {
+                    hasFetchedInitialCampgrounds = true
                     Task {
                         await fetchCampgroundsForLocation(center: location)
                     }
                 }
             }
         }
-        .onAppear {
-            // On initial load, if no region is set, start with a US-wide view
-            if currentRegion == nil {
-                // Set initial view to show entire US
-                cameraPosition = .region(
-                    MKCoordinateRegion(
-                        center: CLLocationCoordinate2D(latitude: 39.8283, longitude: -98.5795), // Center of US
-                        span: MKCoordinateSpan(latitudeDelta: 50.0, longitudeDelta: 60.0) // Show entire US
-                    )
-                )
+        .onChange(of: locationManager.locationUpdated) { oldValue, newValue in
+            // When location is updated, center map and fetch campgrounds (only on first update)
+            if let location = locationManager.userLocation {
+                if !hasCenteredOnUser {
+                    hasCenteredOnUser = true
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        cameraPosition = .region(
+                            MKCoordinateRegion(
+                                center: location,
+                                span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
+                            )
+                        )
+                    }
+                }
+
+                // Fetch campgrounds only once on initial load
+                if !hasFetchedInitialCampgrounds {
+                    hasFetchedInitialCampgrounds = true
+                    Task {
+                        await fetchCampgroundsForLocation(center: location)
+                    }
+                }
             }
         }
     }

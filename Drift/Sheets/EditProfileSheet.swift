@@ -24,6 +24,9 @@ struct EditProfileSheet: View {
     @State private var name: String = ""
     @State private var currentLocation: String = ""
     @State private var about: String = ""
+    @State private var simplePleasure: String = ""
+    @State private var rigInfo: String = ""
+    @State private var datingLooksLike: String = ""
     @State private var travelPace: TravelPaceOption = .slow
     @State private var travelSchedule: [TravelStop] = []
     @State private var isSaving = false
@@ -228,7 +231,7 @@ struct EditProfileSheet: View {
                                 Text("About")
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(charcoalColor)
-                                
+
                                 ZStack(alignment: .topLeading) {
                                     if about.isEmpty {
                                         Text("Tell people about yourself...")
@@ -237,7 +240,7 @@ struct EditProfileSheet: View {
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 12)
                                     }
-                                    
+
                                     TextEditor(text: Binding(
                                         get: { about },
                                         set: { newValue in
@@ -255,7 +258,7 @@ struct EditProfileSheet: View {
                                         .background(softGray)
                                         .clipShape(RoundedRectangle(cornerRadius: 16))
                                 }
-                                
+
                                 HStack {
                                     Spacer()
                                     Text("\(about.count)/500")
@@ -272,7 +275,170 @@ struct EditProfileSheet: View {
                                     .foregroundColor(Color.gray.opacity(0.2)),
                                 alignment: .bottom
                             )
-                            
+
+                            // My Simple Pleasure Prompt
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 8) {
+                                    Rectangle()
+                                        .fill(Color(red: 1.0, green: 0.37, blue: 0.37))
+                                        .frame(width: 4, height: 20)
+                                        .clipShape(RoundedRectangle(cornerRadius: 2))
+
+                                    Text("My Simple Pleasure")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(charcoalColor)
+                                }
+
+                                Text("What's a small moment that brings you joy?")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(charcoalColor.opacity(0.6))
+
+                                ZStack(alignment: .topLeading) {
+                                    if simplePleasure.isEmpty {
+                                        Text("e.g., Waking up to sunrise with a hot cup of coffee...")
+                                            .font(.system(size: 16))
+                                            .foregroundColor(charcoalColor.opacity(0.4))
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 12)
+                                    }
+
+                                    TextEditor(text: Binding(
+                                        get: { simplePleasure },
+                                        set: { newValue in
+                                            if newValue.count <= 500 {
+                                                simplePleasure = newValue
+                                            }
+                                        }
+                                    ))
+                                        .font(.system(size: 16))
+                                        .foregroundColor(charcoalColor)
+                                        .frame(minHeight: 80)
+                                        .scrollContentBackground(.hidden)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(softGray)
+                                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                                }
+
+                                HStack {
+                                    Spacer()
+                                    Text("\(simplePleasure.count)/500")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(charcoalColor.opacity(0.6))
+                                }
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 24)
+                            .background(Color.white)
+                            .overlay(
+                                Rectangle()
+                                    .frame(height: 1)
+                                    .foregroundColor(Color.gray.opacity(0.2)),
+                                alignment: .bottom
+                            )
+
+                            // The Rig
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "box.truck.fill")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(Color(red: 1.0, green: 0.37, blue: 0.37))
+
+                                    Text("The Rig")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(charcoalColor)
+                                }
+
+                                Text("Describe your vehicle or home on wheels")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(charcoalColor.opacity(0.6))
+
+                                TextField("e.g., 2019 Sprinter 144\", Self-Converted, Solar Powered", text: Binding(
+                                    get: { rigInfo },
+                                    set: { newValue in
+                                        if newValue.count <= 300 {
+                                            rigInfo = newValue
+                                        }
+                                    }
+                                ))
+                                    .font(.system(size: 16))
+                                    .foregroundColor(charcoalColor)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .background(softGray)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                                HStack {
+                                    Spacer()
+                                    Text("\(rigInfo.count)/300")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(charcoalColor.opacity(0.6))
+                                }
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 24)
+                            .background(Color.white)
+                            .overlay(
+                                Rectangle()
+                                    .frame(height: 1)
+                                    .foregroundColor(Color.gray.opacity(0.2)),
+                                alignment: .bottom
+                            )
+
+                            // Dating Me Looks Like Prompt
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Dating Me Looks Like")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(charcoalColor)
+
+                                Text("Paint a picture of what adventures await")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(charcoalColor.opacity(0.6))
+
+                                ZStack(alignment: .topLeading) {
+                                    if datingLooksLike.isEmpty {
+                                        Text("e.g., Finding hidden trails and cooking dinner under the stars...")
+                                            .font(.system(size: 16))
+                                            .foregroundColor(charcoalColor.opacity(0.4))
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 12)
+                                    }
+
+                                    TextEditor(text: Binding(
+                                        get: { datingLooksLike },
+                                        set: { newValue in
+                                            if newValue.count <= 500 {
+                                                datingLooksLike = newValue
+                                            }
+                                        }
+                                    ))
+                                        .font(.system(size: 16))
+                                        .foregroundColor(charcoalColor)
+                                        .frame(minHeight: 80)
+                                        .scrollContentBackground(.hidden)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(softGray)
+                                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                                }
+
+                                HStack {
+                                    Spacer()
+                                    Text("\(datingLooksLike.count)/500")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(charcoalColor.opacity(0.6))
+                                }
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 24)
+                            .background(Color.white)
+                            .overlay(
+                                Rectangle()
+                                    .frame(height: 1)
+                                    .foregroundColor(Color.gray.opacity(0.2)),
+                                alignment: .bottom
+                            )
+
                             // Travel Pace
                             VStack(alignment: .leading, spacing: 16) {
                                 Text("Travel Pace")
@@ -636,6 +802,9 @@ struct EditProfileSheet: View {
                 name = profile.name ?? ""
                 currentLocation = profile.location ?? ""
                 about = profile.bio ?? ""
+                simplePleasure = profile.simplePleasure ?? ""
+                rigInfo = profile.rigInfo ?? ""
+                datingLooksLike = profile.datingLooksLike ?? ""
                 travelPace = TravelPaceOption.from(profile.travelPace)
                 photos = profile.photos
             }
@@ -732,7 +901,10 @@ struct EditProfileSheet: View {
                     bio: about.isEmpty ? nil : about,
                     photos: photos.isEmpty ? nil : photos,
                     location: currentLocation.isEmpty ? nil : currentLocation,
-                    travelPace: travelPace.toBackendType
+                    travelPace: travelPace.toBackendType,
+                    simplePleasure: simplePleasure.isEmpty ? nil : simplePleasure,
+                    rigInfo: rigInfo.isEmpty ? nil : rigInfo,
+                    datingLooksLike: datingLooksLike.isEmpty ? nil : datingLooksLike
                 )
 
                 try await profileManager.updateProfile(updates)
