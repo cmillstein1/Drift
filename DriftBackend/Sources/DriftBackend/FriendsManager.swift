@@ -18,6 +18,8 @@ public class FriendsManager: ObservableObject {
     @Published public var sentRequests: [Friend] = []
     /// Dating matches (mutual likes).
     @Published public var matches: [Match] = []
+    /// People who have liked the current user (pending likes - not yet mutual).
+    @Published public var peopleLikedMe: [UserProfile] = []
     /// Whether data is currently loading.
     @Published public var isLoading = false
     /// The last error message, if any.
@@ -346,6 +348,49 @@ public class FriendsManager: ObservableObject {
             .value
 
         return swipes.map { $0.swipedId }
+    }
+
+    /// Fetches profiles of people who have liked the current user but haven't been liked back yet.
+    public func fetchPeopleLikedMe() async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw FriendsError.notAuthenticated
+        }
+
+        print("🔍 Fetching people who liked me (userId: \(userId))")
+
+        // Get all swipes where someone swiped right on the current user
+        let incomingLikes: [Swipe] = try await client
+            .from("swipes")
+            .select()
+            .eq("swiped_id", value: userId)
+            .or("direction.eq.right,direction.eq.up")
+            .execute()
+            .value
+
+        print("💕 Found \(incomingLikes.count) incoming likes")
+
+        // Get IDs of people the current user has already swiped on
+        let mySwipedIds = try await fetchSwipedUserIds()
+        print("👆 I have swiped on \(mySwipedIds.count) people")
+
+        // Filter to only people we haven't swiped on yet
+        let pendingLikeUserIds = incomingLikes
+            .map { $0.swiperId }
+            .filter { !mySwipedIds.contains($0) }
+
+        print("⏳ Pending likes (not yet responded): \(pendingLikeUserIds.count)")
+
+        // Fetch profiles for these users
+        var profiles: [UserProfile] = []
+        for likerId in pendingLikeUserIds {
+            if let profile = try? await ProfileManager.shared.fetchProfile(by: likerId) {
+                profiles.append(profile)
+                print("✅ Loaded profile: \(profile.displayName)")
+            }
+        }
+
+        self.peopleLikedMe = profiles
+        print("📊 Total peopleLikedMe: \(self.peopleLikedMe.count)")
     }
 
     // MARK: - Realtime Subscriptions
