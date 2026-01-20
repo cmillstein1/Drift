@@ -7,6 +7,13 @@
 
 import SwiftUI
 import DriftBackend
+import Combine
+
+// Observable object for tab bar visibility
+class TabBarVisibility: ObservableObject {
+    static let shared = TabBarVisibility()
+    @Published var isVisible: Bool = true
+}
 
 enum AppTab: String, CaseIterable {
     case discover
@@ -38,6 +45,7 @@ enum AppTab: String, CaseIterable {
 
 struct ContentView: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
+    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
     @State private var selectedTab: AppTab = .discover
 
     private let burntOrange = Color("BurntOrange")
@@ -63,6 +71,8 @@ struct ContentView: View {
 
             // Custom floating tab bar
             floatingTabBar
+                .offset(y: tabBarVisibility.isVisible ? 0 : LayoutConstants.tabBarHeight + 40)
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: tabBarVisibility.isVisible)
         }
         .ignoresSafeArea(.keyboard)
     }

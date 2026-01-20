@@ -17,6 +17,7 @@ struct DiscoverScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var friendsManager = FriendsManager.shared
+    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
 
     @State private var swipedIds: [UUID] = []
     @State private var currentIndex: Int = 0
@@ -28,6 +29,7 @@ struct DiscoverScreen: View {
     @State private var likeMessage: String = ""
     @State private var swipeProgress: CGFloat = 0
     @State private var showFilters: Bool = false
+    @State private var lastScrollOffset: CGFloat = 0
 
     // Colors from HTML
     private let softGray = Color("SoftGray")
@@ -83,7 +85,9 @@ struct DiscoverScreen: View {
                 if let match = match {
                     await MainActor.run {
                         matchedProfile = match.otherUserProfile
-                        showMatchAlert = true
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showMatchAlert = true
+                        }
                     }
                 }
             } catch {
@@ -133,18 +137,35 @@ struct DiscoverScreen: View {
             if discoveryMode == .dating || (discoveryMode == .both && mode == .dating) {
                 loadProfiles()
             }
+            tabBarVisibility.isVisible = true
+        }
+        .onDisappear {
+            tabBarVisibility.isVisible = true
         }
         .onChange(of: mode) { newMode in
             if newMode == .dating {
                 loadProfiles()
             }
         }
-        .alert("It's a Match!", isPresented: $showMatchAlert) {
-            Button("Send Message") {}
-            Button("Keep Swiping", role: .cancel) {}
-        } message: {
-            if let profile = matchedProfile {
-                Text("You and \(profile.displayName) liked each other!")
+        .overlay {
+            if showMatchAlert, let profile = matchedProfile {
+                MatchAnimationView(
+                    matchedProfile: profile,
+                    currentUserAvatarUrl: profileManager.currentProfile?.avatarUrl,
+                    onSendMessage: {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showMatchAlert = false
+                        }
+                        // TODO: Navigate to conversation with match
+                    },
+                    onKeepSwiping: {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showMatchAlert = false
+                        }
+                    }
+                )
+                .transition(.opacity)
+                .zIndex(1000)
             }
         }
         .fullScreenCover(item: $selectedProfile) { profile in
@@ -168,12 +189,22 @@ struct DiscoverScreen: View {
     @ViewBuilder
     private var datingView: some View {
         ZStack {
-            Color.white.ignoresSafeArea()
+            Color.white
 
             if let profile = currentCard {
                 // Main scrollable content
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
+                        // Scroll tracking
+                        GeometryReader { geo in
+                            Color.clear
+                                .preference(
+                                    key: ScrollOffsetPreferenceKey.self,
+                                    value: geo.frame(in: .named("discoverScroll")).minY
+                                )
+                        }
+                        .frame(height: 0)
+
                         // ==========================================
                         // HERO SECTION - h-[500px]
                         // ==========================================
@@ -468,6 +499,27 @@ struct DiscoverScreen: View {
                         Spacer().frame(height: LayoutConstants.tabBarBottomPadding)
                     }
                 }
+                .coordinateSpace(name: "discoverScroll")
+                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
+                    // Near top of content - always show tab bar
+                    if offset > -100 {
+                        tabBarVisibility.isVisible = true
+                        lastScrollOffset = offset
+                        return
+                    }
+
+                    let scrollDelta = offset - lastScrollOffset
+                    if abs(scrollDelta) > 10 {
+                        if scrollDelta < 0 {
+                            // Scrolling down
+                            tabBarVisibility.isVisible = false
+                        } else if scrollDelta > 0 {
+                            // Scrolling up
+                            tabBarVisibility.isVisible = true
+                        }
+                        lastScrollOffset = offset
+                    }
+                }
 
                 // ==========================================
                 // FLOATING HEADER - just the "more" button
@@ -487,7 +539,7 @@ struct DiscoverScreen: View {
                         }
                     }
                     .padding(.horizontal, 24)
-                    .padding(.top, 12)
+                    .padding(.top, 56) // Account for status bar
 
                     Spacer()
                 }
@@ -517,10 +569,14 @@ struct DiscoverScreen: View {
                     .padding(.bottom, LayoutConstants.tabBarBottomPadding)
                 }
             } else {
-                // Empty state when no profiles
+                // Empty state when no profiles - always show tab bar
                 emptyState
+                    .onAppear {
+                        tabBarVisibility.isVisible = true
+                    }
             }
         }
+        .ignoresSafeArea(edges: .top)
     }
 
     // Placeholder gradient for missing images
@@ -918,6 +974,14 @@ enum SwipeDirection {
     case left
     case right
     case up
+}
+
+// MARK: - Scroll Offset Preference Key
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
 }
 
 #Preview {

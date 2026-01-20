@@ -20,10 +20,11 @@ struct MessagesScreen: View {
     @StateObject private var friendsManager = FriendsManager.shared
 
     @State private var searchText: String = ""
-    @State private var selectedMode: MessageMode = .friends
+    @State private var selectedMode: MessageMode = .dating
     @State private var selectedConversation: Conversation? = nil
-    @State private var segmentIndex: Int = 1 // Default to friends (index 1)
+    @State private var segmentIndex: Int = 0 // Default to dating (index 0)
     @State private var selectedProfileToView: UserProfile? = nil
+    @State private var showLikesYouScreen = false
 
     private var conversations: [Conversation] {
         messagingManager.conversations
@@ -76,6 +77,16 @@ struct MessagesScreen: View {
                 try await friendsManager.fetchFriends()
             } catch {
                 print("Failed to load friends: \(error)")
+            }
+        }
+    }
+
+    private func loadLikesYou() {
+        Task {
+            do {
+                try await friendsManager.fetchPeopleLikedMe()
+            } catch {
+                print("Failed to load likes: \(error)")
             }
         }
     }
@@ -186,6 +197,9 @@ struct MessagesScreen: View {
                                 set: { newIndex in
                                     segmentIndex = newIndex
                                     selectedMode = newIndex == 0 ? .dating : .friends
+                                    if newIndex == 0 {
+                                        loadLikesYou()
+                                    }
                                 }
                             )
                         )
@@ -199,7 +213,7 @@ struct MessagesScreen: View {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 18))
                             .foregroundColor(charcoalColor.opacity(0.4))
-                        
+
                         TextField("Search messages", text: $searchText)
                             .font(.system(size: 16))
                             .foregroundColor(charcoalColor)
@@ -211,8 +225,25 @@ struct MessagesScreen: View {
                             .fill(Color.white)
                     )
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 24)
-                    
+                    .padding(.bottom, 16)
+
+                    // "X people like you" banner (only show in dating mode)
+                    if selectedMode == .dating && !friendsManager.peopleLikedMe.isEmpty {
+                        LikesYouBanner(
+                            count: friendsManager.peopleLikedMe.count,
+                            profiles: Array(friendsManager.peopleLikedMe.prefix(3)),
+                            onTap: {
+                                showLikesYouScreen = true
+                            }
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 24)
+                    } else if selectedMode == .dating {
+                        Spacer().frame(height: 8)
+                    } else {
+                        Spacer().frame(height: 8)
+                    }
+
                     // Friend Requests Section (only show in friends mode)
                     if selectedMode == .friends && !pendingFriendRequests.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
@@ -328,10 +359,16 @@ struct MessagesScreen: View {
             if !isDatingEnabled {
                 selectedMode = .friends
                 segmentIndex = 1
+            } else {
+                // Load likes when dating is enabled
+                loadLikesYou()
             }
             loadConversations()
             loadFriendRequests()
             loadFriends()
+        }
+        .sheet(isPresented: $showLikesYouScreen) {
+            LikesYouScreen()
         }
         .fullScreenCover(item: $selectedConversation) { conversation in
             MessageDetailScreen(
@@ -638,6 +675,105 @@ struct FriendRow: View {
             .background(
                 RoundedRectangle(cornerRadius: 16)
                     .fill(Color.white)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Likes You Banner
+
+struct LikesYouBanner: View {
+    let count: Int
+    let profiles: [UserProfile]
+    let onTap: () -> Void
+
+    private let burntOrange = Color("BurntOrange")
+    private let pink500 = Color(red: 0.93, green: 0.36, blue: 0.51)
+    private let charcoalColor = Color("Charcoal")
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                // Stacked avatars
+                HStack(spacing: -12) {
+                    ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
+                        AsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? "")) { phase in
+                            if let image = phase.image {
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            } else {
+                                LinearGradient(
+                                    colors: [burntOrange, pink500],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                                .overlay(
+                                    Text(profile.initials)
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundColor(.white)
+                                )
+                            }
+                        }
+                        .frame(width: 44, height: 44)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                        .zIndex(Double(profiles.count - index))
+                    }
+
+                    if count > 3 {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [burntOrange, pink500],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 44, height: 44)
+                            .overlay(
+                                Text("+\(count - 3)")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.white)
+                            )
+                            .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                    }
+                }
+
+                // Text
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(count == 1 ? "1 person likes you" : "\(count) people like you")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(charcoalColor)
+
+                    Text("Tap to see who")
+                        .font(.system(size: 14))
+                        .foregroundColor(charcoalColor.opacity(0.6))
+                }
+
+                Spacer()
+
+                // Chevron
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(burntOrange)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(
+                        LinearGradient(
+                            colors: [burntOrange.opacity(0.5), pink500.opacity(0.5)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 2
+                    )
             )
         }
         .buttonStyle(PlainButtonStyle())
