@@ -69,6 +69,11 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
     public var friendsOnly: Bool
     public var orientation: String?
 
+    // Dating profile prompts
+    public var simplePleasure: String?
+    public var rigInfo: String?
+    public var datingLooksLike: String?
+
     public var createdAt: Date?
     public var updatedAt: Date?
     public var lastActiveAt: Date?
@@ -85,6 +90,9 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         case lookingFor = "looking_for"
         case friendsOnly = "friends_only"
         case orientation
+        case simplePleasure = "simple_pleasure"
+        case rigInfo = "rig_info"
+        case datingLooksLike = "dating_looks_like"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case lastActiveAt = "last_active_at"
@@ -109,6 +117,9 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         lookingFor: LookingFor = .both,
         friendsOnly: Bool = false,
         orientation: String? = nil,
+        simplePleasure: String? = nil,
+        rigInfo: String? = nil,
+        datingLooksLike: String? = nil,
         createdAt: Date? = nil,
         updatedAt: Date? = nil,
         lastActiveAt: Date? = nil,
@@ -131,6 +142,9 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         self.lookingFor = lookingFor
         self.friendsOnly = friendsOnly
         self.orientation = orientation
+        self.simplePleasure = simplePleasure
+        self.rigInfo = rigInfo
+        self.datingLooksLike = datingLooksLike
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.lastActiveAt = lastActiveAt
@@ -173,6 +187,9 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         lookingFor = try container.decodeIfPresent(LookingFor.self, forKey: .lookingFor) ?? .both
         friendsOnly = try container.decodeIfPresent(Bool.self, forKey: .friendsOnly) ?? false
         orientation = try container.decodeIfPresent(String.self, forKey: .orientation)
+        simplePleasure = try container.decodeIfPresent(String.self, forKey: .simplePleasure)
+        rigInfo = try container.decodeIfPresent(String.self, forKey: .rigInfo)
+        datingLooksLike = try container.decodeIfPresent(String.self, forKey: .datingLooksLike)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         lastActiveAt = try container.decodeIfPresent(Date.self, forKey: .lastActiveAt)
@@ -258,6 +275,9 @@ public struct ProfileUpdateRequest: Encodable {
     public var lookingFor: LookingFor?
     public var friendsOnly: Bool?
     public var orientation: String?
+    public var simplePleasure: String?
+    public var rigInfo: String?
+    public var datingLooksLike: String?
     public var onboardingCompleted: Bool?
 
     enum CodingKeys: String, CodingKey {
@@ -271,6 +291,9 @@ public struct ProfileUpdateRequest: Encodable {
         case lookingFor = "looking_for"
         case friendsOnly = "friends_only"
         case orientation
+        case simplePleasure = "simple_pleasure"
+        case rigInfo = "rig_info"
+        case datingLooksLike = "dating_looks_like"
         case onboardingCompleted = "onboarding_completed"
     }
 
@@ -289,6 +312,9 @@ public struct ProfileUpdateRequest: Encodable {
         lookingFor: LookingFor? = nil,
         friendsOnly: Bool? = nil,
         orientation: String? = nil,
+        simplePleasure: String? = nil,
+        rigInfo: String? = nil,
+        datingLooksLike: String? = nil,
         onboardingCompleted: Bool? = nil
     ) {
         self.name = name
@@ -305,6 +331,9 @@ public struct ProfileUpdateRequest: Encodable {
         self.lookingFor = lookingFor
         self.friendsOnly = friendsOnly
         self.orientation = orientation
+        self.simplePleasure = simplePleasure
+        self.rigInfo = rigInfo
+        self.datingLooksLike = datingLooksLike
         self.onboardingCompleted = onboardingCompleted
     }
 }
