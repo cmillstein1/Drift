@@ -277,17 +277,17 @@ struct InterestedInSheet: View {
     @Binding var selection: InterestedIn
     @Environment(\.dismiss) var dismiss
     
-    private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
-    private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
+    private let charcoalColor = Color("Charcoal")
+    private let burntOrange = Color("BurntOrange")
     private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
-    private let softGray = Color(red: 0.96, green: 0.96, blue: 0.96)
+    private let warmWhite = Color(red: 0.99, green: 0.98, blue: 0.96)
     
     var body: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
                 Text("I'm interested in")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.system(size: 24, weight: .bold))
                     .foregroundColor(charcoalColor)
                 
                 Spacer()
@@ -299,22 +299,16 @@ struct InterestedInSheet: View {
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(charcoalColor)
                         .frame(width: 32, height: 32)
-                        .background(softGray)
+                        .background(Color.gray.opacity(0.1))
                         .clipShape(Circle())
                 }
             }
             .padding(.horizontal, 24)
-            .padding(.vertical, 16)
-            .background(Color.white)
-            .overlay(
-                Rectangle()
-                    .frame(height: 1)
-                    .foregroundColor(Color.gray.opacity(0.2)),
-                alignment: .bottom
-            )
+            .padding(.top, 24)
+            .padding(.bottom, 16)
             
             // Options
-            VStack(spacing: 0) {
+            VStack(spacing: 12) {
                 ForEach(InterestedIn.allCases, id: \.self) { option in
                     Button(action: {
                         selection = option
@@ -322,32 +316,37 @@ struct InterestedInSheet: View {
                     }) {
                         HStack {
                             Text(option.displayName)
-                                .font(.system(size: 17))
+                                .font(.system(size: 16, weight: .medium))
                                 .foregroundColor(charcoalColor)
                             
                             Spacer()
                             
                             if selection == option {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 16, weight: .medium))
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 22))
                                     .foregroundColor(burntOrange)
+                            } else {
+                                Circle()
+                                    .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                                    .frame(width: 22, height: 22)
                             }
                         }
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 16)
-                    }
-                    
-                    if option != InterestedIn.allCases.last {
-                        Divider()
-                            .padding(.horizontal, 24)
+                        .padding(16)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(selection == option ? burntOrange : Color.gray.opacity(0.2), lineWidth: selection == option ? 2 : 1)
+                        )
                     }
                 }
             }
+            .padding(.horizontal, 24)
             .padding(.top, 8)
             
             Spacer()
         }
-        .background(Color.white)
+        .background(warmWhite)
     }
 }
 

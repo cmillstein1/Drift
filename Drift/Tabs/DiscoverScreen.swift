@@ -64,6 +64,26 @@ struct DiscoverScreen: View {
             }
         }
     }
+    
+    private func recycleProfiles() {
+        // Reset the current index to recycle through profiles again
+        // Clear local swipedIds so we can see all profiles again
+        swipedIds = []
+        currentIndex = 0
+        
+        // Reload profiles without excluding any
+        Task {
+            do {
+                let lookingFor: LookingFor = mode == .dating ? .dating : .friends
+                try await profileManager.fetchDiscoverProfiles(
+                    lookingFor: lookingFor,
+                    excludeIds: []
+                )
+            } catch {
+                print("Failed to recycle profiles: \(error)")
+            }
+        }
+    }
 
     private func handleSwipe(direction: SwipeDirection) {
         guard let profile = currentCard else { return }
@@ -195,16 +215,6 @@ struct DiscoverScreen: View {
                 // Main scrollable content
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
-                        // Scroll tracking
-                        GeometryReader { geo in
-                            Color.clear
-                                .preference(
-                                    key: ScrollOffsetPreferenceKey.self,
-                                    value: geo.frame(in: .named("discoverScroll")).minY
-                                )
-                        }
-                        .frame(height: 0)
-
                         // ==========================================
                         // HERO SECTION - h-[500px]
                         // ==========================================
@@ -498,34 +508,51 @@ struct DiscoverScreen: View {
                         // Bottom padding for tab bar
                         Spacer().frame(height: LayoutConstants.tabBarBottomPadding)
                     }
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear
+                                .preference(
+                                    key: ScrollOffsetPreferenceKey.self,
+                                    value: geo.frame(in: .named("discoverScroll")).minY
+                                )
+                        }
+                    )
                 }
                 .coordinateSpace(name: "discoverScroll")
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
                     // Near top of content - always show tab bar
                     if offset > -100 {
-                        tabBarVisibility.isVisible = true
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            tabBarVisibility.isVisible = true
+                        }
                         lastScrollOffset = offset
                         return
                     }
 
                     let scrollDelta = offset - lastScrollOffset
-                    if abs(scrollDelta) > 10 {
-                        if scrollDelta < 0 {
-                            // Scrolling down
-                            tabBarVisibility.isVisible = false
-                        } else if scrollDelta > 0 {
-                            // Scrolling up
-                            tabBarVisibility.isVisible = true
+                    if abs(scrollDelta) > 8 {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            if scrollDelta < 0 {
+                                // Scrolling down
+                                tabBarVisibility.isVisible = false
+                            } else if scrollDelta > 0 {
+                                // Scrolling up
+                                tabBarVisibility.isVisible = true
+                            }
                         }
                         lastScrollOffset = offset
                     }
                 }
 
                 // ==========================================
-                // FLOATING HEADER - just the "more" button
+                // FLOATING HEADER - mode switcher + more button
                 // ==========================================
                 VStack {
                     HStack {
+                        // Show mode switcher only in "both" mode
+                        if supabaseManager.getDiscoveryMode() == .both {
+                            modeSwitcher(style: .dark)
+                        }
                         Spacer()
                         Button { } label: {
                             Image(systemName: "ellipsis")
@@ -539,7 +566,7 @@ struct DiscoverScreen: View {
                         }
                     }
                     .padding(.horizontal, 24)
-                    .padding(.top, 56) // Account for status bar
+                    .padding(.top, 60) // Account for status bar / safe area
 
                     Spacer()
                 }
@@ -567,6 +594,8 @@ struct DiscoverScreen: View {
                     }
                     .padding(.leading, 24)
                     .padding(.bottom, LayoutConstants.tabBarBottomPadding)
+                    .offset(y: tabBarVisibility.isVisible ? 0 : 120)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: tabBarVisibility.isVisible)
                 }
             } else {
                 // Empty state when no profiles - always show tab bar
@@ -633,62 +662,15 @@ struct DiscoverScreen: View {
         }
     }
 
-    // MARK: - Dating Mode Switcher (overlaid on image with backdrop blur)
+    // MARK: - Unified Mode Switcher with Sliding Animation
     @ViewBuilder
-    private var datingModeSwitcher: some View {
-        HStack(spacing: 0) {
-            // Dating button - selected (white bg, coral icon, dark text)
-            Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    mode = .dating
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "heart.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(mode == .dating ? coralPrimary : .white.opacity(0.9))
-                    Text("Dating")
-                        .font(.system(size: 12, weight: mode == .dating ? .bold : .medium))
-                        .tracking(0.5)
-                        .foregroundColor(mode == .dating ? inkMain : .white.opacity(0.9))
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(mode == .dating ? Color.white : Color.clear)
-                .clipShape(Capsule())
-                .shadow(color: mode == .dating ? .black.opacity(0.1) : .clear, radius: 2, x: 0, y: 1)
-            }
-
-            // Friends button - not selected (white text, no bg)
-            Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    mode = .friends
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "person.2.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(mode == .friends ? .white : .white.opacity(0.9))
-                    Text("Friends")
-                        .font(.system(size: 12, weight: mode == .friends ? .bold : .medium))
-                        .tracking(0.5)
-                        .foregroundColor(mode == .friends ? .white : .white.opacity(0.9))
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(mode == .friends ? tealPrimary : Color.clear)
-                .clipShape(Capsule())
-            }
-        }
-        .padding(4)
-        .background(.ultraThinMaterial.opacity(0.5))
-        .background(Color.black.opacity(0.2))
-        .clipShape(Capsule())
-        .overlay(
-            Capsule()
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+    private func modeSwitcher(style: ModeSwitcherStyle) -> some View {
+        DiscoverModeSwitcher(mode: $mode, style: style)
+    }
+    
+    enum ModeSwitcherStyle {
+        case dark   // For use on dark/image backgrounds
+        case light  // For use on light backgrounds
     }
 
     // MARK: - Dating Filter Button
@@ -729,7 +711,7 @@ struct DiscoverScreen: View {
                 .foregroundColor(inkSub)
 
             Button {
-                loadProfiles()
+                recycleProfiles()
             } label: {
                 Text("Refresh")
                     .font(.system(size: 14, weight: .medium))
@@ -748,17 +730,22 @@ struct DiscoverScreen: View {
     // MARK: - Friends View
     @ViewBuilder
     private var friendsView: some View {
+        let discoveryMode = supabaseManager.getDiscoveryMode()
+        
         VStack(spacing: 0) {
-            // Header with switcher
+            // Header
             VStack(spacing: 0) {
+                // Mode switcher row - same position as dating view
                 HStack {
-                    friendsModeSwitcher
+                    if discoveryMode == .both {
+                        modeSwitcher(style: .light)
+                    }
                     Spacer()
                     friendsFilterButton
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 12)
-                .padding(.bottom, 24)
+                .padding(.bottom, 20)
 
                 // Title section
                 VStack(alignment: .leading, spacing: 4) {
@@ -781,59 +768,6 @@ struct DiscoverScreen: View {
         .background(softGray)
     }
 
-    // MARK: - Friends Mode Switcher (on light background)
-    @ViewBuilder
-    private var friendsModeSwitcher: some View {
-        HStack(spacing: 0) {
-            Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    mode = .dating
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "heart.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(mode == .dating ? coralPrimary : .gray.opacity(0.6))
-                    Text("Dating")
-                        .font(.system(size: 12, weight: mode == .dating ? .bold : .medium))
-                        .tracking(0.5)
-                        .foregroundColor(mode == .dating ? inkMain : .gray.opacity(0.6))
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(mode == .dating ? Color.white : Color.clear)
-                .clipShape(Capsule())
-            }
-
-            Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    mode = .friends
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "person.2.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(mode == .friends ? .white : .gray.opacity(0.6))
-                    Text("Friends")
-                        .font(.system(size: 12, weight: mode == .friends ? .bold : .medium))
-                        .tracking(0.5)
-                        .foregroundColor(mode == .friends ? .white : .gray.opacity(0.6))
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(mode == .friends ? tealPrimary : Color.clear)
-                .clipShape(Capsule())
-            }
-        }
-        .padding(4)
-        .background(Color.white)
-        .clipShape(Capsule())
-        .overlay(
-            Capsule()
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-    }
 
     // MARK: - Friends Filter Button
     @ViewBuilder
@@ -981,6 +915,155 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
+    }
+}
+
+// MARK: - Discover Mode Switcher with Sliding Animation
+struct DiscoverModeSwitcher: View {
+    @Binding var mode: DiscoverMode
+    var style: DiscoverScreen.ModeSwitcherStyle
+    @Namespace private var animation
+    
+    private let coralPrimary = Color(red: 1.0, green: 0.37, blue: 0.37)
+    private let inkMain = Color(red: 0.07, green: 0.09, blue: 0.15)
+    
+    private let friendsGradient = LinearGradient(
+        gradient: Gradient(colors: [
+            Color(red: 0.66, green: 0.77, blue: 0.84),  // #A8C5D6 Sky Blue
+            Color(red: 0.33, green: 0.47, blue: 0.34)   // #547756 Forest Green
+        ]),
+        startPoint: .leading,
+        endPoint: .trailing
+    )
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            // Dating button
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    mode = .dating
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 12))
+                    Text("Dating")
+                        .font(.system(size: 12, weight: mode == .dating ? .bold : .medium))
+                        .tracking(0.5)
+                }
+                .foregroundColor(datingTextColor)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background {
+                    if mode == .dating {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.white)
+                            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+                            .matchedGeometryEffect(id: "discoverSegmentBg", in: animation)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            // Friends button
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    mode = .friends
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 12))
+                    Text("Friends")
+                        .font(.system(size: 12, weight: mode == .friends ? .bold : .medium))
+                        .tracking(0.5)
+                }
+                .foregroundColor(friendsTextColor)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background {
+                    if mode == .friends {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(friendsGradient)
+                            .matchedGeometryEffect(id: "discoverSegmentBg", in: animation)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(4)
+        .background(containerBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .overlay(containerOverlay)
+        .shadow(color: shadowColor, radius: shadowRadius, x: 0, y: shadowY)
+    }
+    
+    // MARK: - Style-dependent colors
+    
+    private var datingTextColor: Color {
+        switch style {
+        case .dark:
+            return mode == .dating ? coralPrimary : .white.opacity(0.9)
+        case .light:
+            return mode == .dating ? coralPrimary : .gray.opacity(0.6)
+        }
+    }
+    
+    private var friendsTextColor: Color {
+        switch style {
+        case .dark:
+            return mode == .friends ? .white : .white.opacity(0.9)
+        case .light:
+            return mode == .friends ? .white : .gray.opacity(0.6)
+        }
+    }
+    
+    @ViewBuilder
+    private var containerBackground: some View {
+        switch style {
+        case .dark:
+            ZStack {
+                Color.black.opacity(0.2)
+                Rectangle().fill(.ultraThinMaterial.opacity(0.5))
+            }
+        case .light:
+            Color.white
+        }
+    }
+    
+    @ViewBuilder
+    private var containerOverlay: some View {
+        switch style {
+        case .dark:
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        case .light:
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+        }
+    }
+    
+    private var shadowColor: Color {
+        switch style {
+        case .dark:
+            return .black.opacity(0.2)
+        case .light:
+            return .black.opacity(0.05)
+        }
+    }
+    
+    private var shadowRadius: CGFloat {
+        switch style {
+        case .dark: return 8
+        case .light: return 4
+        }
+    }
+    
+    private var shadowY: CGFloat {
+        switch style {
+        case .dark: return 4
+        case .light: return 2
+        }
     }
 }
 

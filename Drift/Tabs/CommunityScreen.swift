@@ -8,10 +8,12 @@
 import SwiftUI
 import DriftBackend
 
+// MARK: - Filter Enum
+
 enum CommunityFilter: String, CaseIterable {
-    case all = "All Posts"
+    case all = "All"
     case events = "Events"
-    case buildHelp = "Build Help"
+    case buildHelp = "Help"
     case market = "Market"
 
     var icon: String {
@@ -19,30 +21,66 @@ enum CommunityFilter: String, CaseIterable {
         case .all: return ""
         case .events: return "tent"
         case .buildHelp: return "wrench.and.screwdriver"
-        case .market: return "storefront"
-        }
-    }
-
-    var iconColor: Color {
-        switch self {
-        case .all: return .clear
-        case .events: return .purple
-        case .buildHelp: return .orange
-        case .market: return .blue
+        case .market: return "bag"
         }
     }
 }
 
+// MARK: - Post Type Enum
+
+enum CommunityPostType: String {
+    case event
+    case help
+    case market
+    
+    var badgeColor: Color {
+        switch self {
+        case .event: return .purple
+        case .help: return Color("BurntOrange")
+        case .market: return Color("SkyBlue")
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .event: return "tent"
+        case .help: return "wrench.and.screwdriver"
+        case .market: return "bag"
+        }
+    }
+}
+
+// MARK: - Post Model
+
+struct CommunityPost: Identifiable {
+    let id: UUID
+    let type: CommunityPostType
+    let authorName: String
+    let authorAvatar: String?
+    let timeAgo: String
+    let location: String?
+    let category: String?
+    let title: String
+    let content: String
+    let likes: Int?
+    let replies: Int?
+    let price: String?
+}
+
+// MARK: - Main Screen
+
 struct CommunityScreen: View {
     @State private var selectedFilter: CommunityFilter = .all
     @State private var showCreateSheet: Bool = false
+    @State private var selectedActivity: Activity? = nil
+    @State private var selectedHelpPost: CommunityPost? = nil
+    @State private var selectedMarketPost: CommunityPost? = nil
     @StateObject private var activityManager = ActivityManager.shared
-    @StateObject private var revenueCatManager = RevenueCatManager.shared
 
-    // Colors from HTML design
-    private let coralPrimary = Color(red: 1.0, green: 0.37, blue: 0.37) // #FF5E5E
-    private let inkMain = Color(red: 0.07, green: 0.09, blue: 0.15) // #111827
-    private let bgCanvas = Color(red: 0.98, green: 0.98, blue: 0.98) // #FAFAFA
+    private let charcoal = Color("Charcoal")
+    private let softGray = Color("SoftGray")
+    private let burntOrange = Color("BurntOrange")
+    private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
 
     private func loadData() {
         Task {
@@ -57,89 +95,103 @@ struct CommunityScreen: View {
 
     var body: some View {
         ZStack {
-            bgCanvas.ignoresSafeArea()
+            softGray.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // Header
-                VStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Title row with + button
                     HStack {
                         Text("Community")
-                            .font(.system(size: 24, weight: .heavy))
-                            .foregroundColor(inkMain)
-
+                            //.font(.system(size: 32, weight: .bold))
+                            .font(.campfire(.regular, size: 24))
+                            .foregroundColor(charcoal)
+                        
                         Spacer()
-
+                        
+                        // Create Post Button
                         Button {
-                            // Filter action
+                            showCreateSheet = true
                         } label: {
-                            Text("Filter")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(coralPrimary)
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 12)
-
-                    // Filter chips
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(CommunityFilter.allCases, id: \.self) { filter in
-                                FilterChip(
-                                    filter: filter,
-                                    isSelected: selectedFilter == filter,
-                                    onTap: {
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                            selectedFilter = filter
-                                        }
-                                    }
+                            Image(systemName: "plus")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 40, height: 40)
+                                .background(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [burntOrange, sunsetRose]),
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
                                 )
-                            }
+                                .clipShape(Circle())
+                                .shadow(color: burntOrange.opacity(0.3), radius: 8, x: 0, y: 4)
                         }
-                        .padding(.horizontal, 24)
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 24)
+
+                    // Tab Navigation - Pill style with sliding indicator
+                    CommunitySegmentedControl(
+                        selectedFilter: $selectedFilter
+                    )
+                    .padding(.horizontal, 16)
                     .padding(.bottom, 8)
                 }
-                .background(Color.white)
-                .overlay(
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.05))
-                        .frame(height: 1),
-                    alignment: .bottom
-                )
+                .background(softGray)
 
-                // Feed content
+                // Posts Feed
                 ScrollView {
                     LazyVStack(spacing: 16) {
-                        // Sample posts based on filter
                         ForEach(filteredPosts) { post in
                             CommunityPostCard(post: post)
+                                .onTapGesture {
+                                    switch post.type {
+                                    case .event:
+                                        // Convert CommunityPost to Activity for detail view
+                                        selectedActivity = activityFromPost(post)
+                                    case .help:
+                                        // Show help detail sheet
+                                        selectedHelpPost = post
+                                    case .market:
+                                        // Show marketplace detail sheet
+                                        selectedMarketPost = post
+                                    }
+                                }
                         }
                     }
-                    .padding(16)
-                    .padding(.bottom, LayoutConstants.tabBarBottomPadding)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, LayoutConstants.tabBarBottomPadding + 20)
+                }
+
+                // Empty State
+                if filteredPosts.isEmpty {
+                    VStack(spacing: 16) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.gray.opacity(0.1))
+                                .frame(width: 80, height: 80)
+                            
+                            Image(systemName: "bubble.left.and.bubble.right")
+                                .font(.system(size: 32))
+                                .foregroundColor(.gray.opacity(0.4))
+                        }
+                        
+                        Text("No posts yet")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(charcoal)
+                        
+                        Text("Be the first to share something with the community!")
+                            .font(.system(size: 14))
+                            .foregroundColor(charcoal.opacity(0.6))
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.horizontal, 32)
                 }
             }
 
-            // Floating Action Button
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Button {
-                        showCreateSheet = true
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 24, weight: .medium))
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(coralPrimary)
-                            .clipShape(Circle())
-                            .shadow(color: coralPrimary.opacity(0.4), radius: 12, x: 0, y: 4)
-                    }
-                    .padding(.trailing, 24)
-                    .padding(.bottom, LayoutConstants.tabBarBottomPadding)
-                }
-            }
         }
         .onAppear {
             loadData()
@@ -149,11 +201,52 @@ struct CommunityScreen: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(item: $selectedActivity) { activity in
+            ActivityDetailSheet(activity: activity)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+        }
+        .sheet(item: $selectedHelpPost) { post in
+            BuilderHelpDetailSheet(post: post)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $selectedMarketPost) { post in
+            MarketplaceDetailSheet(post: post)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+        }
+    }
+    
+    // Convert CommunityPost to Activity for detail view
+    private func activityFromPost(_ post: CommunityPost) -> Activity {
+        Activity(
+            id: post.id,
+            hostId: UUID(), // Placeholder
+            title: post.title,
+            description: post.content,
+            category: .social, // Default category for community events
+            location: post.location ?? "Location TBD",
+            exactLocation: nil,
+            imageUrl: nil,
+            startsAt: Date().addingTimeInterval(86400), // Placeholder: tomorrow
+            durationMinutes: 60,
+            maxAttendees: 10,
+            currentAttendees: post.likes ?? 0,
+            host: UserProfile(
+                id: UUID(),
+                name: post.authorName,
+                avatarUrl: post.authorAvatar,
+                verified: false,
+                lifestyle: .vanLife,
+                interests: [],
+                lookingFor: .friends
+            )
+        )
     }
 
     // Filtered posts based on selected filter
     private var filteredPosts: [CommunityPost] {
-        // For now, return sample data. This would be replaced with actual data from managers
         let allPosts = samplePosts
         switch selectedFilter {
         case .all:
@@ -167,7 +260,7 @@ struct CommunityScreen: View {
         }
     }
 
-    // Sample data for demonstration
+    // Sample data
     private var samplePosts: [CommunityPost] {
         [
             CommunityPost(
@@ -176,12 +269,13 @@ struct CommunityScreen: View {
                 authorName: "Sarah Mitchell",
                 authorAvatar: nil,
                 timeAgo: "Just now",
-                subtitle: "Nearby",
+                location: "Nearby",
+                category: nil,
                 title: "Morning Yoga Flow",
                 content: "Anyone interested in a 30min flow tomorrow morning? I have extra mats!",
-                imageUrl: nil,
-                attendeeCount: 3,
-                replyCount: nil
+                likes: 12,
+                replies: nil,
+                price: nil
             ),
             CommunityPost(
                 id: UUID(),
@@ -189,12 +283,13 @@ struct CommunityScreen: View {
                 authorName: "Dave Builder",
                 authorAvatar: nil,
                 timeAgo: "1h ago",
-                subtitle: "Electrical",
+                location: nil,
+                category: "Electrical",
                 title: "Inverter keeps tripping?",
                 content: "I have a 2000W Renogy inverter that trips every time I turn on my blender. Battery bank is full. Anyone seen this?",
-                imageUrl: nil,
-                attendeeCount: nil,
-                replyCount: 5
+                likes: nil,
+                replies: 5,
+                price: nil
             ),
             CommunityPost(
                 id: UUID(),
@@ -202,72 +297,89 @@ struct CommunityScreen: View {
                 authorName: "Mike Seller",
                 authorAvatar: nil,
                 timeAgo: "2h ago",
-                subtitle: "For Sale",
+                location: nil,
+                category: "For Sale",
                 title: "Dometic CFX3 55 Fridge",
-                content: "Barely used, 55L capacity. Works great. Selling because I upgraded to a larger unit. $650 OBO",
-                imageUrl: nil,
-                attendeeCount: nil,
-                replyCount: 8
-            )
+                content: "Barely used, 55L capacity. Works great. Selling because I upgraded to a larger unit.",
+                likes: nil,
+                replies: nil,
+                price: "$450"
+            ),
+            CommunityPost(
+                id: UUID(),
+                type: .event,
+                authorName: "Jordan Park",
+                authorAvatar: nil,
+                timeAgo: "3h ago",
+                location: "Big Sur, CA",
+                category: nil,
+                title: "Weekend Surf Session",
+                content: "Heading to the beach this Saturday. Anyone want to join? Beginner friendly!",
+                likes: 8,
+                replies: nil,
+                price: nil
+            ),
+            CommunityPost(
+                id: UUID(),
+                type: .help,
+                authorName: "Emily Watts",
+                authorAvatar: nil,
+                timeAgo: "5h ago",
+                location: nil,
+                category: "Solar",
+                title: "Best solar panel angle?",
+                content: "Installing 400W panels on my roof. What angle works best for year-round use?",
+                likes: nil,
+                replies: 12,
+                price: nil
+            ),
         ]
     }
 }
 
-// MARK: - Filter Chip
+// MARK: - Community Segmented Control
 
-struct FilterChip: View {
-    let filter: CommunityFilter
-    let isSelected: Bool
-    let onTap: () -> Void
-
-    private let inkMain = Color(red: 0.07, green: 0.09, blue: 0.15)
-
+struct CommunitySegmentedControl: View {
+    @Binding var selectedFilter: CommunityFilter
+    @Namespace private var animation
+    
+    private let charcoal = Color("Charcoal")
+    
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 6) {
-                if !filter.icon.isEmpty {
-                    Image(systemName: filter.icon)
-                        .font(.system(size: 12))
-                        .foregroundColor(isSelected ? .white : filter.iconColor)
+        HStack(spacing: 4) {
+            ForEach(CommunityFilter.allCases, id: \.self) { filter in
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                        selectedFilter = filter
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        if !filter.icon.isEmpty {
+                            Image(systemName: filter.icon)
+                                .font(.system(size: 14))
+                        }
+                        Text(filter.rawValue)
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundColor(selectedFilter == filter ? .white : charcoal.opacity(0.5))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background {
+                        if selectedFilter == filter {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(charcoal)
+                                .matchedGeometryEffect(id: "communitySegment", in: animation)
+                        }
+                    }
                 }
-                Text(filter.rawValue)
-                    .font(.system(size: 12, weight: .bold))
+                .buttonStyle(.plain)
             }
-            .foregroundColor(isSelected ? .white : Color.gray.opacity(0.8))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(
-                isSelected ? inkMain : Color.white
-            )
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(isSelected ? Color.clear : Color.gray.opacity(0.2), lineWidth: 1)
-            )
         }
+        .padding(6)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
     }
-}
-
-// MARK: - Community Post Model
-
-enum CommunityPostType {
-    case event
-    case help
-    case market
-}
-
-struct CommunityPost: Identifiable {
-    let id: UUID
-    let type: CommunityPostType
-    let authorName: String
-    let authorAvatar: String?
-    let timeAgo: String
-    let subtitle: String
-    let title: String
-    let content: String
-    let imageUrl: String?
-    let attendeeCount: Int?
-    let replyCount: Int?
 }
 
 // MARK: - Community Post Card
@@ -275,187 +387,216 @@ struct CommunityPost: Identifiable {
 struct CommunityPostCard: View {
     let post: CommunityPost
 
-    private let inkMain = Color(red: 0.07, green: 0.09, blue: 0.15)
-    private let coralPrimary = Color(red: 1.0, green: 0.37, blue: 0.37)
+    private let charcoal = Color("Charcoal")
+    private let softGray = Color("SoftGray")
+    private let burntOrange = Color("BurntOrange")
+    private let forestGreen = Color("ForestGreen")
+    private let skyBlue = Color("SkyBlue")
 
-    private var typeTag: (text: String, bgColor: Color, textColor: Color) {
+    private var avatarBackgroundColor: Color {
         switch post.type {
-        case .event:
-            return ("EVENT", Color.purple.opacity(0.1), Color.purple)
-        case .help:
-            return ("HELP", Color.orange.opacity(0.1), Color.orange)
-        case .market:
-            return ("MARKET", Color.blue.opacity(0.1), Color.blue)
+        case .event: return Color.purple.opacity(0.15)
+        case .help: return burntOrange.opacity(0.15)
+        case .market: return skyBlue.opacity(0.15)
+        }
+    }
+    
+    private var avatarIconColor: Color {
+        switch post.type {
+        case .event: return Color.purple
+        case .help: return burntOrange
+        case .market: return skyBlue
+        }
+    }
+    
+    private var badgeBackgroundColor: Color {
+        switch post.type {
+        case .event: return Color.purple.opacity(0.1)
+        case .help: return burntOrange.opacity(0.1)
+        case .market: return skyBlue.opacity(0.1)
         }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header row: Avatar, name, time, tag
+        VStack(alignment: .leading, spacing: 0) {
+            // Post Header
             HStack(spacing: 12) {
-                // Avatar
-                Circle()
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 40, height: 40)
-                    .overlay(
-                        Image(systemName: "person.fill")
-                            .foregroundColor(.gray)
-                    )
-
-                // Name and time
+                // Avatar with type-specific color
+                ZStack {
+                    Circle()
+                        .fill(avatarBackgroundColor)
+                        .frame(width: 44, height: 44)
+                    
+                    Image(systemName: "person.crop.rectangle")
+                        .font(.system(size: 18))
+                        .foregroundColor(avatarIconColor)
+                }
+                
+                // User Info
                 VStack(alignment: .leading, spacing: 2) {
                     Text(post.authorName)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(inkMain)
-
-                    Text("\(post.timeAgo) • \(post.subtitle)")
-                        .font(.system(size: 12))
-                        .foregroundColor(.gray)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(charcoal)
+                    
+                    HStack(spacing: 6) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 11))
+                        Text(post.timeAgo)
+                            .font(.system(size: 12))
+                    }
+                    .foregroundColor(charcoal.opacity(0.5))
                 }
-
+                
                 Spacer()
-
-                // Type tag
-                Text(typeTag.text)
-                    .font(.system(size: 10, weight: .bold))
-                    .tracking(1)
-                    .foregroundColor(typeTag.textColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(typeTag.bgColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                
+                // Type Badge
+                HStack(spacing: 6) {
+                    Image(systemName: post.type.icon)
+                        .font(.system(size: 12))
+                    Text(post.type.rawValue.uppercased())
+                        .font(.system(size: 11, weight: .bold))
+                        .tracking(0.5)
+                }
+                .foregroundColor(avatarIconColor)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(badgeBackgroundColor)
+                .clipShape(Capsule())
             }
-
-            // Image (if event type)
-            if post.type == .event, let _ = post.imageUrl {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.gray.opacity(0.1))
-                    .frame(height: 160)
-            }
-
-            // Title
-            Text(post.title)
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(inkMain)
-
-            // Body
-            Text(post.content)
-                .font(.system(size: 14))
-                .foregroundColor(Color.gray.opacity(0.8))
-                .lineSpacing(4)
-
-            // Footer actions
-            HStack {
-                if post.type == .event {
-                    // Attendees indicator
-                    if let count = post.attendeeCount {
-                        HStack(spacing: -8) {
-                            ForEach(0..<min(count, 3), id: \.self) { _ in
-                                Circle()
-                                    .fill(Color.gray.opacity(0.2))
-                                    .frame(width: 24, height: 24)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.white, lineWidth: 2)
-                                    )
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 12)
+            
+            // Post Content
+            VStack(alignment: .leading, spacing: 8) {
+                Text(post.title)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(charcoal)
+                    .lineSpacing(2)
+                
+                Text(post.content)
+                    .font(.system(size: 14))
+                    .foregroundColor(charcoal.opacity(0.7))
+                    .lineSpacing(4)
+                    .lineLimit(2)
+                
+                // Metadata Tags
+                if post.location != nil || post.category != nil {
+                    HStack(spacing: 8) {
+                        if let location = post.location {
+                            HStack(spacing: 6) {
+                                Image(systemName: "mappin.circle.fill")
+                                    .font(.system(size: 12))
+                                Text(location)
+                                    .font(.system(size: 12, weight: .medium))
                             }
-                            if count > 3 {
-                                Circle()
-                                    .fill(Color.gray.opacity(0.1))
-                                    .frame(width: 24, height: 24)
-                                    .overlay(
-                                        Text("+\(count - 3)")
-                                            .font(.system(size: 8, weight: .bold))
-                                            .foregroundColor(.gray)
-                                    )
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.white, lineWidth: 2)
-                                    )
-                            }
+                            .foregroundColor(charcoal.opacity(0.7))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(softGray)
+                            .clipShape(Capsule())
+                        }
+                        
+                        if let category = post.category {
+                            Text(category)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(charcoal.opacity(0.7))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(softGray)
+                                .clipShape(Capsule())
                         }
                     }
-
-                    Spacer()
-
+                    .padding(.top, 4)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
+            
+            // Post Footer
+            Rectangle()
+                .fill(softGray)
+                .frame(height: 1)
+            
+            HStack {
+                // Engagement Stats
+                HStack(spacing: 20) {
+                    if let replies = post.replies {
+                        HStack(spacing: 6) {
+                            Image(systemName: "bubble.left")
+                                .font(.system(size: 14))
+                            Text("\(replies)")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(charcoal.opacity(0.4))
+                    }
+                    
+                    if let likes = post.likes {
+                        HStack(spacing: 6) {
+                            Image(systemName: "hand.thumbsup")
+                                .font(.system(size: 14))
+                            Text("\(likes)")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(charcoal.opacity(0.4))
+                    }
+                }
+                
+                Spacer()
+                
+                // Action Button
+                switch post.type {
+                case .event:
                     Button {
                         // Join action
                     } label: {
-                        Text("Join In")
-                            .font(.system(size: 12, weight: .bold))
+                        Text("Join Event")
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(inkMain)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 8)
+                            .background(charcoal)
+                            .clipShape(Capsule())
                     }
-                } else if post.type == .help {
-                    // Reply count
-                    HStack(spacing: 8) {
-                        Image(systemName: "message.fill")
-                            .font(.system(size: 14))
-                        Text("\(post.replyCount ?? 0) Replies")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .foregroundColor(.gray)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.gray.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                    Spacer()
-
+                    
+                case .help:
                     Button {
                         // Help action
                     } label: {
-                        Text("Help Out")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(coralPrimary)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(coralPrimary.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        Text("Offer Help")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(burntOrange)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 8)
+                            .background(Color.clear)
+                            .overlay(
+                                Capsule()
+                                    .stroke(burntOrange, lineWidth: 2)
+                            )
                     }
-                } else {
-                    // Market - replies
-                    if let count = post.replyCount {
-                        HStack(spacing: 8) {
-                            Image(systemName: "message.fill")
+                    
+                case .market:
+                    if let price = post.price {
+                        HStack(spacing: 4) {
+                            Image(systemName: "dollarsign")
                                 .font(.system(size: 14))
-                            Text("\(count) Replies")
-                                .font(.system(size: 12, weight: .medium))
+                            Text(price.replacingOccurrences(of: "$", with: ""))
+                                .font(.system(size: 16, weight: .bold))
                         }
-                        .foregroundColor(.gray)
-                        .padding(.horizontal, 12)
+                        .foregroundColor(forestGreen)
+                        .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                        .background(Color.gray.opacity(0.05))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-
-                    Spacer()
-
-                    Button {
-                        // Contact action
-                    } label: {
-                        Text("Contact")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(inkMain)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .background(forestGreen.opacity(0.1))
+                        .clipShape(Capsule())
                     }
                 }
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
         }
-        .padding(16)
         .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
     }
 }
 
@@ -463,130 +604,678 @@ struct CommunityPostCard: View {
 
 struct CreateCommunityPostSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedType: CommunityPostType = .event
+    @State private var selectedType: CommunityPostType? = .event
     @State private var title: String = ""
     @State private var details: String = ""
+    @State private var eventPrivacy: String = "public"
+    @State private var showPrivacyDetails: Bool = false
+    @State private var category: String = ""
+    @State private var condition: String = ""
+    @State private var price: String = ""
+    @State private var location: String = ""
+    @State private var eventDate: Date = Date()
+    @State private var eventTime: Date = Date()
+    
+    // Market photo upload
+    @State private var marketPhotos: [Int: Data] = [:] // Index -> Image data
+    @State private var showingImagePicker: Bool = false
+    @State private var selectedPhotoIndex: Int = 0
 
-    private let inkMain = Color(red: 0.07, green: 0.09, blue: 0.15)
-    private let coralPrimary = Color(red: 1.0, green: 0.37, blue: 0.37)
+    private let charcoal = Color("Charcoal")
+    private let burntOrange = Color("BurntOrange")
+    private let forestGreen = Color("ForestGreen")
+    private let skyBlue = Color("SkyBlue")
+    private let warmWhite = Color(red: 0.99, green: 0.98, blue: 0.96)
+
+    private var isFormValid: Bool {
+        selectedType != nil && !title.trimmingCharacters(in: .whitespaces).isEmpty && !details.trimmingCharacters(in: .whitespaces).isEmpty
+    }
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 24) {
-                // Type selector
-                HStack(spacing: 12) {
-                    PostTypeButton(
-                        type: .event,
-                        isSelected: selectedType == .event,
-                        onTap: { selectedType = .event }
-                    )
-                    PostTypeButton(
-                        type: .help,
-                        isSelected: selectedType == .help,
-                        onTap: { selectedType = .help }
-                    )
-                    PostTypeButton(
-                        type: .market,
-                        isSelected: selectedType == .market,
-                        onTap: { selectedType = .market }
-                    )
+        VStack(spacing: 0) {
+            // Header
+            VStack(spacing: 0) {
+                HStack {
+                    Text("Create Post")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(charcoal)
+
+                    Spacer()
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(charcoal)
+                            .frame(width: 32, height: 32)
+                            .background(Color.gray.opacity(0.1))
+                            .clipShape(Circle())
+                    }
                 }
                 .padding(.horizontal, 24)
+                .padding(.top, 24)
+                .padding(.bottom, 24)
+            }
 
-                // Title field
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Title")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.gray)
+            // Scrollable Content
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Post Type Selection
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Post Type *")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(charcoal)
 
-                    TextField("What's this about?", text: $title)
-                        .font(.system(size: 16))
-                        .padding(16)
-                        .background(Color.gray.opacity(0.05))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        HStack(spacing: 12) {
+                            PostTypeCard(
+                                type: .event,
+                                isSelected: selectedType == .event,
+                                onTap: { selectedType = .event }
+                            )
+                            PostTypeCard(
+                                type: .help,
+                                isSelected: selectedType == .help,
+                                onTap: { selectedType = .help }
+                            )
+                            PostTypeCard(
+                                type: .market,
+                                isSelected: selectedType == .market,
+                                onTap: { selectedType = .market }
+                            )
+                        }
+                    }
+
+                    // Photos (Market only) - Above Title
+                    if selectedType == .market {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "camera")
+                                    .font(.system(size: 14))
+                                Text("Photos")
+                                    .font(.system(size: 14, weight: .medium))
+                            }
+                            .foregroundColor(charcoal)
+
+                            HStack(spacing: 8) {
+                                ForEach(0..<4, id: \.self) { index in
+                                    MarketPhotoSquare(
+                                        index: index,
+                                        imageData: marketPhotos[index],
+                                        onTap: {
+                                            selectedPhotoIndex = index
+                                            showingImagePicker = true
+                                        },
+                                        onRemove: {
+                                            marketPhotos.removeValue(forKey: index)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        .sheet(isPresented: $showingImagePicker) {
+                            MarketImagePicker(imageData: Binding(
+                                get: { marketPhotos[selectedPhotoIndex] },
+                                set: { marketPhotos[selectedPhotoIndex] = $0 }
+                            ))
+                        }
+                    }
+
+                    // Title Input
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Title *")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(charcoal)
+
+                        TextField("What's this about?", text: $title)
+                            .font(.system(size: 16))
+                            .padding(16)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                            )
+                    }
+
+                    // Details Input
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "doc.text")
+                                .font(.system(size: 14))
+                            Text("Details")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(charcoal)
+
+                        TextField("Tell people more...", text: $details, axis: .vertical)
+                            .font(.system(size: 16))
+                            .lineLimit(4...8)
+                            .padding(16)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                            )
+                    }
+
+                    // Conditional Fields
+                    if selectedType == .event {
+                        eventFields
+                    } else if selectedType == .help {
+                        helpFields
+                    } else if selectedType == .market {
+                        marketFields
+                    }
                 }
-                .padding(.horizontal, 24)
+                .padding(24)
+            }
 
-                // Body field
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Details")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.gray)
+            // Footer with Post Button
+            VStack(spacing: 0) {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(height: 1)
 
-                    TextField("Tell people more...", text: $details, axis: .vertical)
-                        .font(.system(size: 16))
-                        .lineLimit(5...10)
-                        .padding(16)
-                        .background(Color.gray.opacity(0.05))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-                .padding(.horizontal, 24)
-
-                Spacer()
-
-                // Post button
                 Button {
-                    // Create post
                     dismiss()
                 } label: {
                     Text("Post")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(isFormValid ? .white : Color.gray.opacity(0.5))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(title.isEmpty ? Color.gray : coralPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .background(isFormValid ? burntOrange : Color.gray.opacity(0.3))
+                        .clipShape(Capsule())
                 }
-                .disabled(title.isEmpty)
+                .disabled(!isFormValid)
                 .padding(.horizontal, 24)
-                .padding(.bottom, 24)
+                .padding(.vertical, 16)
             }
-            .padding(.top, 24)
-            .navigationTitle("Create Post")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
+            .background(warmWhite)
+        }
+        .background(warmWhite)
+        .onTapGesture {
+            hideKeyboard()
+        }
+    }
+
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
+    // MARK: - Event Fields
+
+    @ViewBuilder
+    private var eventFields: some View {
+        VStack(spacing: 16) {
+            // Date & Time Row
+            HStack(spacing: 12) {
+                // Date
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 14))
+                        Text("Date *")
+                            .font(.system(size: 14, weight: .medium))
                     }
-                    .foregroundColor(.gray)
+                    .foregroundColor(charcoal)
+
+                    DatePicker("", selection: $eventDate, displayedComponents: .date)
+                        .datePickerStyle(.compact)
+                        .labelsHidden()
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                        )
+                }
+
+                // Time
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 14))
+                        Text("Time")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundColor(charcoal)
+
+                    DatePicker("", selection: $eventTime, displayedComponents: .hourAndMinute)
+                        .datePickerStyle(.compact)
+                        .labelsHidden()
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                        )
+                }
+            }
+
+            // Location
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: "mappin")
+                        .font(.system(size: 14))
+                    Text("Location")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .foregroundColor(charcoal)
+
+                TextField("Where will this happen?", text: $location)
+                    .font(.system(size: 16))
+                    .padding(16)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                    )
+            }
+
+            // Privacy Settings
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    HStack(spacing: 8) {
+                        Image(systemName: "lock")
+                            .font(.system(size: 14))
+                        Text("Privacy Settings")
+                            .font(.system(size: 16, weight: .medium))
+                    }
+                    .foregroundColor(charcoal)
+
+                    Spacer()
+
+                    Button {
+                        withAnimation {
+                            showPrivacyDetails.toggle()
+                        }
+                    } label: {
+                        Text(showPrivacyDetails ? "Hide" : "Learn more")
+                            .font(.system(size: 14))
+                            .foregroundColor(burntOrange)
+                    }
+                }
+
+                // Privacy Options
+                VStack(spacing: 12) {
+                    PrivacyOptionButton(
+                        title: "Public",
+                        description: "Anyone can see and join",
+                        icon: "globe",
+                        iconColor: forestGreen,
+                        isSelected: eventPrivacy == "public",
+                        accentColor: burntOrange,
+                        onTap: { eventPrivacy = "public" }
+                    )
+
+                    PrivacyOptionButton(
+                        title: "Private",
+                        description: "Only invited people can see",
+                        icon: "lock",
+                        iconColor: charcoal,
+                        isSelected: eventPrivacy == "private",
+                        accentColor: burntOrange,
+                        onTap: { eventPrivacy = "private" }
+                    )
+
+                    PrivacyOptionButton(
+                        title: "Invite Only",
+                        description: "You approve each request",
+                        icon: "person.2",
+                        iconColor: burntOrange,
+                        isSelected: eventPrivacy == "invite-only",
+                        accentColor: burntOrange,
+                        onTap: { eventPrivacy = "invite-only" }
+                    )
+                }
+
+                // Privacy Details
+                if showPrivacyDetails {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 14))
+                            .foregroundColor(skyBlue)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("**Public:** Your event appears in the community feed and can be discovered by all users.")
+                            Text("**Private:** Only people you invite can see and join the event.")
+                            Text("**Invite Only:** Event is visible but you manually approve each join request.")
+                        }
+                        .font(.system(size: 12))
+                        .foregroundColor(charcoal.opacity(0.7))
+                    }
+                    .padding(12)
+                    .background(skyBlue.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+            .padding(16)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 2)
+            )
+        }
+    }
+
+    // MARK: - Help Fields
+
+    @ViewBuilder
+    private var helpFields: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Category *")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(charcoal)
+
+            Menu {
+                Button("Electrical & Solar") { category = "Electrical & Solar" }
+                Button("Plumbing & Water") { category = "Plumbing & Water" }
+                Button("Insulation") { category = "Insulation" }
+                Button("Woodwork & Furniture") { category = "Woodwork & Furniture" }
+                Button("Mechanical & Engine") { category = "Mechanical & Engine" }
+                Button("Other") { category = "Other" }
+            } label: {
+                HStack {
+                    Text(category.isEmpty ? "Select a category..." : category)
+                        .font(.system(size: 16))
+                        .foregroundColor(category.isEmpty ? Color.gray.opacity(0.5) : charcoal)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 14))
+                        .foregroundColor(charcoal.opacity(0.4))
+                }
+                .padding(16)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                )
+            }
+        }
+    }
+
+    // MARK: - Market Fields
+
+    @ViewBuilder
+    private var marketFields: some View {
+        VStack(spacing: 16) {
+            // Price
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Price")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(charcoal)
+
+                HStack(spacing: 8) {
+                    Image(systemName: "dollarsign")
+                        .font(.system(size: 16))
+                        .foregroundColor(charcoal.opacity(0.4))
+
+                    TextField("0.00", text: $price)
+                        .font(.system(size: 16))
+                        .keyboardType(.decimalPad)
+                }
+                .padding(16)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                )
+            }
+
+            // Condition
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Condition")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(charcoal)
+
+                Menu {
+                    Button("New") { condition = "New" }
+                    Button("Like New") { condition = "Like New" }
+                    Button("Good") { condition = "Good" }
+                    Button("Fair") { condition = "Fair" }
+                } label: {
+                    HStack {
+                        Text(condition.isEmpty ? "Select condition..." : condition)
+                            .font(.system(size: 16))
+                            .foregroundColor(condition.isEmpty ? Color.gray.opacity(0.5) : charcoal)
+                        Spacer()
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 14))
+                            .foregroundColor(charcoal.opacity(0.4))
+                    }
+                    .padding(16)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                    )
                 }
             }
         }
     }
 }
 
-struct PostTypeButton: View {
+// MARK: - Market Photo Square
+
+struct MarketPhotoSquare: View {
+    let index: Int
+    let imageData: Data?
+    let onTap: () -> Void
+    let onRemove: () -> Void
+    
+    private let charcoal = Color("Charcoal")
+    private let burntOrange = Color("BurntOrange")
+    
+    var body: some View {
+        GeometryReader { geometry in
+            let size = geometry.size.width
+            
+            ZStack {
+                if let data = imageData, let uiImage = UIImage(data: data) {
+                    // Photo exists
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: size, height: size)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            // Remove button
+                            Button(action: onRemove) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(.white)
+                                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                            }
+                            .offset(x: 6, y: -6),
+                            alignment: .topTrailing
+                        )
+                } else {
+                    // Empty slot
+                    Button(action: onTap) {
+                        VStack(spacing: 6) {
+                            Image(systemName: index == 0 ? "camera.fill" : "plus")
+                                .font(.system(size: index == 0 ? 24 : 20, weight: .medium))
+                                .foregroundColor(index == 0 ? burntOrange : charcoal.opacity(0.4))
+                            
+                            if index == 0 {
+                                Text("Add")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(charcoal.opacity(0.6))
+                            }
+                        }
+                        .frame(width: size, height: size)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(
+                                    index == 0 ? burntOrange : Color.gray.opacity(0.3),
+                                    style: StrokeStyle(lineWidth: 2, dash: index == 0 ? [] : [6])
+                                )
+                        )
+                    }
+                }
+            }
+        }
+        .aspectRatio(1, contentMode: .fit)
+    }
+}
+
+// MARK: - Market Image Picker
+
+struct MarketImagePicker: UIViewControllerRepresentable {
+    @Binding var imageData: Data?
+    @Environment(\.dismiss) private var dismiss
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        picker.sourceType = .photoLibrary
+        picker.allowsEditing = true
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: MarketImagePicker
+        
+        init(_ parent: MarketImagePicker) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let editedImage = info[.editedImage] as? UIImage {
+                parent.imageData = editedImage.jpegData(compressionQuality: 0.8)
+            } else if let originalImage = info[.originalImage] as? UIImage {
+                parent.imageData = originalImage.jpegData(compressionQuality: 0.8)
+            }
+            parent.dismiss()
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
+        }
+    }
+}
+
+// MARK: - Privacy Option Button
+
+struct PrivacyOptionButton: View {
+    let title: String
+    let description: String
+    let icon: String
+    let iconColor: Color
+    let isSelected: Bool
+    let accentColor: Color
+    let onTap: () -> Void
+
+    private let charcoal = Color("Charcoal")
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 18))
+                    .foregroundColor(iconColor)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(charcoal)
+
+                    Text(description)
+                        .font(.system(size: 12))
+                        .foregroundColor(charcoal.opacity(0.6))
+                }
+
+                Spacer()
+
+                if isSelected {
+                    ZStack {
+                        Circle()
+                            .fill(accentColor)
+                            .frame(width: 20, height: 20)
+
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 8, height: 8)
+                    }
+                }
+            }
+            .padding(12)
+            .background(isSelected ? accentColor.opacity(0.05) : Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? accentColor : Color.gray.opacity(0.3), lineWidth: 2)
+            )
+        }
+    }
+}
+
+// MARK: - Post Type Card
+
+struct PostTypeCard: View {
     let type: CommunityPostType
     let isSelected: Bool
     let onTap: () -> Void
 
-    private var config: (icon: String, title: String, color: Color) {
+    private let charcoal = Color("Charcoal")
+    private let burntOrange = Color("BurntOrange")
+
+    private var iconColor: Color {
         switch type {
-        case .event:
-            return ("tent", "Event", .purple)
-        case .help:
-            return ("wrench.and.screwdriver", "Help", .orange)
-        case .market:
-            return ("storefront", "Market", .blue)
+        case .event: return .purple
+        case .help: return burntOrange
+        case .market: return Color("SkyBlue")
+        }
+    }
+
+    private var title: String {
+        switch type {
+        case .event: return "Event"
+        case .help: return "Help"
+        case .market: return "Market"
         }
     }
 
     var body: some View {
         Button(action: onTap) {
             VStack(spacing: 8) {
-                Image(systemName: config.icon)
+                Image(systemName: type.icon)
                     .font(.system(size: 24))
-                    .foregroundColor(isSelected ? .white : config.color)
+                    .foregroundColor(isSelected ? iconColor : charcoal.opacity(0.6))
 
-                Text(config.title)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(isSelected ? .white : .gray)
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(isSelected ? charcoal : charcoal.opacity(0.6))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .background(isSelected ? config.color : Color.gray.opacity(0.05))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .background(isSelected ? burntOrange.opacity(0.05) : Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(isSelected ? burntOrange : Color.gray.opacity(0.3), lineWidth: 2)
+            )
         }
     }
 }

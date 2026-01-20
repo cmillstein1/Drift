@@ -200,7 +200,7 @@ struct FriendCard: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
             } else {
-                // Connect button - solid dark
+                // Connect button - gradient style
                 Button(action: {
                     if let onConnect = onConnect {
                         onConnect(profile.id)
@@ -215,8 +215,17 @@ struct FriendCard: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(inkMain)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 0.66, green: 0.77, blue: 0.84),  // #A8C5D6 Sky Blue
+                                Color(red: 0.33, green: 0.47, blue: 0.34)   // #547756 Forest Green
+                            ]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
                     .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
                 }
                 .padding(.horizontal, 16)
