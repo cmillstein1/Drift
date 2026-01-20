@@ -70,6 +70,49 @@ struct MapScreen: View {
     @State private var searchRadiusMiles: Double = 200.0
     @State private var showSearchHereButton = false
     
+    // Map type selection
+    @State private var selectedMapType: MapStyleType = .standard
+    
+    enum MapStyleType: CaseIterable {
+        case standard
+        case traffic
+        case satellite
+        
+        var icon: String {
+            switch self {
+            case .standard: return "map"
+            case .traffic: return "car"
+            case .satellite: return "globe.americas"
+            }
+        }
+        
+        var label: String {
+            switch self {
+            case .standard: return "Standard"
+            case .traffic: return "Traffic"
+            case .satellite: return "Satellite"
+            }
+        }
+        
+        func next() -> MapStyleType {
+            let allCases = MapStyleType.allCases
+            let currentIndex = allCases.firstIndex(of: self) ?? 0
+            let nextIndex = (currentIndex + 1) % allCases.count
+            return allCases[nextIndex]
+        }
+    }
+    
+    private var currentMapStyle: MapStyle {
+        switch selectedMapType {
+        case .standard:
+            return .standard
+        case .traffic:
+            return .standard(emphasis: .muted, showsTraffic: true)
+        case .satellite:
+            return .imagery
+        }
+    }
+    
     private let softGray = Color("SoftGray")
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
@@ -96,7 +139,7 @@ struct MapScreen: View {
                     }
                 }
             }
-            .mapStyle(.standard)
+            .mapStyle(currentMapStyle)
             .ignoresSafeArea()
             .onMapCameraChange { context in
                 let newRegion = context.region
@@ -108,6 +151,30 @@ struct MapScreen: View {
             
             VStack {
                 HStack {
+                    // Map type toggle button
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedMapType = selectedMapType.next()
+                        }
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: selectedMapType.icon)
+                                .font(.system(size: 14, weight: .medium))
+                            Text(selectedMapType.label)
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .foregroundColor(charcoalColor)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(
+                            Capsule()
+                                .fill(Color.white)
+                                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                        )
+                    }
+                    .padding(.leading, 16)
+                    .padding(.top, 16)
+                    
                     Spacer()
                     
                     // Center on user location button

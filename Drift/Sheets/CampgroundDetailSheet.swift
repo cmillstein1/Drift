@@ -511,7 +511,7 @@ struct AmenityCard: View {
             Text(name)
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(charcoalColor)
-                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
             
             Spacer()
         }

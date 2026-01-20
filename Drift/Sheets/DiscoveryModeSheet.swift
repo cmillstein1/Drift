@@ -15,7 +15,6 @@ struct DiscoveryModeSheet: View {
 
     var onSelectDatingAndFriends: () -> Void
     var onSelectFriendsOnly: () -> Void
-    var onSelectDatingOnly: (() -> Void)?
     var hasCompletedDatingOnboarding: Bool
 
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
@@ -76,7 +75,7 @@ struct DiscoveryModeSheet: View {
                             title: "Dating & Friends",
                             description: "See both dating matches and friend connections. Perfect for finding romance and community.",
                             icon: "heart.fill",
-                            isSelected: currentMode == .both,
+                            isSelected: currentMode == .both || currentMode == .dating,
                             gradient: LinearGradient(
                                 gradient: Gradient(colors: [burntOrange, sunsetRose]),
                                 startPoint: .topLeading,
@@ -86,24 +85,6 @@ struct DiscoveryModeSheet: View {
                             showSetupNote: !hasCompletedDatingOnboarding && currentMode == .friends
                         ) {
                             onSelectDatingAndFriends()
-                            dismiss()
-                        }
-
-                        // Dating Only Card
-                        DiscoveryModeOption(
-                            title: "Dating Only",
-                            description: "Focus on romantic connections only. No friends tab, just dating profiles.",
-                            icon: "heart.circle.fill",
-                            isSelected: currentMode == .dating,
-                            gradient: LinearGradient(
-                                gradient: Gradient(colors: [sunsetRose, burntOrange]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            accentColor: sunsetRose,
-                            showSetupNote: !hasCompletedDatingOnboarding && currentMode == .friends
-                        ) {
-                            onSelectDatingOnly?()
                             dismiss()
                         }
 
@@ -240,7 +221,6 @@ struct DiscoveryModeOption: View {
         isPresented: .constant(true),
         onSelectDatingAndFriends: {},
         onSelectFriendsOnly: {},
-        onSelectDatingOnly: {},
         hasCompletedDatingOnboarding: false
     )
 }
