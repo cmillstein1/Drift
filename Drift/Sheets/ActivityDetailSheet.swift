@@ -361,12 +361,12 @@ struct ActivityDetailSheet: View {
                         }) {
                             Image(systemName: "message")
                                 .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(burntOrange)
+                                .foregroundColor(forestGreen)
                                 .frame(width: 48, height: 48)
                                 .background(Color.clear)
                                 .overlay(
                                     Circle()
-                                        .stroke(burntOrange, lineWidth: 2)
+                                        .stroke(forestGreen, lineWidth: 2)
                                 )
                         }
                         
