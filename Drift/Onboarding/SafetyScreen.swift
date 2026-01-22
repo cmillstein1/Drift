@@ -29,6 +29,9 @@ struct SafetyScreen: View {
     @State private var feature3Offset: CGFloat = -20
     @State private var buttonOpacity: Double = 0
     @State private var buttonOffset: CGFloat = 20
+    @State private var isTransitioning: Bool = false
+    @State private var contentScale: CGFloat = 1.0
+    @State private var contentOpacity: Double = 1.0
     
     private let warmWhite = Color(red: 0.98, green: 0.98, blue: 0.96)
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
@@ -42,12 +45,11 @@ struct SafetyScreen: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                ProgressIndicator(currentStep: 9, totalSteps: 9)
-                    .padding(.top, 32)
-                    .padding(.bottom, 48)
-                
                 VStack(spacing: 0) {
                     VStack(spacing: 32) {
+                        // Add top padding since we removed the progress indicator
+                        Spacer()
+                            .frame(height: 32)
                         VStack(spacing: 24) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 24)
@@ -118,24 +120,7 @@ struct SafetyScreen: View {
                     Spacer()
                     
                     Button(action: {
-                        Task {
-                            // Mark onboarding as complete in auth metadata
-                            await supabaseManager.markOnboardingCompleted()
-
-                            // Also update the profile in the database
-                            do {
-                                try await profileManager.updateProfile(
-                                    ProfileUpdateRequest(onboardingCompleted: true)
-                                )
-                            } catch {
-                                print("Failed to update profile: \(error)")
-                            }
-
-                            // Small delay to ensure state updates
-                            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-                            // Then call onComplete
-                            onComplete()
-                        }
+                        handleStartExploring()
                     }) {
                         Text("Start Exploring")
                             .font(.system(size: 17, weight: .semibold))
@@ -151,6 +136,8 @@ struct SafetyScreen: View {
                     .offset(y: buttonOffset)
                 }
             }
+            .scaleEffect(contentScale)
+            .opacity(contentOpacity)
         }
         .onAppear {
             withAnimation(.easeOut(duration: 0.5).delay(0.2)) {
@@ -190,6 +177,39 @@ struct SafetyScreen: View {
             withAnimation(.easeOut(duration: 0.5).delay(0.8)) {
                 buttonOpacity = 1
                 buttonOffset = 0
+            }
+        }
+    }
+    
+    private func handleStartExploring() {
+        guard !isTransitioning else { return }
+        isTransitioning = true
+        
+        // Beautiful exit animation
+        withAnimation(.easeInOut(duration: 0.6)) {
+            contentScale = 0.95
+            contentOpacity = 0.0
+        }
+        
+        Task {
+            // Mark onboarding as complete in auth metadata
+            await supabaseManager.markOnboardingCompleted()
+
+            // Also update the profile in the database
+            do {
+                try await profileManager.updateProfile(
+                    ProfileUpdateRequest(onboardingCompleted: true)
+                )
+            } catch {
+                print("Failed to update profile: \(error)")
+            }
+
+            // Wait for animation to complete
+            try? await Task.sleep(nanoseconds: 600_000_000) // 0.6 seconds
+            
+            // Then call onComplete to transition to ContentView
+            await MainActor.run {
+                onComplete()
             }
         }
     }

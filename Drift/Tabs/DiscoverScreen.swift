@@ -732,40 +732,74 @@ struct DiscoverScreen: View {
     private var friendsView: some View {
         let discoveryMode = supabaseManager.getDiscoveryMode()
         
-        VStack(spacing: 0) {
-            // Header
+        NavigationStack {
             VStack(spacing: 0) {
-                // Mode switcher row - same position as dating view
-                HStack {
-                    if discoveryMode == .both {
-                        modeSwitcher(style: .light)
+                // Header
+                VStack(spacing: 0) {
+                    // Mode switcher row - same position as dating view
+                    HStack {
+                        if discoveryMode == .both {
+                            modeSwitcher(style: .light)
+                        }
+                        Spacer()
+                        friendsFilterButton
                     }
-                    Spacer()
-                    friendsFilterButton
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 12)
-                .padding(.bottom, 20)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 12)
+                    .padding(.bottom, 20)
 
-                // Title section
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Nearby Friends")
-                        .font(.system(size: 24, weight: .heavy))
-                        .foregroundColor(inkMain)
+                    // Title section
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Nearby Friends")
+                            .font(.system(size: 24, weight: .heavy))
+                            .foregroundColor(inkMain)
 
-                    Text("Connect instantly - no matching required!")
-                        .font(.system(size: 14))
-                        .foregroundColor(inkSub)
+                        Text("Connect instantly - no matching required!")
+                            .font(.system(size: 14))
+                            .foregroundColor(inkSub)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 16)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 16)
+                .background(softGray)
+
+                FriendsListContent()
             }
             .background(softGray)
-
-            FriendsListContent()
+            .navigationDestination(for: UserProfile.self) { profile in
+                FriendDetailView(
+                    profile: profile,
+                    mutualInterests: getMutualInterests(for: profile),
+                    requestSent: friendsManager.hasSentRequest(to: profile.id),
+                    showConnectButton: true,
+                    isFromFriendsGrid: false,
+                    onConnect: { profileId in
+                        handleConnect(profileId: profileId)
+                    },
+                    onMessage: { profileId in
+                        // Handle message action if needed
+                    }
+                )
+            }
         }
-        .background(softGray)
+    }
+    
+    private func getMutualInterests(for profile: UserProfile) -> [String] {
+        let currentUserInterests = supabaseManager.currentUser.flatMap { _ in
+            profileManager.currentProfile?.interests
+        } ?? []
+        return Set(currentUserInterests).intersection(Set(profile.interests)).map { $0 }
+    }
+    
+    private func handleConnect(profileId: UUID) {
+        Task {
+            do {
+                try await friendsManager.sendFriendRequest(to: profileId)
+            } catch {
+                print("Failed to send friend request: \(error)")
+            }
+        }
     }
 
 
@@ -807,7 +841,6 @@ struct FriendsListContent: View {
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var friendsManager = FriendsManager.shared
     @ObservedObject private var supabaseManager = SupabaseManager.shared
-
     @State private var isLoading = true
     @State private var swipedIds: [UUID] = []
 
@@ -884,14 +917,18 @@ struct FriendsListContent: View {
                     .padding(.horizontal, 16)
                 } else {
                     ForEach(profiles) { profile in
-                        FriendCard(
-                            profile: profile,
-                            mutualInterests: getMutualInterests(for: profile),
-                            requestSent: friendsManager.hasSentRequest(to: profile.id),
-                            onConnect: { profileId in
-                                handleConnect(profileId: profileId)
-                            }
-                        )
+                        NavigationLink(value: profile) {
+                            FriendCard(
+                                profile: profile,
+                                mutualInterests: getMutualInterests(for: profile),
+                                requestSent: friendsManager.hasSentRequest(to: profile.id),
+                                onConnect: { profileId in
+                                    handleConnect(profileId: profileId)
+                                },
+                                onTap: nil
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                 }
             }

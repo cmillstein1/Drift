@@ -51,13 +51,7 @@ struct DiscoveryModeSheet: View {
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
-            .background(Color.white)
-            .overlay(
-                Rectangle()
-                    .frame(height: 1)
-                    .foregroundColor(Color.gray.opacity(0.2)),
-                alignment: .bottom
-            )
+            .background(.softGray)
 
             // Content
             ScrollView {
@@ -124,11 +118,10 @@ struct DiscoveryModeSheet: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .padding(.horizontal, 24)
                     .padding(.top, 24)
-                    .padding(.bottom, 24)
                 }
             }
         }
-        .background(Color.white)
+        .background(.softGray)
     }
 }
 

@@ -219,7 +219,7 @@ struct MessagesScreen: View {
                             .foregroundColor(charcoalColor)
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 16)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
                             .fill(Color.white)

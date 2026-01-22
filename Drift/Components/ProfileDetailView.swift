@@ -38,9 +38,6 @@ struct ProfileDetailView: View {
             // Main scrollable content
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
-                    // ==========================================
-                    // HERO SECTION - h-[500px]
-                    // ==========================================
                     GeometryReader { geo in
                         ZStack(alignment: .bottom) {
                             // Hero image

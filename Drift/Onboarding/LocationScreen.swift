@@ -60,12 +60,11 @@ struct LocationScreen: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                ProgressIndicator(currentStep: 7, totalSteps: 9)
-                    .padding(.top, 32)
-                    .padding(.bottom, 48)
-                
                 VStack(spacing: 0) {
                     VStack(spacing: 32) {
+                        // Add top padding since we removed the progress indicator
+                        Spacer()
+                            .frame(height: 32)
                         VStack(spacing: 24) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 24)

@@ -45,7 +45,7 @@ struct DriftApp: App {
 
     var body: some Scene {
         WindowGroup {
-            Group {
+            ZStack {
                 if supabaseManager.isAuthenticated {
                     if profileManager.isLoading && profileManager.currentProfile == nil {
                         // Wait for profile to load before deciding
@@ -57,6 +57,11 @@ struct DriftApp: App {
                     } else if hasCompletedOnboarding {
                         // User has completed onboarding - go straight to home (skip WelcomeSplash and onboarding)
                         ContentView()
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                                removal: .opacity
+                            ))
+                            .zIndex(1)
                     } else if supabaseManager.isShowingWelcomeSplash {
                         // New user - show welcome splash first (part of onboarding)
                         WelcomeSplash {
@@ -77,8 +82,12 @@ struct DriftApp: App {
                         OnboardingFlow {
                             // SafetyScreen will mark onboarding as complete
                             // Just need to clear the flag here
-                            supabaseManager.isShowingOnboarding = false
+                            withAnimation(.easeInOut(duration: 0.6)) {
+                                supabaseManager.isShowingOnboarding = false
+                            }
                         }
+                        .transition(.opacity)
+                        .zIndex(0)
                     } else {
                         // User is authenticated but hasn't completed onboarding
                         // and no specific flag is set - redirect to preference selection
@@ -92,6 +101,8 @@ struct DriftApp: App {
                     WelcomeScreen()
                 }
             }
+            .animation(.easeInOut(duration: 0.6), value: hasCompletedOnboarding)
+            .animation(.easeInOut(duration: 0.6), value: supabaseManager.isShowingOnboarding)
             .task(id: supabaseManager.isAuthenticated) {
                 // Fetch profile when authenticated to check onboarding status
                 if supabaseManager.isAuthenticated && profileManager.currentProfile == nil {

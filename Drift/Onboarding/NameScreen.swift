@@ -34,9 +34,9 @@ struct NameScreen: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                ProgressIndicator(currentStep: 1, totalSteps: 9)
-                    .padding(.top, 32)
-                    .padding(.bottom, 48)
+                // Progress indicator is shown in OnboardingFlow
+                Spacer()
+                    .frame(height: 24)
                 
                 VStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: 0) {
