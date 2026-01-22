@@ -67,6 +67,9 @@ struct ProfileScreen: View {
                         
                         // Settings Menu
                         settingsMenuSection
+                        
+                        // Emergency Services (outside settings section)
+                        emergencyServicesSection
                     }
                     .padding(.horizontal, 16)
                     .padding(.bottom, 120)
@@ -508,6 +511,18 @@ struct ProfileScreen: View {
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 24))
         .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
+    }
+    
+    // MARK: - Emergency Services Section
+    
+    private var emergencyServicesSection: some View {
+        VStack(spacing: 8) {
+            EmergencyButton(style: .floating)
+            
+            Text("Hold for 2 seconds to call")
+                .font(.system(size: 11))
+                .foregroundColor(charcoalColor.opacity(0.5))
+        }
     }
     
     private var menuDivider: some View {
