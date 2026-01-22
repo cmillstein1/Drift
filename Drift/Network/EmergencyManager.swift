@@ -10,7 +10,16 @@ import Foundation
 
 /// Manager for handling emergency service calls
 /// Automatically detects country and uses appropriate emergency number
-/// On iPhone 14+ with no cellular/Wi-Fi, iOS will automatically use satellite communication
+/// 
+/// Location Sharing:
+/// - iOS automatically shares GPS coordinates with emergency services via HELO (Hybridized Emergency Location)
+/// - Uses RapidSOS integration to send precise location (GPS + Wi-Fi + cell tower data) to 911 centers
+/// - On iPhone 14+ with no cellular/Wi-Fi, Emergency SOS via Satellite automatically includes:
+///   - GPS coordinates (latitude, longitude, elevation)
+///   - Medical ID (if set up)
+///   - Battery level
+///   - Emergency questionnaire answers
+/// - No third-party service or additional code needed - iOS handles this natively
 @MainActor
 class EmergencyManager {
     static let shared = EmergencyManager()
@@ -99,6 +108,11 @@ class EmergencyManager {
     }
     
     /// Call emergency services
+    /// 
+    /// Location is automatically shared:
+    /// - Regular calls: iOS uses HELO/RapidSOS to automatically send GPS coordinates to emergency services
+    /// - Satellite calls (iPhone 14+): Location, elevation, Medical ID, and battery level are automatically included
+    /// 
     /// On iPhone 14+ with no cellular/Wi-Fi, iOS automatically uses Emergency SOS via Satellite
     /// - Parameter number: Emergency number to call (defaults to current country's number)
     func callEmergency(number: String? = nil) {

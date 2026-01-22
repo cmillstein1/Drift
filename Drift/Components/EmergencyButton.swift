@@ -86,12 +86,39 @@ struct EmergencyButton: View {
                     if isPressing {
                         GeometryReader { geometry in
                             ZStack(alignment: .leading) {
+                                // Background progress bar
                                 Rectangle()
-                                    .fill(Color.white.opacity(0.3))
+                                    .fill(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                Color.white.opacity(0.8),
+                                                Color.white.opacity(0.6)
+                                            ]),
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
                                     .frame(width: geometry.size.width * pressProgress)
+                                
+                                // Animated shimmer effect
+                                Rectangle()
+                                    .fill(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                Color.clear,
+                                                Color.white.opacity(0.4),
+                                                Color.clear
+                                            ]),
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .frame(width: geometry.size.width * pressProgress)
+                                    .blur(radius: 2)
                             }
                         }
                         .clipShape(Capsule())
+                        .animation(.linear(duration: 0.1), value: pressProgress)
                     }
                 }
             )
@@ -113,7 +140,7 @@ struct EmergencyButton: View {
                 EmergencyManager.shared.callEmergency()
             }
         } message: {
-            Text("This will immediately call \(EmergencyManager.shared.currentEmergencyNumber).\n\nOn iPhone 14 or later with no cellular service, Emergency SOS via Satellite will be used automatically.\n\nOnly use this in a real emergency.")
+            Text("This will immediately call \(EmergencyManager.shared.currentEmergencyNumber).\n\nYour location (GPS coordinates) will be automatically shared with emergency services.\n\nOn iPhone 14 or later with no cellular service, Emergency SOS via Satellite will be used automatically.\n\nOnly use this in a real emergency.")
         }
     }
     
@@ -182,12 +209,39 @@ struct CompactEmergencyButton: View {
                     if isPressing {
                         GeometryReader { geometry in
                             ZStack(alignment: .leading) {
+                                // Background progress bar
                                 Rectangle()
-                                    .fill(Color.white.opacity(0.3))
+                                    .fill(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                Color.white.opacity(0.8),
+                                                Color.white.opacity(0.6)
+                                            ]),
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
                                     .frame(width: geometry.size.width * pressProgress)
+                                
+                                // Animated shimmer effect
+                                Rectangle()
+                                    .fill(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                Color.clear,
+                                                Color.white.opacity(0.4),
+                                                Color.clear
+                                            ]),
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .frame(width: geometry.size.width * pressProgress)
+                                    .blur(radius: 2)
                             }
                         }
                         .clipShape(Capsule())
+                        .animation(.linear(duration: 0.1), value: pressProgress)
                     }
                 }
             )
@@ -209,7 +263,7 @@ struct CompactEmergencyButton: View {
                 EmergencyManager.shared.callEmergency()
             }
         } message: {
-            Text("This will immediately call \(EmergencyManager.shared.currentEmergencyNumber).\n\nOn iPhone 14 or later with no cellular service, Emergency SOS via Satellite will be used automatically.\n\nOnly use this in a real emergency.")
+            Text("This will immediately call \(EmergencyManager.shared.currentEmergencyNumber).\n\nYour location (GPS coordinates) will be automatically shared with emergency services.\n\nOn iPhone 14 or later with no cellular service, Emergency SOS via Satellite will be used automatically.\n\nOnly use this in a real emergency.")
         }
     }
     
