@@ -55,9 +55,9 @@ struct PhotoUploadScreen: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                ProgressIndicator(currentStep: 5, totalSteps: 9)
-                    .padding(.top, 32)
-                    .padding(.bottom, 24)
+                // Progress indicator is shown in OnboardingFlow
+                Spacer()
+                    .frame(height: 24)
                 
                 ScrollView {
                     VStack(spacing: 0) {

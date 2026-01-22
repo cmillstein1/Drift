@@ -16,7 +16,6 @@ struct PreferenceSelectionScreen: View {
 
     enum PreferenceType {
         case datingAndFriends
-        case datingOnly
         case friendsOnly
     }
     
@@ -66,24 +65,6 @@ struct PreferenceSelectionScreen: View {
                         onTap: {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 selectedPreference = .datingAndFriends
-                            }
-                        }
-                    )
-
-                    // Dating Only Option
-                    PreferenceCard(
-                        title: "Dating Only",
-                        description: "Focus on finding romantic connections only.",
-                        icon: "heart.circle.fill",
-                        gradient: LinearGradient(
-                            colors: [pink500, burntOrange],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        isSelected: selectedPreference == .datingOnly,
-                        onTap: {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                selectedPreference = .datingOnly
                             }
                         }
                     )
@@ -163,9 +144,6 @@ struct PreferenceSelectionScreen: View {
                 case .datingAndFriends:
                     updatedMetadata["friendsOnly"] = AnyJSON.string("false")
                     updatedMetadata["discoveryMode"] = AnyJSON.string("both")
-                case .datingOnly:
-                    updatedMetadata["friendsOnly"] = AnyJSON.string("false")
-                    updatedMetadata["discoveryMode"] = AnyJSON.string("dating")
                 case .friendsOnly:
                     updatedMetadata["friendsOnly"] = AnyJSON.string("true")
                     updatedMetadata["discoveryMode"] = AnyJSON.string("friends")
@@ -182,7 +160,7 @@ struct PreferenceSelectionScreen: View {
                     // Friends only - proceed to friend onboarding
                     supabaseManager.isShowingPreferenceSelection = false
                     supabaseManager.isShowingFriendOnboarding = true
-                case .datingAndFriends, .datingOnly:
+                case .datingAndFriends:
                     // Dating modes - proceed to normal onboarding
                     supabaseManager.isShowingPreferenceSelection = false
                     supabaseManager.isShowingOnboarding = true
@@ -231,6 +209,8 @@ struct PreferenceCard: View {
                         .font(.system(size: 14))
                         .foregroundColor(charcoalColor.opacity(0.6))
                         .multilineTextAlignment(.leading)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 
                 Spacer()

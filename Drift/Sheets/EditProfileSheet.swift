@@ -108,6 +108,11 @@ struct EditProfileSheet: View {
             }
         }
     }
+    
+    // Computed property to check if any section is expanded
+    private var hasExpandedSection: Bool {
+        expandedSections.values.contains(true)
+    }
 
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
@@ -242,8 +247,10 @@ struct EditProfileSheet: View {
                 .padding(.bottom, 24)
             }
             .background(warmWhite)
+            .scrollContentBackground(.hidden)
         }
         .background(warmWhite)
+        .preference(key: ExpandedSectionPreferenceKey.self, value: hasExpandedSection)
         .onAppear {
             loadProfileData()
         }
@@ -1003,6 +1010,15 @@ struct EditProfileSheet: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Preference Key for Expanded State
+
+struct ExpandedSectionPreferenceKey: PreferenceKey {
+    static var defaultValue: Bool = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = nextValue() || value
     }
 }
 

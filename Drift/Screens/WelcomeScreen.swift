@@ -210,7 +210,7 @@ struct WelcomeScreen: View {
 
                         if showEmailLogin {
                             // Email Login Form
-                            VStack(spacing: 16) {
+                            VStack(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Email")
                                         .font(.subheadline)
@@ -275,7 +275,7 @@ struct WelcomeScreen: View {
                                         .font(.subheadline)
                                         .foregroundColor(.white.opacity(0.9))
                                 }
-                                .padding(.top, 8)
+                                .padding(.top, 4)
 
                                 Button(action: {
                                     withAnimation(.easeInOut(duration: 0.3)) {
@@ -289,6 +289,7 @@ struct WelcomeScreen: View {
                                         .font(.subheadline)
                                         .foregroundColor(.white.opacity(0.9))
                                 }
+                                .padding(.top, 4)
                             }
                             .transition(.asymmetric(
                                 insertion: .move(edge: .trailing).combined(with: .opacity),

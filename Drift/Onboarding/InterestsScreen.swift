@@ -111,9 +111,9 @@ struct InterestsScreen: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                ProgressIndicator(currentStep: 6, totalSteps: 9)
-                    .padding(.top, 32)
-                    .padding(.bottom, 24)
+                // Progress indicator is shown in OnboardingFlow
+                Spacer()
+                    .frame(height: 24)
                 
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Your interests")
@@ -188,7 +188,7 @@ struct InterestsScreen: View {
                 }
                 
                 VStack(spacing: 12) {
-                    Text("\(selectedInterests.count) selected\(selectedInterests.count < 3 ? " · \(3 - selectedInterests.count) more needed" : "")")
+                    Text("\(selectedInterests.count) selected")
                         .font(.system(size: 14))
                         .foregroundColor(charcoalColor.opacity(0.6))
 

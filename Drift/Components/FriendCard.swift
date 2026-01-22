@@ -33,8 +33,9 @@ struct FriendCard: View {
     var requestSent: Bool
     var onConnect: ((UUID) -> Void)?
     var onConnectWithMessage: ((UUID) -> Void)?
+    var onTap: (() -> Void)?
 
-    init(profile: UserProfile, index: Int = 0, opacity: Double = 1.0, offset: CGFloat = 0, mutualInterests: [String] = [], requestSent: Bool = false, onConnect: ((UUID) -> Void)? = nil, onConnectWithMessage: ((UUID) -> Void)? = nil) {
+    init(profile: UserProfile, index: Int = 0, opacity: Double = 1.0, offset: CGFloat = 0, mutualInterests: [String] = [], requestSent: Bool = false, onConnect: ((UUID) -> Void)? = nil, onConnectWithMessage: ((UUID) -> Void)? = nil, onTap: (() -> Void)? = nil) {
         self.profile = profile
         self.index = index
         self.opacity = opacity
@@ -43,6 +44,7 @@ struct FriendCard: View {
         self.requestSent = requestSent
         self.onConnect = onConnect
         self.onConnectWithMessage = onConnectWithMessage
+        self.onTap = onTap
     }
 
     // Colors matching HTML design
@@ -70,9 +72,23 @@ struct FriendCard: View {
     }
 
     var body: some View {
+        Group {
+            if onTap != nil {
+                Button(action: {
+                    onTap?()
+                }) {
+                    cardContent
+                }
+            } else {
+                cardContent
+            }
+        }
+    }
+    
+    private var cardContent: some View {
         VStack(spacing: 0) {
-            // Main Content - Profile info row
-            HStack(alignment: .top, spacing: 16) {
+                // Main Content - Profile info row
+                HStack(alignment: .top, spacing: 16) {
                 // Profile Image (larger, 80x80 with rounded corners)
                 ZStack(alignment: .bottomTrailing) {
                     AsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? "")) { phase in
@@ -152,8 +168,8 @@ struct FriendCard: View {
                 }
 
                 Spacer()
-            }
-            .padding(16)
+                }
+                .padding(16)
 
             // Interest tags row
             if !interestTags.isEmpty {
@@ -231,16 +247,16 @@ struct FriendCard: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
             }
-        }
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 24))
-        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-        .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-        )
-        .opacity(opacity)
-        .offset(y: offset)
+            }
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+            .overlay(
+                RoundedRectangle(cornerRadius: 24)
+                    .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+            )
+            .opacity(opacity)
+            .offset(y: offset)
     }
 }
 

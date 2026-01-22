@@ -17,6 +17,8 @@ struct ProfileScreen: View {
     @State private var showEditProfileSheet = false
     @State private var showDiscoveryModeSheet = false
     @State private var showSettingsSheet = false
+    @State private var navigateToFriendsGrid = false
+    @State private var showPaywall = false
 
     private var profile: UserProfile? {
         profileManager.currentProfile
@@ -40,10 +42,11 @@ struct ProfileScreen: View {
     private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
     
     var body: some View {
-        ZStack {
-            softGray.ignoresSafeArea()
-            
-            ScrollView(showsIndicators: false) {
+        NavigationStack {
+            ZStack {
+                softGray.ignoresSafeArea()
+                
+                ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
                     // Header Image
                     headerImageSection
@@ -59,43 +62,53 @@ struct ProfileScreen: View {
                         // Discovery Mode
                         discoveryModeButton
                         
+                        // My Friends Button
+                        myFriendsButton
+                        
                         // Settings Menu
                         settingsMenuSection
                     }
                     .padding(.horizontal, 16)
                     .padding(.bottom, 120)
                 }
+                }
             }
-        }
-        .sheet(isPresented: $showEditProfileSheet) {
-            EditProfileSheet(isPresented: $showEditProfileSheet)
-                .presentationDetents([.large])
+            .sheet(isPresented: $showEditProfileSheet) {
+                EditProfileSheetWrapper(isPresented: $showEditProfileSheet)
+            }
+            .sheet(isPresented: $showDiscoveryModeSheet) {
+                DiscoveryModeSheet(
+                    isPresented: $showDiscoveryModeSheet,
+                    onSelectDatingAndFriends: {
+                        Task {
+                            await updateDiscoveryMode(.both)
+                        }
+                    },
+                    onSelectFriendsOnly: {
+                        Task {
+                            await updateDiscoveryMode(.friends)
+                        }
+                    },
+                    hasCompletedDatingOnboarding: getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
+                )
+                .presentationDetents([.height(480)])
                 .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $showDiscoveryModeSheet) {
-            DiscoveryModeSheet(
-                isPresented: $showDiscoveryModeSheet,
-                onSelectDatingAndFriends: {
-                    Task {
-                        await updateDiscoveryMode(.both)
+            }
+            .navigationDestination(for: String.self) { destination in
+                if destination == "friendsGrid" {
+                    FriendsGridScreen()
+                }
+            }
+            .sheet(isPresented: $showPaywall) {
+                PaywallScreen(isOpen: $showPaywall, source: .general)
+            }
+            .onAppear {
+                Task {
+                    do {
+                        try await profileManager.fetchCurrentProfile()
+                    } catch {
+                        print("Failed to fetch profile: \(error)")
                     }
-                },
-                onSelectFriendsOnly: {
-                    Task {
-                        await updateDiscoveryMode(.friends)
-                    }
-                },
-                hasCompletedDatingOnboarding: getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
-            )
-            .presentationDetents([.height(480)])
-            .presentationDragIndicator(.visible)
-        }
-        .onAppear {
-            Task {
-                do {
-                    try await profileManager.fetchCurrentProfile()
-                } catch {
-                    print("Failed to fetch profile: \(error)")
                 }
             }
         }
@@ -147,21 +160,6 @@ struct ProfileScreen: View {
             .frame(height: 256)
             .frame(maxWidth: .infinity)
             .clipped()
-            
-            // Gradient overlay at bottom
-            VStack {
-                Spacer()
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color.clear,
-                        softGray
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 80)
-            }
-
             
             // Edit Profile Button
             VStack {
@@ -223,7 +221,7 @@ struct ProfileScreen: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, -16)
+        .padding(.top, 16)
     }
     
     // MARK: - About Section
@@ -238,7 +236,8 @@ struct ProfileScreen: View {
                 Text(bio)
                     .font(.system(size: 15))
                     .foregroundColor(charcoalColor.opacity(0.7))
-                    .lineSpacing(4)
+                    .lineSpacing(6)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text("Add a bio to tell others about yourself")
                     .font(.system(size: 15))
@@ -248,12 +247,10 @@ struct ProfileScreen: View {
             
             // Interest Tags
             if let interests = profile?.interests, !interests.isEmpty {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], alignment: .leading, spacing: 8) {
-                    ForEach(interests, id: \.self) { interest in
-                        ProfileInterestTag(interest: interest)
-                    }
+                FlowLayout(data: interests.map { InterestItem($0) }, spacing: 8) { item in
+                    ProfileInterestTag(interest: item.name)
                 }
-                .padding(.top, 4)
+                .padding(.top, 8)
             }
             
             // Travel Info
@@ -339,20 +336,75 @@ struct ProfileScreen: View {
         }
     }
     
+    // MARK: - My Friends Button
+    
+    private var myFriendsButton: some View {
+        NavigationLink(value: "friendsGrid") {
+            HStack(spacing: 12) {
+                // Icon container with backdrop blur
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.white.opacity(0.2))
+                        .background(.ultraThinMaterial)
+                        .frame(width: 48, height: 48)
+                    
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(.white)
+                }
+                
+                // Text
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("My Friends")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                    
+                    Text("View all your connections")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(.white.opacity(0.8))
+            }
+            .padding(20)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        skyBlue,
+                        forestGreen
+                    ]),
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
     // MARK: - Settings Menu Section
     
     private var settingsMenuSection: some View {
         VStack(spacing: 0) {
             // Drift Pro
             Button(action: {
-                revenueCatManager.showCustomerCenter()
+                if revenueCatManager.hasProAccess {
+                    revenueCatManager.showCustomerCenter()
+                } else {
+                    showPaywall = true
+                }
             }) {
                 ProfileMenuRow(
                     icon: "crown.fill",
                     iconBackgroundGradient: [Color(red: 0.98, green: 0.76, blue: 0.18), Color(red: 0.96, green: 0.55, blue: 0.12)],
                     title: "Drift Pro",
-                    subtitle: "Renews Jan 18, 2026",
-                    badge: "Active",
+                    subtitle: revenueCatManager.hasProAccess ? "Renews Jan 18, 2026" : "Upgrade to unlock features",
+                    badge: revenueCatManager.hasProAccess ? "Active" : nil,
                     badgeColor: forestGreen
                 )
             }
@@ -395,6 +447,22 @@ struct ProfileScreen: View {
                     icon: "questionmark.circle.fill",
                     iconBackground: Color.purple,
                     title: "Help & Support",
+                    subtitle: nil
+                )
+            }
+            
+            menuDivider
+            
+            // Restart Onboarding
+            Button(action: {
+                Task {
+                    await restartOnboarding()
+                }
+            }) {
+                ProfileMenuRow(
+                    icon: "arrow.counterclockwise",
+                    iconBackground: burntOrange,
+                    title: "Restart Onboarding",
                     subtitle: nil
                 )
             }
@@ -506,6 +574,13 @@ struct ProfileScreen: View {
         }
     }
     
+    private func getMutualInterests(for profile: UserProfile) -> [String] {
+        let currentUserInterests = supabaseManager.currentUser.flatMap { _ in
+            profileManager.currentProfile?.interests
+        } ?? []
+        return Set(currentUserInterests).intersection(Set(profile.interests)).map { $0 }
+    }
+    
     private func getOnboardingStatus(from metadata: [String: Any]) -> Bool {
         guard let value = metadata["onboarding_completed"] else {
             return false
@@ -535,13 +610,29 @@ struct ProfileInterestTag: View {
     private let charcoalColor = Color("Charcoal")
     
     var body: some View {
-        Text(interest)
-            .font(.system(size: 14, weight: .medium))
-            .foregroundColor(charcoalColor)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(desertSand)
-            .clipShape(Capsule())
+        HStack(spacing: 6) {
+            if let emoji = DriftUI.emoji(for: interest) {
+                Text(emoji)
+                    .font(.system(size: 14))
+            }
+            Text(interest)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(charcoalColor)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(desertSand)
+        .clipShape(Capsule())
+    }
+}
+
+private struct InterestItem: Identifiable {
+    let id: String
+    let name: String
+    
+    init(_ name: String) {
+        self.id = name
+        self.name = name
     }
 }
 

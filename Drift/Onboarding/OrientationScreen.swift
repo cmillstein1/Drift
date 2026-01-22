@@ -34,9 +34,9 @@ struct OrientationScreen: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                ProgressIndicator(currentStep: 3, totalSteps: 9)
-                    .padding(.top, 32)
-                    .padding(.bottom, 48)
+                // Progress indicator is shown in OnboardingFlow
+                Spacer()
+                    .frame(height: 24)
                 
                 VStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: 0) {
@@ -145,6 +145,7 @@ struct ProgressIndicator: View {
                 RoundedRectangle(cornerRadius: 3)
                     .fill(index < currentStep ? burntOrange : Color.gray.opacity(0.3))
                     .frame(width: 32, height: 6)
+                    .animation(.easeInOut(duration: 0.3), value: currentStep)
             }
         }
     }
