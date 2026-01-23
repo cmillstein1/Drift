@@ -184,11 +184,6 @@ struct TravelStyleScreen: View {
                 Spacer()
                 
                 VStack(spacing: 0) {
-                    // Divider
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(height: 1)
-                    
                     // Button - Make entire area clickable
                     Button(action: {
                         if canContinue {
@@ -222,10 +217,9 @@ struct TravelStyleScreen: View {
                     .disabled(!canContinue)
                     .buttonStyle(PlainButtonStyle())
                     .padding(.horizontal, 24)
-                    .padding(.top, 16)
-                    .padding(.bottom, 50)
+                    .padding(.bottom, 8)
                 }
-                .background(Color.white)
+                .background(Color.softGray)
             }
         }
     }

@@ -10,6 +10,7 @@ import DriftBackend
 
 struct SafetyScreen: View {
     let onComplete: () -> Void
+    var backgroundColor: Color? = nil
 
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var profileManager = ProfileManager.shared
@@ -39,9 +40,13 @@ struct SafetyScreen: View {
     private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
     private let skyBlue = Color(red: 0.53, green: 0.81, blue: 0.92)
     
+    private var screenBackground: Color {
+        backgroundColor ?? warmWhite
+    }
+    
     var body: some View {
         ZStack {
-            warmWhite
+            screenBackground
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -49,7 +54,7 @@ struct SafetyScreen: View {
                     VStack(spacing: 32) {
                         // Add top padding since we removed the progress indicator
                         Spacer()
-                            .frame(height: 32)
+                            .frame(height: 28)
                         VStack(spacing: 24) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 24)

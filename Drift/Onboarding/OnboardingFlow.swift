@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import DriftBackend
 
 class OnboardingFlowManager: ObservableObject {
     @Published var currentStep: Int = 0
@@ -37,7 +38,17 @@ class OnboardingFlowManager: ObservableObject {
 
 struct OnboardingFlow: View {
     @StateObject private var flowManager = OnboardingFlowManager()
+    @StateObject private var profileManager = ProfileManager.shared
     let onComplete: () -> Void
+    
+    private var startStep: Int? {
+        // Check if there's a stored start step for partial onboarding
+        if UserDefaults.standard.object(forKey: "datingOnboardingStartStep") != nil {
+            let storedStep = UserDefaults.standard.integer(forKey: "datingOnboardingStartStep")
+            return storedStep >= 0 ? storedStep : nil
+        }
+        return nil
+    }
 
     private var slideTransition: AnyTransition {
         let insertion: AnyTransition = .asymmetric(
@@ -87,6 +98,14 @@ struct OnboardingFlow: View {
                         .transition(slideTransition)
                 }
                 .clipped()
+            }
+        }
+        .onAppear {
+            // If startStep is provided, jump to that step for partial onboarding
+            if let startStep = startStep {
+                flowManager.currentStep = startStep
+                // Clear the stored step after using it
+                UserDefaults.standard.removeObject(forKey: "datingOnboardingStartStep")
             }
         }
     }

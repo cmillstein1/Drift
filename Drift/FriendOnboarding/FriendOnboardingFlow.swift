@@ -24,9 +24,28 @@ struct FriendOnboardingFlow: View {
     @StateObject private var flowManager = FriendOnboardingFlowManager()
     let onComplete: () -> Void
     
+    private let softGray = Color("SoftGray")
+    
     var body: some View {
-        Group {
-            switch flowManager.currentStep {
+        ZStack {
+            softGray
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Back button - show on all screens except the first
+                if flowManager.currentStep > 0 {
+                    HStack {
+                        OnboardingBackButton {
+                            flowManager.currentStep = max(0, flowManager.currentStep - 1)
+                        }
+                        .padding(.leading, 24)
+                        .padding(.top, 16)
+                        Spacer()
+                    }
+                }
+                
+                Group {
+                    switch flowManager.currentStep {
             case 0:
                 FriendWelcomeScreen {
                     flowManager.nextStep()
@@ -44,25 +63,27 @@ struct FriendOnboardingFlow: View {
                     flowManager.nextStep()
                 }
             case 4:
-                NameScreen {
+                NameScreen(backgroundColor: softGray) {
                     flowManager.nextStep()
                 }
             case 5:
-                PhotoUploadScreen {
+                PhotoUploadScreen(backgroundColor: softGray) {
                     flowManager.nextStep()
                 }
             case 6:
-                LocationScreen {
+                LocationScreen(backgroundColor: softGray) {
                     flowManager.nextStep()
                 }
             case 7:
-                SafetyScreen {
+                SafetyScreen(backgroundColor: softGray) {
                     // SafetyScreen handles marking onboarding as complete internally
                     onComplete()
                 }
             default:
                 FriendWelcomeScreen {
                     flowManager.nextStep()
+                }
+                    }
                 }
             }
         }

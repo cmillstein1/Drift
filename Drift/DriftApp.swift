@@ -88,6 +88,9 @@ struct DriftApp: App {
                         }
                         .transition(.opacity)
                         .zIndex(0)
+                    } else if supabaseManager.isShowingPreferenceSelection {
+                        // Show preference selection screen
+                        PreferenceSelectionScreen()
                     } else {
                         // User is authenticated but hasn't completed onboarding
                         // and no specific flag is set - redirect to preference selection

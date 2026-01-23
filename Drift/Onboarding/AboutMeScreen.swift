@@ -202,6 +202,11 @@ struct AboutMeScreen: View {
             hideKeyboard()
         }
         .onAppear {
+            // Pre-fill bio if it exists
+            if aboutText.isEmpty, let existingBio = profileManager.currentProfile?.bio {
+                aboutText = existingBio
+            }
+            
             withAnimation(.easeOut(duration: 0.5)) {
                 titleOpacity = 1
                 titleOffset = 0

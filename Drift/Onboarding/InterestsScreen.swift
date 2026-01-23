@@ -219,6 +219,11 @@ struct InterestsScreen: View {
             }
         }
         .onAppear {
+            // Pre-fill interests if they exist
+            if selectedInterests.isEmpty, let existingInterests = profileManager.currentProfile?.interests {
+                selectedInterests = Set(existingInterests)
+            }
+            
             withAnimation(.easeOut(duration: 0.5)) {
                 titleOpacity = 1
                 titleOffset = 0
