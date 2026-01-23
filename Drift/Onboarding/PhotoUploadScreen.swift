@@ -7,6 +7,7 @@
 
 import SwiftUI
 import PhotosUI
+import UniformTypeIdentifiers
 import DriftBackend
 
 struct PhotoSlot: Identifiable {
@@ -29,6 +30,8 @@ struct PhotoUploadScreen: View {
     ]
     @State private var selectedPhotoIndex: Int? = nil
     @State private var isSaving = false
+    @State private var draggedItem: PhotoSlot? = nil
+    @State private var showMultiPhotoPicker = false
     @State private var titleOpacity: Double = 0
     @State private var titleOffset: CGFloat = -20
     @State private var subtitleOpacity: Double = 0
@@ -86,7 +89,7 @@ struct PhotoUploadScreen: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 24)
                         
-                        // Photo Grid
+                        // Photo Grid with drag-to-reorder
                         LazyVGrid(columns: [
                             GridItem(.flexible(), spacing: 16),
                             GridItem(.flexible(), spacing: 16)
@@ -97,7 +100,13 @@ struct PhotoUploadScreen: View {
                                     opacity: gridOpacity[index],
                                     scale: gridScale[index],
                                     onTap: {
-                                        selectedPhotoIndex = index
+                                        if photo.image == nil {
+                                            // If empty slot, open multi-photo picker
+                                            showMultiPhotoPicker = true
+                                        } else {
+                                            // If has image, allow editing (single photo)
+                                            selectedPhotoIndex = index
+                                        }
                                     },
                                     onRemove: {
                                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -105,6 +114,16 @@ struct PhotoUploadScreen: View {
                                         }
                                     }
                                 )
+                                .onDrag {
+                                    guard photo.image != nil else { return NSItemProvider() }
+                                    draggedItem = photo
+                                    return NSItemProvider(object: "\(photo.id)" as NSString)
+                                }
+                                .onDrop(of: [.text], delegate: PhotoDropDelegate(
+                                    item: photo,
+                                    photos: $photos,
+                                    draggedItem: $draggedItem
+                                ))
                             }
                         }
                         .padding(.horizontal, 24)
@@ -166,10 +185,30 @@ struct PhotoUploadScreen: View {
             get: { selectedPhotoIndex.map { PhotoPickerItem(id: $0) } },
             set: { selectedPhotoIndex = $0?.id }
         )) { item in
-            PhotoPicker(selectedImage: Binding(
-                get: { photos[item.id].image },
-                set: { photos[item.id].image = $0 }
-            ))
+            // Single photo picker for editing existing photos
+            MultiPhotoPicker(
+                maxSelection: 1,
+                onImagesSelected: { images in
+                    if let image = images.first {
+                        photos[item.id].image = image
+                    }
+                }
+            )
+        }
+        .sheet(isPresented: $showMultiPhotoPicker) {
+            MultiPhotoPicker(
+                maxSelection: 6,
+                onImagesSelected: { images in
+                    // Fill empty slots with selected images in order
+                    var imageIndex = 0
+                    for i in 0..<photos.count {
+                        if photos[i].image == nil && imageIndex < images.count {
+                            photos[i].image = images[imageIndex]
+                            imageIndex += 1
+                        }
+                    }
+                }
+            )
         }
         .onAppear {
             // If user already has photos, they can skip this screen
@@ -314,14 +353,16 @@ struct PhotoSlotView: View {
     }
 }
 
-struct PhotoPicker: UIViewControllerRepresentable {
-    @Binding var selectedImage: UIImage?
+// MARK: - Multi Photo Picker
+struct MultiPhotoPicker: UIViewControllerRepresentable {
+    let maxSelection: Int
+    let onImagesSelected: ([UIImage]) -> Void
     @Environment(\.dismiss) var dismiss
     
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var config = PHPickerConfiguration()
         config.filter = .images
-        config.selectionLimit = 1
+        config.selectionLimit = maxSelection
         
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = context.coordinator
@@ -335,28 +376,66 @@ struct PhotoPicker: UIViewControllerRepresentable {
     }
     
     class Coordinator: NSObject, PHPickerViewControllerDelegate {
-        let parent: PhotoPicker
+        let parent: MultiPhotoPicker
         
-        init(_ parent: PhotoPicker) {
+        init(_ parent: MultiPhotoPicker) {
             self.parent = parent
         }
         
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             picker.dismiss(animated: true)
             
-            guard let result = results.first else { return }
+            guard !results.isEmpty else {
+                return
+            }
             
-            let provider = result.itemProvider
+            var loadedImages: [UIImage] = []
+            let group = DispatchGroup()
             
-            if provider.canLoadObject(ofClass: UIImage.self) {
-                provider.loadObject(ofClass: UIImage.self) { object, error in
-                    DispatchQueue.main.async {
+            for result in results {
+                group.enter()
+                let provider = result.itemProvider
+                
+                if provider.canLoadObject(ofClass: UIImage.self) {
+                    provider.loadObject(ofClass: UIImage.self) { object, error in
                         if let image = object as? UIImage {
-                            self.parent.selectedImage = image
+                            loadedImages.append(image)
                         }
+                        group.leave()
                     }
+                } else {
+                    group.leave()
                 }
             }
+            
+            group.notify(queue: .main) {
+                self.parent.onImagesSelected(loadedImages)
+            }
+        }
+    }
+}
+
+// MARK: - Photo Drop Delegate for Drag-to-Reorder
+struct PhotoDropDelegate: DropDelegate {
+    let item: PhotoSlot
+    @Binding var photos: [PhotoSlot]
+    @Binding var draggedItem: PhotoSlot?
+    
+    func performDrop(info: DropInfo) -> Bool {
+        draggedItem = nil
+        return true
+    }
+    
+    func dropEntered(info: DropInfo) {
+        guard let draggedItem = draggedItem,
+              draggedItem.id != item.id,
+              let fromIndex = photos.firstIndex(where: { $0.id == draggedItem.id }),
+              let toIndex = photos.firstIndex(where: { $0.id == item.id }) else {
+            return
+        }
+        
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            photos.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
         }
     }
 }

@@ -554,54 +554,54 @@ struct EditProfileSheet: View {
     
     private var datingProfileContent: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Dating Me Looks Like
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Dating Me Looks Like")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(charcoalColor)
-                
-                Text("Paint a picture of what adventures await")
-                    .font(.system(size: 12))
-                    .foregroundColor(charcoalColor.opacity(0.6))
-                
-                ZStack(alignment: .topLeading) {
-                    if datingLooksLike.isEmpty {
-                        Text("e.g., Spontaneous road trips, cooking breakfast outside, stargazing from the roof...")
-                            .font(.system(size: 16))
-                            .foregroundColor(charcoalColor.opacity(0.4))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                    }
-                    
-                    TextEditor(text: Binding(
-                        get: { datingLooksLike },
-                        set: { newValue in
-                            if newValue.count <= 500 {
-                                datingLooksLike = newValue
-                            }
-                        }
-                    ))
-                    .font(.system(size: 16))
-                    .foregroundColor(charcoalColor)
-                    .frame(minHeight: 100)
-                    .scrollContentBackground(.hidden)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.gray.opacity(0.3), lineWidth: 2)
-                    )
-                }
-                
-                HStack {
-                    Spacer()
-                    Text("\(datingLooksLike.count)/500")
-                        .font(.system(size: 12))
-                        .foregroundColor(charcoalColor.opacity(0.6))
-                }
-            }
+//            // Dating Me Looks Like
+//            VStack(alignment: .leading, spacing: 8) {
+//                Text("Dating Me Looks Like")
+//                    .font(.system(size: 14, weight: .medium))
+//                    .foregroundColor(charcoalColor)
+//                
+//                Text("Paint a picture of what adventures await")
+//                    .font(.system(size: 12))
+//                    .foregroundColor(charcoalColor.opacity(0.6))
+//                
+//                ZStack(alignment: .topLeading) {
+//                    if datingLooksLike.isEmpty {
+//                        Text("e.g., Spontaneous road trips, cooking breakfast outside, stargazing from the roof...")
+//                            .font(.system(size: 16))
+//                            .foregroundColor(charcoalColor.opacity(0.4))
+//                            .padding(.horizontal, 16)
+//                            .padding(.vertical, 12)
+//                    }
+//                    
+//                    TextEditor(text: Binding(
+//                        get: { datingLooksLike },
+//                        set: { newValue in
+//                            if newValue.count <= 500 {
+//                                datingLooksLike = newValue
+//                            }
+//                        }
+//                    ))
+//                    .font(.system(size: 16))
+//                    .foregroundColor(charcoalColor)
+//                    .frame(minHeight: 100)
+//                    .scrollContentBackground(.hidden)
+//                    .padding(.horizontal, 12)
+//                    .padding(.vertical, 8)
+//                    .background(Color.white)
+//                    .clipShape(RoundedRectangle(cornerRadius: 12))
+//                    .overlay(
+//                        RoundedRectangle(cornerRadius: 12)
+//                            .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+//                    )
+//                }
+//                
+//                HStack {
+//                    Spacer()
+//                    Text("\(datingLooksLike.count)/500")
+//                        .font(.system(size: 12))
+//                        .foregroundColor(charcoalColor.opacity(0.6))
+//                }
+//            }
             
             // Dating Preferences Section
             VStack(alignment: .leading, spacing: 16) {

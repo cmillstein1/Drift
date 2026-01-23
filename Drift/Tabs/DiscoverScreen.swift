@@ -325,9 +325,34 @@ struct DiscoverScreen: View {
                         .background(Color.white)
 
                         // ==========================================
-                        // PROMPT SECTION 1 - "My simple pleasure"
+                        // PROMPT SECTION 1 - First prompt answer (after hero photo)
                         // ==========================================
-                        if let simplePleasure = profile.simplePleasure, !simplePleasure.isEmpty {
+                        if let promptAnswers = profile.promptAnswers, !promptAnswers.isEmpty, promptAnswers.count > 0 {
+                            HStack(spacing: 0) {
+                                Rectangle()
+                                    .fill(coralPrimary)
+                                    .frame(width: 4)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(promptAnswers[0].prompt.uppercased())
+                                        .font(.system(size: 12, weight: .bold))
+                                        .tracking(1)
+                                        .foregroundColor(coralPrimary)
+
+                                    Text(promptAnswers[0].answer)
+                                        .font(.system(size: 20, weight: .medium))
+                                        .foregroundColor(inkMain)
+                                }
+                                .padding(.leading, 16)
+                                .padding(.vertical, 4)
+
+                                Spacer()
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 8)
+                            .background(Color.white)
+                        } else if let simplePleasure = profile.simplePleasure, !simplePleasure.isEmpty {
+                            // Fallback to old prompt for backward compatibility
                             HStack(spacing: 0) {
                                 Rectangle()
                                     .fill(coralPrimary)
@@ -431,9 +456,35 @@ struct DiscoverScreen: View {
                         }
 
                         // ==========================================
-                        // PROMPT SECTION 2 - "Dating me looks like"
+                        // PROMPT SECTION 2 - Second prompt answer (after second photo)
                         // ==========================================
-                        if let datingLooksLike = profile.datingLooksLike, !datingLooksLike.isEmpty {
+                        if let promptAnswers = profile.promptAnswers, promptAnswers.count > 1 {
+                            VStack(spacing: 16) {
+                                Text(promptAnswers[1].prompt.uppercased())
+                                    .font(.system(size: 14, weight: .bold))
+                                    .tracking(1)
+                                    .foregroundColor(Color.gray)
+
+                                Text(promptAnswers[1].answer)
+                                    .font(.system(size: 18))
+                                    .foregroundColor(inkMain)
+                                    .multilineTextAlignment(.center)
+                                    .padding(20)
+                                    .frame(maxWidth: .infinity)
+                                    .background(Color.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                                    )
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 32)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.gray.opacity(0.05))
+                        } else if let datingLooksLike = profile.datingLooksLike, !datingLooksLike.isEmpty {
+                            // Fallback to old prompt for backward compatibility
                             VStack(spacing: 16) {
                                 Text("DATING ME LOOKS LIKE")
                                     .font(.system(size: 14, weight: .bold))
@@ -461,7 +512,7 @@ struct DiscoverScreen: View {
                         }
 
                         // ==========================================
-                        // ADDITIONAL PHOTOS
+                        // ADDITIONAL PHOTOS with prompt answers
                         // ==========================================
                         ForEach(Array(profile.photos.dropFirst(2).enumerated()), id: \.offset) { index, photoUrl in
                             GeometryReader { geo in
@@ -503,6 +554,34 @@ struct DiscoverScreen: View {
                                 }
                             }
                             .frame(height: 400)
+                            
+                            // Show prompt answer after each additional photo (starting with 3rd prompt)
+                            if let promptAnswers = profile.promptAnswers, promptAnswers.count > index + 2 {
+                                VStack(spacing: 16) {
+                                    Text(promptAnswers[index + 2].prompt.uppercased())
+                                        .font(.system(size: 14, weight: .bold))
+                                        .tracking(1)
+                                        .foregroundColor(Color.gray)
+
+                                    Text(promptAnswers[index + 2].answer)
+                                        .font(.system(size: 18))
+                                        .foregroundColor(inkMain)
+                                        .multilineTextAlignment(.center)
+                                        .padding(20)
+                                        .frame(maxWidth: .infinity)
+                                        .background(Color.white)
+                                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                                        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 16)
+                                                .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                                        )
+                                }
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 32)
+                                .frame(maxWidth: .infinity)
+                                .background(Color.gray.opacity(0.05))
+                            }
                         }
 
                         // Bottom padding for tab bar
