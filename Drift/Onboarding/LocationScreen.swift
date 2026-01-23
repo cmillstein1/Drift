@@ -150,7 +150,7 @@ struct LocationScreen: View {
                         .offset(y: skipButtonOffset)
                     }
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 32)
+                    .padding(.bottom, 16)
                 }
             }
         }

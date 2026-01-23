@@ -148,31 +148,31 @@ struct ProfileDetailView: View {
                     // ==========================================
                     // PROMPT SECTION 1 - "My simple pleasure"
                     // ==========================================
-                    if let simplePleasure = profile.simplePleasure, !simplePleasure.isEmpty {
-                        HStack(spacing: 0) {
-                            Rectangle()
-                                .fill(coralPrimary)
-                                .frame(width: 4)
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("MY SIMPLE PLEASURE")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .tracking(1)
-                                    .foregroundColor(coralPrimary)
-
-                                Text(simplePleasure)
-                                    .font(.system(size: 20, weight: .medium))
-                                    .foregroundColor(inkMain)
-                            }
-                            .padding(.leading, 16)
-                            .padding(.vertical, 4)
-
-                            Spacer()
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 8)
-                        .background(Color.white)
-                    }
+//                    if let simplePleasure = profile.simplePleasure, !simplePleasure.isEmpty {
+//                        HStack(spacing: 0) {
+//                            Rectangle()
+//                                .fill(coralPrimary)
+//                                .frame(width: 4)
+//
+//                            VStack(alignment: .leading, spacing: 4) {
+//                                Text("MY SIMPLE PLEASURE")
+//                                    .font(.system(size: 12, weight: .bold))
+//                                    .tracking(1)
+//                                    .foregroundColor(coralPrimary)
+//
+//                                Text(simplePleasure)
+//                                    .font(.system(size: 20, weight: .medium))
+//                                    .foregroundColor(inkMain)
+//                            }
+//                            .padding(.leading, 16)
+//                            .padding(.vertical, 4)
+//
+//                            Spacer()
+//                        }
+//                        .padding(.horizontal, 24)
+//                        .padding(.vertical, 8)
+//                        .background(Color.white)
+//                    }
 
                     // ==========================================
                     // RIG PHOTO SECTION
@@ -255,32 +255,32 @@ struct ProfileDetailView: View {
                     // ==========================================
                     // PROMPT SECTION 2 - "Dating me looks like"
                     // ==========================================
-                    if let datingLooksLike = profile.datingLooksLike, !datingLooksLike.isEmpty {
-                        VStack(spacing: 16) {
-                            Text("DATING ME LOOKS LIKE")
-                                .font(.system(size: 14, weight: .bold))
-                                .tracking(1)
-                                .foregroundColor(Color.gray)
-
-                            Text(datingLooksLike)
-                                .font(.system(size: 18))
-                                .foregroundColor(inkMain)
-                                .multilineTextAlignment(.center)
-                                .padding(20)
-                                .frame(maxWidth: .infinity)
-                                .background(Color.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
-                                .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-                                )
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 32)
-                        .frame(maxWidth: .infinity)
-                        .background(Color.gray.opacity(0.05))
-                    }
+//                    if let datingLooksLike = profile.datingLooksLike, !datingLooksLike.isEmpty {
+//                        VStack(spacing: 16) {
+//                            Text("DATING ME LOOKS LIKE")
+//                                .font(.system(size: 14, weight: .bold))
+//                                .tracking(1)
+//                                .foregroundColor(Color.gray)
+//
+//                            Text(datingLooksLike)
+//                                .font(.system(size: 18))
+//                                .foregroundColor(inkMain)
+//                                .multilineTextAlignment(.center)
+//                                .padding(20)
+//                                .frame(maxWidth: .infinity)
+//                                .background(Color.white)
+//                                .clipShape(RoundedRectangle(cornerRadius: 16))
+//                                .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+//                                .overlay(
+//                                    RoundedRectangle(cornerRadius: 16)
+//                                        .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+//                                )
+//                        }
+//                        .padding(.horizontal, 24)
+//                        .padding(.vertical, 32)
+//                        .frame(maxWidth: .infinity)
+//                        .background(Color.gray.opacity(0.05))
+//                    }
 
                     // ==========================================
                     // ADDITIONAL PHOTOS

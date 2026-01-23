@@ -101,7 +101,7 @@ struct OrientationScreen: View {
                     }
                     .disabled(selectedOrientation.isEmpty)
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 32)
+                    .padding(.bottom, 16)
                     .opacity(buttonOpacity)
                     .offset(y: buttonOffset)
                 }
@@ -137,16 +137,44 @@ struct ProgressIndicator: View {
     let currentStep: Int
     let totalSteps: Int
     
-    private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
+    private let burntOrange = Color("BurntOrange")
+    private let charcoalColor = Color("Charcoal")
+    
+    private var percentage: Int {
+        Int((Double(currentStep) / Double(totalSteps)) * 100)
+    }
     
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(0..<totalSteps, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(index < currentStep ? burntOrange : Color.gray.opacity(0.3))
-                    .frame(width: 32, height: 6)
-                    .animation(.easeInOut(duration: 0.3), value: currentStep)
+        VStack(spacing: 12) {
+            // Step text and percentage
+            HStack {
+                Text("Step \(currentStep) of \(totalSteps)")
+                    .font(.system(size: 14))
+                    .foregroundColor(charcoalColor.opacity(0.7))
+                
+                Spacer()
+                
+                Text("\(percentage)%")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(burntOrange)
             }
+            
+            // Progress bar
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    // Background
+                    Capsule()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(height: 8)
+                    
+                    // Filled portion
+                    Capsule()
+                        .fill(burntOrange)
+                        .frame(width: geometry.size.width * CGFloat(currentStep) / CGFloat(totalSteps), height: 8)
+                        .animation(.easeInOut(duration: 0.3), value: currentStep)
+                }
+            }
+            .frame(height: 8)
         }
     }
 }
