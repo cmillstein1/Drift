@@ -48,6 +48,7 @@ struct LifestyleScreen: View {
             
             VStack(spacing: 0) {
                 ProgressIndicator(currentStep: 3, totalSteps: 5)
+                    .padding(.horizontal, 24)
                     .padding(.top, 32)
                     .padding(.bottom, 48)
                 
@@ -101,7 +102,7 @@ struct LifestyleScreen: View {
                     }
                     .disabled(selectedOptions.isEmpty)
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 32)
+                    .padding(.bottom, 16)
                     .opacity(buttonOpacity)
                     .offset(y: buttonOffset)
                 }

@@ -317,11 +317,15 @@ struct HometownScreen: View {
                     .clipShape(Capsule())
                     .disabled(!canContinue || isSaving)
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 32)
+                    .padding(.bottom, 16)
                     .opacity(buttonOpacity)
                     .offset(y: buttonOffset)
                 }
             }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            hideKeyboard()
         }
         .onAppear {
             // Fetch current location and reverse geocode
@@ -369,6 +373,10 @@ struct HometownScreen: View {
         isTextFieldFocused = false
     }
 
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+    
     private func saveAndContinue() {
         isSaving = true
         Task {

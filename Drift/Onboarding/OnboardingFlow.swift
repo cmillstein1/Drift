@@ -31,7 +31,7 @@ class OnboardingFlowManager: ObservableObject {
     }
 
     func isLastStep() -> Bool {
-        return currentStep == 9 // 10 screens total (0-9)
+        return currentStep == 10 // 11 screens total (0-10)
     }
 }
 
@@ -60,10 +60,23 @@ struct OnboardingFlow: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
+                // Back button - show on all screens except the first
+                if flowManager.currentStep > 0 {
+                    HStack {
+                        OnboardingBackButton {
+                            flowManager.previousStep()
+                        }
+                        .padding(.leading, 24)
+                        .padding(.top, 16)
+                        Spacer()
+                    }
+                }
+                
                 // Fixed Progress Indicator - only show for steps that need it
                 if shouldShowProgressIndicator {
-                    ProgressIndicator(currentStep: currentProgressStep, totalSteps: 10)
-                        .padding(.top, 32)
+                    ProgressIndicator(currentStep: currentProgressStep, totalSteps: 9)
+                        .padding(.horizontal, 24)
+                        .padding(.top, flowManager.currentStep > 0 ? 8 : 32)
                         .padding(.bottom, 24)
                         .transition(.opacity)
                 }
@@ -79,8 +92,8 @@ struct OnboardingFlow: View {
     }
     
     private var shouldShowProgressIndicator: Bool {
-        // Don't show progress indicator for LocationScreen (step 7) and SafetyScreen (step 9)
-        return flowManager.currentStep != 7 && flowManager.currentStep != 9
+        // Don't show progress indicator for LocationScreen (step 8) and SafetyScreen (step 10)
+        return flowManager.currentStep != 8 && flowManager.currentStep != 10
     }
     
     private var currentProgressStep: Int {
@@ -93,9 +106,10 @@ struct OnboardingFlow: View {
         case 4: return 5  // PhotoUploadScreen
         case 5: return 6  // InterestsScreen
         case 6: return 7  // AboutMeScreen
-        case 7: return 7  // LocationScreen - no indicator shown
-        case 8: return 8  // HometownScreen
-        case 9: return 8  // SafetyScreen - no indicator shown
+        case 7: return 8  // ProfilePromptsScreen
+        case 8: return 8  // LocationScreen - no indicator shown
+        case 9: return 9  // HometownScreen
+        case 10: return 9  // SafetyScreen - no indicator shown
         default: return 1
         }
     }
@@ -132,14 +146,18 @@ struct OnboardingFlow: View {
                 flowManager.nextStep()
             }
         case 7:
-            LocationScreen {
+            ProfilePromptsScreen {
                 flowManager.nextStep()
             }
         case 8:
-            HometownScreen {
+            LocationScreen {
                 flowManager.nextStep()
             }
         case 9:
+            HometownScreen {
+                flowManager.nextStep()
+            }
+        case 10:
             SafetyScreen {
                 // SafetyScreen handles marking onboarding as complete internally
                 onComplete()

@@ -28,6 +28,7 @@ struct EditProfileSheet: View {
     @State private var simplePleasure: String = ""
     @State private var rigInfo: String = ""
     @State private var datingLooksLike: String = ""
+    @State private var promptAnswers: [DriftBackend.PromptAnswer] = []
     @State private var travelPace: TravelPaceOption = .slow
     @State private var travelSchedule: [TravelStop] = []
     @State private var isSaving = false
@@ -693,6 +694,38 @@ struct EditProfileSheet: View {
                         .stroke(Color.gray.opacity(0.3), lineWidth: 2)
                 )
             }
+            
+            // Profile Prompts
+            if !promptAnswers.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Profile Prompts")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(charcoalColor)
+                    
+                    Text("Your prompt answers")
+                        .font(.system(size: 12))
+                        .foregroundColor(charcoalColor.opacity(0.6))
+                    
+                    VStack(spacing: 12) {
+                        ForEach(Array(promptAnswers.enumerated()), id: \.offset) { index, promptAnswer in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(promptAnswer.prompt)
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(charcoalColor)
+                                
+                                Text(promptAnswer.answer)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(charcoalColor.opacity(0.7))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.gray.opacity(0.05))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                        }
+                    }
+                }
+            }
         }
         .sheet(isPresented: $showInterestedInModal) {
             InterestedInSheet(
@@ -890,6 +923,7 @@ struct EditProfileSheet: View {
                 simplePleasure = profile.simplePleasure ?? ""
                 rigInfo = profile.rigInfo ?? ""
                 datingLooksLike = profile.datingLooksLike ?? ""
+                promptAnswers = profile.promptAnswers ?? []
                 travelPace = TravelPaceOption.from(profile.travelPace)
                 photos = profile.photos
                 
@@ -995,7 +1029,8 @@ struct EditProfileSheet: View {
                     travelPace: travelPace.toBackendType,
                     simplePleasure: simplePleasure.isEmpty ? nil : simplePleasure,
                     rigInfo: rigInfo.isEmpty ? nil : rigInfo,
-                    datingLooksLike: datingLooksLike.isEmpty ? nil : datingLooksLike
+                    datingLooksLike: datingLooksLike.isEmpty ? nil : datingLooksLike,
+                    promptAnswers: promptAnswers.isEmpty ? nil : promptAnswers
                 )
 
                 try await profileManager.updateProfile(updates)

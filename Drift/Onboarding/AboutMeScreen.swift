@@ -43,30 +43,30 @@ struct AboutMeScreen: View {
             warmWhite
                 .ignoresSafeArea()
             
-            VStack(spacing: 0) {
-                // Progress indicator is shown in OnboardingFlow
-                Spacer()
-                    .frame(height: 24)
-                
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("About me")
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(charcoalColor)
-                        .opacity(titleOpacity)
-                        .offset(x: titleOffset)
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Progress indicator is shown in OnboardingFlow
+                    Spacer()
+                        .frame(height: 24)
                     
-                    Text("Share a bit about yourself, your van life journey, and what makes you unique.")
-                        .font(.system(size: 16))
-                        .foregroundColor(charcoalColor.opacity(0.7))
-                        .padding(.top, 8)
-                        .padding(.bottom, 24)
-                        .opacity(subtitleOpacity)
-                        .offset(x: subtitleOffset)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 24)
-                
-                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("About me")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(charcoalColor)
+                            .opacity(titleOpacity)
+                            .offset(x: titleOffset)
+                        
+                        Text("Share a bit about yourself, your van life journey, and what makes you unique.")
+                            .font(.system(size: 14))
+                            .foregroundColor(charcoalColor.opacity(0.7))
+                            .padding(.top, 8)
+                            .padding(.bottom, 24)
+                            .opacity(subtitleOpacity)
+                            .offset(x: subtitleOffset)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    
                     VStack(spacing: 24) {
                         // Text Editor
                         ZStack(alignment: .topLeading) {
@@ -166,6 +166,11 @@ struct AboutMeScreen: View {
                     }
                     .padding(.bottom, 24)
                 }
+                .scrollDismissesKeyboard(.interactively)
+            }
+            
+            VStack {
+                Spacer()
                 
                 Button(action: {
                     saveAndContinue()
@@ -187,10 +192,14 @@ struct AboutMeScreen: View {
                 .clipShape(Capsule())
                 .disabled(!canContinue || isSaving)
                 .padding(.horizontal, 24)
-                .padding(.bottom, 32)
+                .padding(.bottom, 16)
                 .opacity(buttonOpacity)
                 .offset(y: buttonOffset)
             }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            hideKeyboard()
         }
         .onAppear {
             withAnimation(.easeOut(duration: 0.5)) {
@@ -208,6 +217,10 @@ struct AboutMeScreen: View {
                 buttonOffset = 0
             }
         }
+    }
+    
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
     
     private func saveAndContinue() {

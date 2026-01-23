@@ -33,21 +33,21 @@ struct NameScreen: View {
             warmWhite
                 .ignoresSafeArea()
             
-            VStack(spacing: 0) {
-                // Progress indicator is shown in OnboardingFlow
-                Spacer()
-                    .frame(height: 24)
-                
+            ScrollView {
                 VStack(spacing: 0) {
+                    // Progress indicator is shown in OnboardingFlow
+                    Spacer()
+                        .frame(height: 24)
+                    
                     VStack(alignment: .leading, spacing: 0) {
                         Text("What's your name?")
-                            .font(.system(size: 32, weight: .bold))
+                            .font(.system(size: 24, weight: .bold))
                             .foregroundColor(charcoalColor)
                             .opacity(titleOpacity)
                             .offset(x: titleOffset)
                         
                         Text("This is how others will see you")
-                            .font(.system(size: 16))
+                            .font(.system(size: 14))
                             .foregroundColor(charcoalColor.opacity(0.7))
                             .padding(.top, 8)
                             .opacity(subtitleOpacity)
@@ -55,7 +55,7 @@ struct NameScreen: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 32)
+                    .padding(.bottom, 24)
                     
                     TextField("Enter your name", text: $name)
                         .font(.system(size: 17))
@@ -76,6 +76,7 @@ struct NameScreen: View {
                         .offset(y: textFieldOffset)
                     
                     Spacer()
+                        .frame(height: 32)
                     
                     Button(action: {
                         saveAndContinue()
@@ -97,11 +98,16 @@ struct NameScreen: View {
                     .clipShape(Capsule())
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 32)
+                    .padding(.bottom, 16)
                     .opacity(buttonOpacity)
                     .offset(y: buttonOffset)
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            hideKeyboard()
         }
         .onAppear {
             withAnimation(.easeOut(duration: 0.5)) {
@@ -131,6 +137,10 @@ struct NameScreen: View {
         }
     }
 
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+    
     private func saveAndContinue() {
         isSaving = true
         Task {

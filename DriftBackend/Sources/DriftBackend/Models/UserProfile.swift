@@ -46,6 +46,18 @@ public enum TravelPace: String, Codable, CaseIterable, Sendable {
     }
 }
 
+// MARK: - Prompt Answer
+
+public struct PromptAnswer: Codable, Hashable, Sendable {
+    public let prompt: String
+    public let answer: String
+    
+    public init(prompt: String, answer: String) {
+        self.prompt = prompt
+        self.answer = answer
+    }
+}
+
 // MARK: - UserProfile
 
 public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
@@ -73,6 +85,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
     public var simplePleasure: String?
     public var rigInfo: String?
     public var datingLooksLike: String?
+    public var promptAnswers: [PromptAnswer]?
 
     public var createdAt: Date?
     public var updatedAt: Date?
@@ -93,6 +106,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         case simplePleasure = "simple_pleasure"
         case rigInfo = "rig_info"
         case datingLooksLike = "dating_looks_like"
+        case promptAnswers = "prompt_answers"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case lastActiveAt = "last_active_at"
@@ -145,6 +159,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         self.simplePleasure = simplePleasure
         self.rigInfo = rigInfo
         self.datingLooksLike = datingLooksLike
+        self.promptAnswers = nil
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.lastActiveAt = lastActiveAt
@@ -278,6 +293,7 @@ public struct ProfileUpdateRequest: Encodable {
     public var simplePleasure: String?
     public var rigInfo: String?
     public var datingLooksLike: String?
+    public var promptAnswers: [PromptAnswer]?
     public var onboardingCompleted: Bool?
 
     enum CodingKeys: String, CodingKey {
@@ -294,6 +310,7 @@ public struct ProfileUpdateRequest: Encodable {
         case simplePleasure = "simple_pleasure"
         case rigInfo = "rig_info"
         case datingLooksLike = "dating_looks_like"
+        case promptAnswers = "prompt_answers"
         case onboardingCompleted = "onboarding_completed"
     }
 
@@ -315,6 +332,7 @@ public struct ProfileUpdateRequest: Encodable {
         simplePleasure: String? = nil,
         rigInfo: String? = nil,
         datingLooksLike: String? = nil,
+        promptAnswers: [PromptAnswer]? = nil,
         onboardingCompleted: Bool? = nil
     ) {
         self.name = name
@@ -334,6 +352,7 @@ public struct ProfileUpdateRequest: Encodable {
         self.simplePleasure = simplePleasure
         self.rigInfo = rigInfo
         self.datingLooksLike = datingLooksLike
+        self.promptAnswers = promptAnswers
         self.onboardingCompleted = onboardingCompleted
     }
 }

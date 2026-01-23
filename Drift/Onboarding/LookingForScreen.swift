@@ -89,7 +89,7 @@ struct LookingForScreen: View {
                     }
                     .disabled(selectedOptions.isEmpty)
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 32)
+                    .padding(.bottom, 16)
                     .opacity(buttonOpacity)
                     .offset(y: buttonOffset)
                 }
