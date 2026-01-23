@@ -8,5 +8,14 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>We need access to your camera to take a selfie for identity verification.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.drift.app</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

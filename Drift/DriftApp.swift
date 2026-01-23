@@ -137,6 +137,18 @@ struct DriftApp: App {
                     }
                 }
             }
+            .onOpenURL { url in
+                // Handle OAuth callback from Google Sign In
+                // Supabase Swift will automatically handle the URL and complete the auth flow
+                Task {
+                    do {
+                        // The session should already be set by signInWithOAuth, but we can verify
+                        try await supabaseManager.checkAuthStatus()
+                    } catch {
+                        print("Failed to handle OAuth callback: \(error)")
+                    }
+                }
+            }
         }
     }
 }

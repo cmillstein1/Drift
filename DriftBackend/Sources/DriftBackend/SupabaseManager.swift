@@ -166,15 +166,49 @@ public class SupabaseManager: ObservableObject {
         }
     }
 
-    /// Signs in a user with Google Sign In.
+    /// Signs in a user with Google Sign In using OAuth.
     ///
-    /// - Throws: Always throws as this feature is not yet implemented.
+    /// - Throws: An error if sign in fails.
     public func signInWithGoogle() async throws {
-        throw NSError(
-            domain: "SupabaseManager",
-            code: -1,
-            userInfo: [NSLocalizedDescriptionKey: "Google Sign In not yet implemented"]
+        // Use a custom URL scheme that the app can handle
+        // This must match what's configured in Info.plist (CFBundleURLSchemes)
+        // AND in Supabase dashboard under Authentication > URL Configuration
+        let redirectURL = URL(string: "com.drift.app://auth/callback")!
+        
+        // Start OAuth flow - Supabase Swift will open ASWebAuthenticationSession
+        // The callback will be handled via the URL scheme
+        let session = try await client.auth.signInWithOAuth(
+            provider: .google,
+            redirectTo: redirectURL
         )
+        
+        // The session is returned after OAuth completes
+        let timeSinceCreation = Date().timeIntervalSince(session.user.createdAt)
+        let isNewUser = timeSinceCreation < 5.0
+        let userMetadata = session.user.userMetadata
+        let hasCompletedOnboarding = parseOnboardingStatus(from: userMetadata)
+        let shouldShowSplash = isNewUser || !hasCompletedOnboarding
+        
+        await MainActor.run {
+            self.currentUser = session.user
+            let hasPreference = self.hasSelectedPreference()
+            if shouldShowSplash {
+                if hasPreference {
+                    self.isShowingWelcomeSplash = false
+                    self.isShowingPreferenceSelection = false
+                    self.isShowingOnboarding = !hasCompletedOnboarding
+                } else {
+                    self.isShowingWelcomeSplash = true
+                    self.isShowingPreferenceSelection = false
+                    self.isShowingOnboarding = false
+                }
+            } else {
+                self.isShowingWelcomeSplash = false
+                self.isShowingPreferenceSelection = !hasPreference
+                self.isShowingOnboarding = false
+            }
+            self.isAuthenticated = true
+        }
     }
 
     /// Signs out the current user.
