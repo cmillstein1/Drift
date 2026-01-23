@@ -134,6 +134,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         simplePleasure: String? = nil,
         rigInfo: String? = nil,
         datingLooksLike: String? = nil,
+        promptAnswers: [PromptAnswer]? = nil,
         createdAt: Date? = nil,
         updatedAt: Date? = nil,
         lastActiveAt: Date? = nil,
@@ -159,7 +160,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         self.simplePleasure = simplePleasure
         self.rigInfo = rigInfo
         self.datingLooksLike = datingLooksLike
-        self.promptAnswers = nil
+        self.promptAnswers = promptAnswers
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.lastActiveAt = lastActiveAt
@@ -205,6 +206,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         simplePleasure = try container.decodeIfPresent(String.self, forKey: .simplePleasure)
         rigInfo = try container.decodeIfPresent(String.self, forKey: .rigInfo)
         datingLooksLike = try container.decodeIfPresent(String.self, forKey: .datingLooksLike)
+        promptAnswers = try container.decodeIfPresent([PromptAnswer].self, forKey: .promptAnswers)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         lastActiveAt = try container.decodeIfPresent(Date.self, forKey: .lastActiveAt)
@@ -357,5 +359,32 @@ public struct ProfileUpdateRequest: Encodable {
         self.datingLooksLike = datingLooksLike
         self.promptAnswers = promptAnswers
         self.onboardingCompleted = onboardingCompleted
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        
+        try container.encodeIfPresent(name, forKey: .name)
+        try container.encodeIfPresent(birthday, forKey: .birthday)
+        try container.encodeIfPresent(bio, forKey: .bio)
+        try container.encodeIfPresent(avatarUrl, forKey: .avatarUrl)
+        try container.encodeIfPresent(photos, forKey: .photos)
+        try container.encodeIfPresent(location, forKey: .location)
+        try container.encodeIfPresent(verified, forKey: .verified)
+        try container.encodeIfPresent(lifestyle, forKey: .lifestyle)
+        try container.encodeIfPresent(travelPace, forKey: .travelPace)
+        try container.encodeIfPresent(nextDestination, forKey: .nextDestination)
+        try container.encodeIfPresent(travelDates, forKey: .travelDates)
+        try container.encodeIfPresent(interests, forKey: .interests)
+        try container.encodeIfPresent(lookingFor, forKey: .lookingFor)
+        try container.encodeIfPresent(friendsOnly, forKey: .friendsOnly)
+        try container.encodeIfPresent(orientation, forKey: .orientation)
+        try container.encodeIfPresent(simplePleasure, forKey: .simplePleasure)
+        try container.encodeIfPresent(rigInfo, forKey: .rigInfo)
+        try container.encodeIfPresent(datingLooksLike, forKey: .datingLooksLike)
+        try container.encodeIfPresent(onboardingCompleted, forKey: .onboardingCompleted)
+        
+        // Explicitly encode promptAnswers as JSON array (only if not nil)
+        try container.encodeIfPresent(promptAnswers, forKey: .promptAnswers)
     }
 }

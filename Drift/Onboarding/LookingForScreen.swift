@@ -136,14 +136,8 @@ struct LookingForScreen: View {
             }
         }
         .onAppear {
-            // Pre-fill lookingFor if it exists and is set to dating/both
-            if selectedOptions.isEmpty, let profile = profileManager.currentProfile {
-                if profile.lookingFor == .dating || profile.lookingFor == .both {
-                    // Map lookingFor to selected options (this is a simplified mapping)
-                    // The actual implementation depends on how lookingFor is stored
-                    selectedOptions = ["Male", "Female", "Non-binary"] // Default to all
-                }
-            }
+            // Don't auto-select options - let user choose
+            // Only pre-fill if there's existing orientation data (not lookingFor)
             
             withAnimation(.easeOut(duration: 0.5)) {
                 titleOpacity = 1
