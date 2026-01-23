@@ -98,7 +98,7 @@ struct ProfileScreen: View {
             }
             .sheet(isPresented: $showDatingSettings) {
                 DatingSettingsSheet(isPresented: $showDatingSettings)
-                    .presentationDetents([.medium, .large])
+                    .presentationDetents([.height(600), .large])
                     .presentationDragIndicator(.visible)
             }
             .navigationDestination(for: String.self) { destination in
