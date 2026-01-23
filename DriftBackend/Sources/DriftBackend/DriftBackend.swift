@@ -31,6 +31,8 @@ public struct DriftBackendConfig {
     public let revenueCatMonthlyProductID: String
     /// RevenueCat yearly subscription product identifier.
     public let revenueCatYearlyProductID: String
+    /// VerifyFaceID API key for face verification.
+    public let verifyFaceIDAPIKey: String
 
     /// Creates a new backend configuration.
     ///
@@ -42,6 +44,7 @@ public struct DriftBackendConfig {
     ///   - revenueCatEntitlementID: Entitlement ID for pro access.
     ///   - revenueCatMonthlyProductID: Monthly product identifier.
     ///   - revenueCatYearlyProductID: Yearly product identifier.
+    ///   - verifyFaceIDAPIKey: VerifyFaceID API key for face verification.
     public init(
         supabaseURL: String,
         supabaseAnonKey: String,
@@ -49,7 +52,8 @@ public struct DriftBackendConfig {
         revenueCatAPIKey: String,
         revenueCatEntitlementID: String = "Drift Pro",
         revenueCatMonthlyProductID: String = "monthly",
-        revenueCatYearlyProductID: String = "DriftYearly"
+        revenueCatYearlyProductID: String = "DriftYearly",
+        verifyFaceIDAPIKey: String = ""
     ) {
         self.supabaseURL = supabaseURL
         self.supabaseAnonKey = supabaseAnonKey
@@ -58,6 +62,7 @@ public struct DriftBackendConfig {
         self.revenueCatEntitlementID = revenueCatEntitlementID
         self.revenueCatMonthlyProductID = revenueCatMonthlyProductID
         self.revenueCatYearlyProductID = revenueCatYearlyProductID
+        self.verifyFaceIDAPIKey = verifyFaceIDAPIKey
     }
 }
 
@@ -129,5 +134,12 @@ internal class _BackendConfiguration {
             fatalError("DriftBackend not configured. Call configureDriftBackend() first.")
         }
         return config.revenueCatYearlyProductID
+    }
+    
+    var verifyFaceIDAPIKey: String {
+        guard let config = config else {
+            fatalError("DriftBackend not configured. Call configureDriftBackend() first.")
+        }
+        return config.verifyFaceIDAPIKey
     }
 }

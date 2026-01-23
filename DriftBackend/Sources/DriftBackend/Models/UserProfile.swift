@@ -282,6 +282,7 @@ public struct ProfileUpdateRequest: Encodable {
     public var avatarUrl: String?
     public var photos: [String]?
     public var location: String?
+    public var verified: Bool?
     public var lifestyle: Lifestyle?
     public var travelPace: TravelPace?
     public var nextDestination: String?
@@ -299,7 +300,7 @@ public struct ProfileUpdateRequest: Encodable {
     enum CodingKeys: String, CodingKey {
         case name, birthday, bio
         case avatarUrl = "avatar_url"
-        case photos, location, lifestyle
+        case photos, location, verified, lifestyle
         case travelPace = "travel_pace"
         case nextDestination = "next_destination"
         case travelDates = "travel_dates"
@@ -321,6 +322,7 @@ public struct ProfileUpdateRequest: Encodable {
         avatarUrl: String? = nil,
         photos: [String]? = nil,
         location: String? = nil,
+        verified: Bool? = nil,
         lifestyle: Lifestyle? = nil,
         travelPace: TravelPace? = nil,
         nextDestination: String? = nil,
@@ -341,6 +343,7 @@ public struct ProfileUpdateRequest: Encodable {
         self.avatarUrl = avatarUrl
         self.photos = photos
         self.location = location
+        self.verified = verified
         self.lifestyle = lifestyle
         self.travelPace = travelPace
         self.nextDestination = nextDestination

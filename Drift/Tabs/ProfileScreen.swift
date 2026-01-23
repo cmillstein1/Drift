@@ -19,6 +19,7 @@ struct ProfileScreen: View {
     @State private var showSettingsSheet = false
     @State private var navigateToFriendsGrid = false
     @State private var showPaywall = false
+    @State private var navigationPath: [String] = []
 
     private var profile: UserProfile? {
         profileManager.currentProfile
@@ -100,6 +101,8 @@ struct ProfileScreen: View {
             .navigationDestination(for: String.self) { destination in
                 if destination == "friendsGrid" {
                     FriendsGridScreen()
+                } else if destination == "verification" {
+                    VerificationView()
                 }
             }
             .sheet(isPresented: $showPaywall) {
@@ -425,6 +428,21 @@ struct ProfileScreen: View {
                     subtitle: nil
                 )
             }
+            
+            menuDivider
+            
+            // Verify Identity
+            NavigationLink(value: "verification") {
+                ProfileMenuRow(
+                    icon: "checkmark.shield.fill",
+                    iconBackground: profile?.verified == true ? forestGreen : burntOrange,
+                    title: "Verify",
+                    subtitle: profile?.verified == true ? "Verified" : "Verify your identity",
+                    badge: profile?.verified == true ? "Verified" : nil,
+                    badgeColor: forestGreen
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
             
             menuDivider
             
