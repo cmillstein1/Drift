@@ -19,7 +19,8 @@ func initializeDriftBackend() {
         revenueCatAPIKey: "test_YJMEfoMqdCFelANmBrkdyUoUDsI",
         revenueCatEntitlementID: "Drift Pro",
         revenueCatMonthlyProductID: "monthly",
-        revenueCatYearlyProductID: "DriftYearly"
+        revenueCatYearlyProductID: "DriftYearly",
+        verifyFaceIDAPIKey: VerifyFaceIDConfig.apiKey
     )
     configureDriftBackend(config)
 }
@@ -36,5 +37,9 @@ func initializeDriftBackend() {
 // }
 //
 // struct CampflareConfig {
+//     static let apiKey = "your-api-key"
+// }
+//
+// struct VerifyFaceIDConfig {
 //     static let apiKey = "your-api-key"
 // }
