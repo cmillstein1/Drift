@@ -184,6 +184,17 @@ struct ProfilePromptsScreen: View {
             }
         }
         .onAppear {
+            // Pre-fill prompt answers if they exist
+            if promptAnswers.allSatisfy({ $0 == nil }), let existingPrompts = profileManager.currentProfile?.promptAnswers {
+                promptAnswers = existingPrompts.prefix(3).map { backendPrompt in
+                    PromptAnswer(promptText: backendPrompt.prompt, answer: backendPrompt.answer)
+                }
+                // Pad to 3 if needed
+                while promptAnswers.count < 3 {
+                    promptAnswers.append(nil)
+                }
+            }
+            
             withAnimation(.easeOut(duration: 0.5)) {
                 titleOpacity = 1
                 titleOffset = 0

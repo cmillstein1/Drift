@@ -115,9 +115,14 @@ struct BirthdayScreen: View {
             }
         }
         .onAppear {
-            // Set default date to 25 years ago
-            if let defaultDate = calendar.date(byAdding: .year, value: -25, to: Date()) {
-                selectedDate = defaultDate
+            // Pre-fill birthday if it exists
+            if let existingBirthday = profileManager.currentProfile?.birthday {
+                selectedDate = existingBirthday
+            } else {
+                // Set default date to 25 years ago
+                if let defaultDate = calendar.date(byAdding: .year, value: -25, to: Date()) {
+                    selectedDate = defaultDate
+                }
             }
             
             withAnimation(.easeOut(duration: 0.5)) {

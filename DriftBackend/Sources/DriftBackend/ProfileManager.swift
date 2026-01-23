@@ -352,6 +352,54 @@ public class ProfileManager: ObservableObject {
             .eq("id", value: userId)
             .execute()
     }
+    
+    // MARK: - Dating Onboarding
+    
+    /// Checks if the user has completed dating-specific onboarding.
+    /// Returns true if they have orientation, lookingFor set to dating/both, and at least 3 prompt answers.
+    public func hasCompletedDatingOnboarding() -> Bool {
+        guard let profile = currentProfile else { return false }
+        
+        // Check if they have dating-specific fields filled
+        let hasOrientation = profile.orientation != nil && !profile.orientation!.isEmpty
+        let isLookingForDating = profile.lookingFor == .dating || profile.lookingFor == .both
+        let hasPromptAnswers = profile.promptAnswers != nil && !profile.promptAnswers!.isEmpty && profile.promptAnswers!.count >= 3
+        
+        return hasOrientation && isLookingForDating && hasPromptAnswers
+    }
+    
+    /// Determines which onboarding step to start from for partial dating onboarding.
+    /// Returns the step index (0-10) based on what data is already filled.
+    /// For users switching from friends-only to dating, we focus on dating-specific screens.
+    public func getDatingOnboardingStartStep() -> Int {
+        guard let profile = currentProfile else { return 2 } // Start at Orientation (first dating-specific screen)
+        
+        // For partial onboarding, we want to show dating-specific screens
+        // Skip basic info (name, birthday) if they already have it, but always show dating-specific screens
+        
+        let hasName = profile.name != nil && !profile.name!.isEmpty
+        let hasBirthday = profile.birthday != nil
+        let hasOrientation = profile.orientation != nil && !profile.orientation!.isEmpty
+        let hasLookingFor = profile.lookingFor == .dating || profile.lookingFor == .both
+        let hasPhotos = !profile.photos.isEmpty && profile.photos.count >= 2
+        let hasInterests = !profile.interests.isEmpty && profile.interests.count >= 3
+        let hasBio = profile.bio != nil && !profile.bio!.isEmpty
+        let hasPromptAnswers = profile.promptAnswers != nil && !profile.promptAnswers!.isEmpty && profile.promptAnswers!.count >= 3
+        let hasLocation = profile.location != nil && !profile.location!.isEmpty
+        
+        // Determine starting step - prioritize dating-specific screens
+        // If they have basic info, start at first dating screen (Orientation)
+        if !hasName { return 0 } // NameScreen
+        if !hasBirthday { return 1 } // BirthdayScreen
+        if !hasOrientation { return 2 } // OrientationScreen (first dating-specific)
+        if !hasLookingFor { return 3 } // LookingForScreen
+        if !hasPhotos { return 4 } // PhotoUploadScreen (may have some, need 2+)
+        if !hasInterests { return 5 } // InterestsScreen (may have some, need 3+)
+        if !hasBio { return 6 } // AboutMeScreen
+        if !hasPromptAnswers { return 7 } // ProfilePromptsScreen (dating-specific)
+        if !hasLocation { return 8 } // LocationScreen
+        return 9 // HometownScreen (always show, can be skipped)
+    }
 }
 
 // MARK: - Supporting Types

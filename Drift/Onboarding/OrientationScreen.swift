@@ -6,10 +6,12 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct OrientationScreen: View {
     let onContinue: () -> Void
     
+    @StateObject private var profileManager = ProfileManager.shared
     @State private var selectedOrientation: String = ""
     @State private var titleOpacity: Double = 0
     @State private var titleOffset: CGFloat = -20
@@ -108,6 +110,11 @@ struct OrientationScreen: View {
             }
         }
         .onAppear {
+            // Pre-fill orientation if it exists
+            if selectedOrientation.isEmpty, let existingOrientation = profileManager.currentProfile?.orientation {
+                selectedOrientation = existingOrientation
+            }
+            
             withAnimation(.easeOut(duration: 0.5)) {
                 titleOpacity = 1
                 titleOffset = 0

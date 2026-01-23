@@ -10,6 +10,7 @@ import DriftBackend
 
 struct NameScreen: View {
     let onContinue: () -> Void
+    var backgroundColor: Color? = nil
 
     @StateObject private var profileManager = ProfileManager.shared
     @State private var name: String = ""
@@ -28,9 +29,13 @@ struct NameScreen: View {
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
     
+    private var screenBackground: Color {
+        backgroundColor ?? warmWhite
+    }
+    
     var body: some View {
         ZStack {
-            warmWhite
+            screenBackground
                 .ignoresSafeArea()
             
             ScrollView {
@@ -110,6 +115,11 @@ struct NameScreen: View {
             hideKeyboard()
         }
         .onAppear {
+            // Pre-fill name if it exists
+            if name.isEmpty, let existingName = profileManager.currentProfile?.name {
+                name = existingName
+            }
+            
             withAnimation(.easeOut(duration: 0.5)) {
                 titleOpacity = 1
                 titleOffset = 0
@@ -130,9 +140,11 @@ struct NameScreen: View {
                 buttonOffset = 0
             }
             
-            // Auto-focus text field after animation
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                isTextFieldFocused = true
+            // Auto-focus text field after animation (only if name is empty)
+            if name.isEmpty {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    isTextFieldFocused = true
+                }
             }
         }
     }

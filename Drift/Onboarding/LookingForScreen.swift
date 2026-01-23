@@ -6,10 +6,13 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct LookingForScreen: View {
     let onContinue: () -> Void
     
+    @StateObject private var profileManager = ProfileManager.shared
+    @ObservedObject private var supabaseManager = SupabaseManager.shared
     @State private var selectedOptions: [String] = []
     @State private var titleOpacity: Double = 0
     @State private var titleOffset: CGFloat = -20
@@ -27,11 +30,47 @@ struct LookingForScreen: View {
     private let warmWhite = Color(red: 0.98, green: 0.98, blue: 0.96)
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
+    private let forestGreen = Color("ForestGreen")
+    private let skyBlue = Color("SkyBlue")
+    
+    // Check if user is in friends-only mode
+    private var isFriendsOnly: Bool {
+        supabaseManager.isFriendsOnly() || 
+        profileManager.currentProfile?.friendsOnly == true || 
+        profileManager.currentProfile?.lookingFor == .friends
+    }
+    
+    // Button background based on state
+    @ViewBuilder
+    private var buttonBackground: some View {
+        if selectedOptions.isEmpty {
+            Color.gray.opacity(0.3)
+        } else if isFriendsOnly {
+            LinearGradient(
+                gradient: Gradient(colors: [skyBlue, forestGreen]),
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        } else {
+            burntOrange
+        }
+    }
     
     var body: some View {
         ZStack {
+            // Base background
             warmWhite
                 .ignoresSafeArea()
+            
+            // Overlay gradient when friends-only
+            if isFriendsOnly {
+                LinearGradient(
+                    gradient: Gradient(colors: [skyBlue.opacity(0.05), forestGreen.opacity(0.05)]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+            }
             
             VStack(spacing: 0) {
                 // Progress indicator is shown in OnboardingFlow
@@ -66,6 +105,7 @@ struct LookingForScreen: View {
                                 offset: optionsOffset[index],
                                 checkmarkScale: checkmarkScale[index],
                                 checkmarkRotation: checkmarkRotation[index],
+                                isFriendsOnly: isFriendsOnly,
                                 onTap: {
                                     toggleOption(option, at: index)
                                 }
@@ -84,7 +124,7 @@ struct LookingForScreen: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
-                            .background(selectedOptions.isEmpty ? Color.gray.opacity(0.3) : burntOrange)
+                            .background(buttonBackground)
                             .clipShape(Capsule())
                     }
                     .disabled(selectedOptions.isEmpty)
@@ -96,6 +136,15 @@ struct LookingForScreen: View {
             }
         }
         .onAppear {
+            // Pre-fill lookingFor if it exists and is set to dating/both
+            if selectedOptions.isEmpty, let profile = profileManager.currentProfile {
+                if profile.lookingFor == .dating || profile.lookingFor == .both {
+                    // Map lookingFor to selected options (this is a simplified mapping)
+                    // The actual implementation depends on how lookingFor is stored
+                    selectedOptions = ["Male", "Female", "Non-binary"] // Default to all
+                }
+            }
+            
             withAnimation(.easeOut(duration: 0.5)) {
                 titleOpacity = 1
                 titleOffset = 0
@@ -142,12 +191,19 @@ struct LookingForOption: View {
     let offset: CGFloat
     let checkmarkScale: Double
     let checkmarkRotation: Double
+    let isFriendsOnly: Bool
     let onTap: () -> Void
     
     @State private var isPressed = false
     
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
+    private let forestGreen = Color("ForestGreen")
+    private let skyBlue = Color("SkyBlue")
+    
+    private var accentColor: Color {
+        isFriendsOnly ? forestGreen : burntOrange
+    }
     
     var body: some View {
         Button(action: {
@@ -169,7 +225,7 @@ struct LookingForOption: View {
 
                 Image(systemName: "checkmark")
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(burntOrange)
+                    .foregroundColor(accentColor)
                     .scaleEffect(checkmarkScale)
                     .rotationEffect(.degrees(checkmarkRotation))
                     .opacity(isSelected ? 1 : 0)
@@ -178,10 +234,10 @@ struct LookingForOption: View {
             .padding(.vertical, 16)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(isSelected ? burntOrange.opacity(0.05) : Color.white)
+                    .fill(isSelected ? accentColor.opacity(0.05) : Color.white)
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
-                            .stroke(isSelected ? burntOrange : Color.gray.opacity(0.3), lineWidth: 2)
+                            .stroke(isSelected ? accentColor : Color.gray.opacity(0.3), lineWidth: 2)
                     )
             )
             .scaleEffect(isPressed ? 0.97 : 1.0)

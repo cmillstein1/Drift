@@ -30,6 +30,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
 
 struct LocationScreen: View {
     let onContinue: () -> Void
+    var backgroundColor: Color? = nil
     
     @StateObject private var locationManager = LocationManager()
     @State private var iconRotation: Double = 0
@@ -54,9 +55,13 @@ struct LocationScreen: View {
     private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
     private let skyBlue = Color(red: 0.53, green: 0.81, blue: 0.92)
     
+    private var screenBackground: Color {
+        backgroundColor ?? warmWhite
+    }
+    
     var body: some View {
         ZStack {
-            warmWhite
+            screenBackground
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {

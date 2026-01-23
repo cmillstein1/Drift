@@ -16,6 +16,7 @@ struct PhotoSlot: Identifiable {
 
 struct PhotoUploadScreen: View {
     let onContinue: () -> Void
+    var backgroundColor: Color? = nil
 
     @StateObject private var profileManager = ProfileManager.shared
     @State private var photos: [PhotoSlot] = [
@@ -41,17 +42,23 @@ struct PhotoUploadScreen: View {
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
     
+    private var screenBackground: Color {
+        backgroundColor ?? warmWhite
+    }
+    
     private var uploadedCount: Int {
         photos.filter { $0.image != nil }.count
     }
     
     private var canContinue: Bool {
-        uploadedCount >= 2
+        // Allow continue if they have 2+ uploaded photos OR if they already have 2+ photos in their profile
+        let existingPhotoCount = profileManager.currentProfile?.photos.count ?? 0
+        return uploadedCount >= 2 || existingPhotoCount >= 2
     }
     
     var body: some View {
         ZStack {
-            warmWhite
+            screenBackground
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -165,6 +172,9 @@ struct PhotoUploadScreen: View {
             ))
         }
         .onAppear {
+            // If user already has photos, they can skip this screen
+            // The canContinue check will allow them to proceed
+            
             withAnimation(.easeOut(duration: 0.5)) {
                 titleOpacity = 1
                 titleOffset = 0

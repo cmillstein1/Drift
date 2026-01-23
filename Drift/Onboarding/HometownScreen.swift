@@ -328,6 +328,11 @@ struct HometownScreen: View {
             hideKeyboard()
         }
         .onAppear {
+            // Pre-fill location if it exists
+            if selectedLocation.isEmpty, let existingLocation = profileManager.currentProfile?.location {
+                selectedLocation = existingLocation
+            }
+            
             // Fetch current location and reverse geocode
             reverseGeocoder.fetchCurrentCity()
 

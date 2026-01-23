@@ -92,7 +92,7 @@ struct ProfileScreen: View {
                             await updateDiscoveryMode(.friends)
                         }
                     },
-                    hasCompletedDatingOnboarding: getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
+                    hasCompletedDatingOnboarding: profileManager.hasCompletedDatingOnboarding()
                 )
                 .presentationDetents([.height(480)])
                 .presentationDragIndicator(.visible)
@@ -577,8 +577,13 @@ struct ProfileScreen: View {
         do {
             try await supabaseManager.updateDiscoveryMode(mode)
             if mode == .both || mode == .dating {
-                let hasCompletedOnboarding = getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
-                if !hasCompletedOnboarding {
+                // Check if dating onboarding is complete
+                let hasCompletedDatingOnboarding = profileManager.hasCompletedDatingOnboarding()
+                if !hasCompletedDatingOnboarding {
+                    // Determine starting step for partial onboarding
+                    let startStep = profileManager.getDatingOnboardingStartStep()
+                    // Store the start step for partial onboarding
+                    UserDefaults.standard.set(startStep, forKey: "datingOnboardingStartStep")
                     supabaseManager.isShowingOnboarding = true
                     supabaseManager.isShowingWelcomeSplash = false
                     supabaseManager.isShowingPreferenceSelection = false
