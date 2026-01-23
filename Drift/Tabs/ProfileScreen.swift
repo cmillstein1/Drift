@@ -14,9 +14,9 @@ struct ProfileScreen: View {
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var revenueCatManager = RevenueCatManager.shared
     @State private var isSigningOut = false
-    @State private var showEditProfileSheet = false
+    @State private var showEditProfile = false
     @State private var showDiscoveryModeSheet = false
-    @State private var showSettingsSheet = false
+    @State private var showDatingSettings = false
     @State private var navigateToFriendsGrid = false
     @State private var showPaywall = false
     @State private var navigationPath: [String] = []
@@ -33,6 +33,10 @@ struct ProfileScreen: View {
             return "Dating & Friends shown in Discover"
         }
     }
+    
+    private var hasDatingEnabled: Bool {
+        supabaseManager.getDiscoveryMode() != .friends
+    }
 
     private let softGray = Color("SoftGray")
     private let desertSand = Color("DesertSand")
@@ -43,42 +47,36 @@ struct ProfileScreen: View {
     private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
     
     var body: some View {
-        NavigationStack {
-            ZStack {
+        NavigationStack(path: $navigationPath) {
+            ZStack(alignment: .bottom) {
                 softGray.ignoresSafeArea()
                 
                 ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    // Header Image
-                    headerImageSection
-                    
-                    // Main Content
-                    VStack(spacing: 24) {
-                        // Name & Location
-                        nameAndLocationSection
+                    VStack(spacing: 0) {
+                        // Header Section - extends to top
+                        headerSection
+                            .ignoresSafeArea(edges: .top)
                         
-                        // About Section
-                        aboutSection
-                        
-                        // Discovery Mode
-                        discoveryModeButton
-                        
-                        // My Friends Button
-                        myFriendsButton
-                        
-                        // Settings Menu
-                        settingsMenuSection
-                        
-                        // Emergency Services (outside settings section)
-                        emergencyServicesSection
+                        // Main Content
+                        VStack(spacing: 16) {
+                            // Discovery Mode
+                            discoveryModeButton
+                            
+                            // My Friends Button
+                            myFriendsButton
+                            
+                            // Settings Menu
+                            settingsMenuSection
+                            
+                            // Emergency Services Button
+                            emergencyServicesButton
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        .padding(.bottom, 100)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 120)
                 }
-                }
-            }
-            .sheet(isPresented: $showEditProfileSheet) {
-                EditProfileSheetWrapper(isPresented: $showEditProfileSheet)
+                .ignoresSafeArea(edges: .top)
             }
             .sheet(isPresented: $showDiscoveryModeSheet) {
                 DiscoveryModeSheet(
@@ -98,11 +96,20 @@ struct ProfileScreen: View {
                 .presentationDetents([.height(480)])
                 .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $showDatingSettings) {
+                DatingSettingsSheet(isPresented: $showDatingSettings)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
             .navigationDestination(for: String.self) { destination in
                 if destination == "friendsGrid" {
                     FriendsGridScreen()
                 } else if destination == "verification" {
                     VerificationView()
+                } else if destination == "editProfile" {
+                    EditProfileScreen(onBack: {
+                        navigationPath.removeLast()
+                    })
                 }
             }
             .sheet(isPresented: $showPaywall) {
@@ -120,196 +127,162 @@ struct ProfileScreen: View {
         }
     }
     
-    // MARK: - Header Image Section
+    // MARK: - Header Section
     
-    private var headerImageSection: some View {
-        ZStack(alignment: .topTrailing) {
-            // Hero Image
-            AsyncImage(url: URL(string: profile?.photos.first ?? profile?.avatarUrl ?? "")) { phase in
-                switch phase {
-                case .empty:
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [burntOrange.opacity(0.4), sunsetRose.opacity(0.4)]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .overlay(
-                            Image(systemName: "person.fill")
-                                .font(.system(size: 80))
-                                .foregroundColor(.white.opacity(0.4))
-                        )
-                case .success(let image):
-                    image
+    private var headerSection: some View {
+        VStack(spacing: 0) {
+            // Header with background image
+            ZStack {
+                // Background image with black opacity overlay - extends into safe area
+                ZStack {
+                    Image("Profile_Header")
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                case .failure:
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [burntOrange.opacity(0.4), sunsetRose.opacity(0.4)]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .overlay(
-                            Image(systemName: "person.fill")
-                                .font(.system(size: 80))
-                                .foregroundColor(.white.opacity(0.4))
-                        )
-                @unknown default:
-                    EmptyView()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 220)
+                        .clipped()
+                    
+                    // Black opacity overlay
+                    Color.black.opacity(0.3)
                 }
-            }
-            .frame(height: 256)
-            .frame(maxWidth: .infinity)
-            .clipped()
-            
-            // Edit Profile Button
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
+                .ignoresSafeArea(edges: .top)
+                
+                // Settings Button (only show when dating is enabled) - positioned at bottom trailing
+                if hasDatingEnabled {
                     Button(action: {
-                        showEditProfileSheet = true
+                        showDatingSettings = true
                     }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "pencil")
-                                .font(.system(size: 14, weight: .medium))
-                            Text("Edit Profile")
-                                .font(.system(size: 14, weight: .semibold))
-                        }
-                        .foregroundColor(charcoalColor)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(
-                            Capsule()
-                                .fill(Color.white)
-                                .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-                        )
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(.white)
+                            .frame(width: 44, height: 44)
+                            .background(Color.black.opacity(0.2))
+                            .clipShape(Circle())
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .padding(.trailing, 16)
                     .padding(.bottom, 16)
                 }
-            }
-        }
-        .frame(height: 256)
-    }
-    
-    // MARK: - Name & Location Section
-    
-    private var nameAndLocationSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Name and verification
-            HStack(spacing: 8) {
-                Text(profile?.displayName ?? "Your Name")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(charcoalColor)
                 
-                if profile?.verified == true {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundColor(forestGreen)
-                }
-            }
-            
-            // Location
-            if let location = profile?.location, !location.isEmpty {
-                HStack(spacing: 6) {
-                    Image(systemName: "mappin")
-                        .font(.system(size: 14))
-                    Text(location)
-                        .font(.system(size: 15))
-                }
-                .foregroundColor(charcoalColor.opacity(0.6))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 16)
-    }
-    
-    // MARK: - About Section
-    
-    private var aboutSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("About")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(charcoalColor)
-            
-            if let bio = profile?.bio, !bio.isEmpty {
-                Text(bio)
-                    .font(.system(size: 15))
-                    .foregroundColor(charcoalColor.opacity(0.7))
-                    .lineSpacing(6)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text("Add a bio to tell others about yourself")
-                    .font(.system(size: 15))
-                    .foregroundColor(charcoalColor.opacity(0.4))
-                    .italic()
-            }
-            
-            // Interest Tags
-            if let interests = profile?.interests, !interests.isEmpty {
-                FlowLayout(data: interests.map { InterestItem($0) }, spacing: 8) { item in
-                    ProfileInterestTag(interest: item.name)
-                }
-                .padding(.top, 8)
-            }
-            
-            // Travel Info
-            if profile?.travelPace != nil || profile?.nextDestination != nil {
-                Divider()
-                    .background(Color.gray.opacity(0.1))
-                    .padding(.top, 4)
-                
-                VStack(spacing: 12) {
-                    if let travelPace = profile?.travelPace {
-                        HStack {
-                            HStack(spacing: 8) {
-                                Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(charcoalColor.opacity(0.6))
-                                Text("Travel Pace")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(charcoalColor.opacity(0.6))
-                            }
-                            
-                            Spacer()
-                            
-                            Text(travelPace.displayName)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(charcoalColor)
-                        }
-                    }
+                // Profile Info - moved down to reduce spacing
+                VStack(spacing: 0) {
+                    Spacer()
                     
-                    if let nextDestination = profile?.nextDestination {
-                        HStack {
-                            HStack(spacing: 8) {
-                                Image(systemName: "mappin")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(charcoalColor.opacity(0.6))
-                                Text("Next Destination")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(charcoalColor.opacity(0.6))
+                    HStack(alignment: .bottom, spacing: 16) {
+                        // Profile Photo
+                        ZStack(alignment: .bottomTrailing) {
+                            AsyncImage(url: URL(string: profile?.photos.first ?? profile?.avatarUrl ?? "")) { phase in
+                                switch phase {
+                                case .empty:
+                                    RoundedRectangle(cornerRadius: 28)
+                                        .fill(Color.gray.opacity(0.2))
+                                        .overlay(
+                                            Image(systemName: "person.fill")
+                                                .font(.system(size: 40))
+                                                .foregroundColor(.gray.opacity(0.4))
+                                        )
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                case .failure:
+                                    RoundedRectangle(cornerRadius: 28)
+                                        .fill(Color.gray.opacity(0.2))
+                                        .overlay(
+                                            Image(systemName: "person.fill")
+                                                .font(.system(size: 40))
+                                                .foregroundColor(.gray.opacity(0.4))
+                                        )
+                                @unknown default:
+                                    EmptyView()
+                                }
+                            }
+                            .frame(width: 112, height: 112)
+                            .clipShape(RoundedRectangle(cornerRadius: 28))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 28)
+                                    .stroke(Color.white, lineWidth: 4)
+                            )
+                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                            
+                            // Verification Badge
+                            if profile?.verified == true {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.white)
+                                        .frame(width: 32, height: 32)
+                                        .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+                                    
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(forestGreen)
+                                }
+                                .offset(x: 8, y: 8)
+                            }
+                        }
+                        
+                        // Name & Location
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 4) {
+                                Text(profile?.displayName ?? "Your Name")
+                                    .font(.system(size: 28, weight: .bold))
+                                    .foregroundColor(.white)
+                                
+                                if let age = profile?.age {
+                                    Text(", \(age)")
+                                        .font(.system(size: 28, weight: .bold))
+                                        .foregroundColor(.white)
+                                }
                             }
                             
-                            Spacer()
+                            // Location
+                            if let location = profile?.location, !location.isEmpty {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "mappin")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.white.opacity(0.8))
+                                    Text(location)
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                            }
                             
-                            Text(nextDestination)
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(burntOrange)
+                            // Edit Profile Button
+                            NavigationLink(value: "editProfile") {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "pencil")
+                                        .font(.system(size: 14, weight: .medium))
+                                    Text("Edit Profile")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+                                .foregroundColor(charcoalColor)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 2)
+                                        .background(Color.white)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 20))
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .simultaneousGesture(
+                                TapGesture().onEnded {
+                                    // Hide tab bar immediately when tapped, before navigation
+                                    let tabBarVisibility = TabBarVisibility.shared
+                                    tabBarVisibility.isVisible = false
+                                }
+                            )
                         }
+                        
+                        Spacer()
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
                 }
             }
+            .frame(height: 220)
         }
-        .padding(24)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 24))
-        .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
     }
     
     // MARK: - Discovery Mode Button
@@ -332,13 +305,13 @@ struct ProfileScreen: View {
                 Spacer()
                 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 20, weight: .medium))
                     .foregroundColor(charcoalColor.opacity(0.4))
             }
             .padding(20)
             .background(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
         }
     }
     
@@ -347,11 +320,10 @@ struct ProfileScreen: View {
     private var myFriendsButton: some View {
         NavigationLink(value: "friendsGrid") {
             HStack(spacing: 12) {
-                // Icon container with backdrop blur
+                // Icon container
                 ZStack {
                     RoundedRectangle(cornerRadius: 16)
                         .fill(Color.white.opacity(0.2))
-                        .background(.ultraThinMaterial)
                         .frame(width: 48, height: 48)
                     
                     Image(systemName: "person.2.fill")
@@ -373,7 +345,7 @@ struct ProfileScreen: View {
                 Spacer()
                 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 20, weight: .medium))
+                    .font(.system(size: 24, weight: .medium))
                     .foregroundColor(.white.opacity(0.8))
             }
             .padding(20)
@@ -387,7 +359,7 @@ struct ProfileScreen: View {
                     endPoint: .trailing
                 )
             )
-            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
             .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
         }
         .buttonStyle(PlainButtonStyle())
@@ -431,21 +403,6 @@ struct ProfileScreen: View {
             
             menuDivider
             
-            // Verify Identity
-            NavigationLink(value: "verification") {
-                ProfileMenuRow(
-                    icon: "checkmark.shield.fill",
-                    iconBackground: profile?.verified == true ? forestGreen : burntOrange,
-                    title: "Verify",
-                    subtitle: profile?.verified == true ? "Verified" : "Verify your identity",
-                    badge: profile?.verified == true ? "Verified" : nil,
-                    badgeColor: forestGreen
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-            
-            menuDivider
-            
             // Privacy & Safety
             Button(action: {
                 // Privacy action
@@ -466,24 +423,9 @@ struct ProfileScreen: View {
             }) {
                 ProfileMenuRow(
                     icon: "questionmark.circle.fill",
-                    iconBackground: Color.purple,
+                    iconBackground: Color.purple.opacity(0.1),
+                    iconColor: Color.purple,
                     title: "Help & Support",
-                    subtitle: nil
-                )
-            }
-            
-            menuDivider
-            
-            // Restart Onboarding
-            Button(action: {
-                Task {
-                    await restartOnboarding()
-                }
-            }) {
-                ProfileMenuRow(
-                    icon: "arrow.counterclockwise",
-                    iconBackground: burntOrange,
-                    title: "Restart Onboarding",
                     subtitle: nil
                 )
             }
@@ -519,28 +461,22 @@ struct ProfileScreen: View {
                     Spacer()
                     
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 20, weight: .medium))
                         .foregroundColor(charcoalColor.opacity(0.4))
                 }
-                .padding(20)
+                .padding(16)
             }
             .disabled(isSigningOut)
         }
         .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 24))
-        .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
     }
     
-    // MARK: - Emergency Services Section
+    // MARK: - Emergency Services Button
     
-    private var emergencyServicesSection: some View {
-        VStack(spacing: 8) {
-            EmergencyButton(style: .floating)
-            
-            Text("Hold for 2 seconds to call")
-                .font(.system(size: 11))
-                .foregroundColor(charcoalColor.opacity(0.5))
-        }
+    private var emergencyServicesButton: some View {
+        EmergencyButton(style: .inline)
     }
     
     private var menuDivider: some View {
@@ -680,6 +616,7 @@ struct ProfileMenuRow: View {
     let icon: String
     var iconBackground: Color? = nil
     var iconBackgroundGradient: [Color]? = nil
+    var iconColor: Color? = nil
     let title: String
     var subtitle: String? = nil
     var badge: String? = nil
@@ -703,13 +640,16 @@ struct ProfileMenuRow: View {
                         .frame(width: 40, height: 40)
                 } else if let bg = iconBackground {
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(bg.opacity(0.1))
+                        .fill(bg)
                         .frame(width: 40, height: 40)
                 }
                 
                 Image(systemName: icon)
-                    .font(.system(size: 16))
-                    .foregroundColor(iconBackgroundGradient != nil ? .white : iconBackground ?? charcoalColor)
+                    .font(.system(size: 20))
+                    .foregroundColor(
+                        iconBackgroundGradient != nil ? .white :
+                        (iconColor ?? (iconBackground != nil ? .white : charcoalColor))
+                    )
             }
             
             // Text
@@ -739,10 +679,10 @@ struct ProfileMenuRow: View {
             }
             
             Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 20, weight: .medium))
                 .foregroundColor(charcoalColor.opacity(0.4))
         }
-        .padding(20)
+        .padding(16)
     }
 }
 
