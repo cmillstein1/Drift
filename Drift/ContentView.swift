@@ -118,7 +118,7 @@ struct ContentView: View {
         .frame(height: LayoutConstants.tabBarHeight)
         .background(
             Rectangle()
-                .fill(.ultraThinMaterial)
+                .fill(Color.white)
                 .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: -4)
                 .ignoresSafeArea(.all, edges: .bottom)
         )

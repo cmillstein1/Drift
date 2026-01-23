@@ -159,7 +159,7 @@ struct FriendAvailabilityScreen: View {
                                         )
                                         .frame(width: 32, height: 32)
                                     
-                                    Image(systemName: "mappin.fill")
+                                    Image(systemName: "mappin")
                                         .font(.system(size: 16))
                                         .foregroundColor(.white)
                                 }

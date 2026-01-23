@@ -19,6 +19,7 @@ struct EmergencyButton: View {
         case compact
         case floating
         case menuItem
+        case inline
     }
     
     private let charcoalColor = Color("Charcoal")
@@ -27,7 +28,7 @@ struct EmergencyButton: View {
     
     var body: some View {
         Button(action: {}) {
-            HStack(spacing: style == .compact ? 6 : (style == .menuItem ? 12 : 12)) {
+            HStack(spacing: style == .compact ? 6 : (style == .menuItem ? 12 : (style == .inline ? 12 : 12))) {
                 ZStack {
                     if style == .menuItem {
                         RoundedRectangle(cornerRadius: 12)
@@ -36,13 +37,13 @@ struct EmergencyButton: View {
                     }
                     
                     Image(systemName: "phone.fill")
-                        .font(.system(size: style == .compact ? 14 : (style == .menuItem ? 16 : 18), weight: .semibold))
+                        .font(.system(size: style == .compact ? 14 : (style == .menuItem ? 16 : (style == .inline ? 16 : 18)), weight: .semibold))
                         .foregroundColor(style == .menuItem ? emergencyRed : .white)
                 }
                 
                 if style != .compact {
                     Text("Emergency Services")
-                        .font(.system(size: style == .floating ? 16 : (style == .menuItem ? 16 : 17), weight: .semibold))
+                        .font(.system(size: style == .floating ? 16 : (style == .menuItem ? 16 : (style == .inline ? 15 : 17)), weight: .semibold))
                         .foregroundColor(style == .menuItem ? charcoalColor : .white)
                 }
                 
@@ -55,16 +56,16 @@ struct EmergencyButton: View {
                 }
             }
             .foregroundColor(style == .menuItem ? .clear : .white)
-            .frame(maxWidth: style == .floating ? .infinity : (style == .menuItem ? .infinity : nil))
-            .frame(height: style == .floating ? 48 : (style == .menuItem ? nil : (style == .compact ? 40 : 50)))
-            .padding(.horizontal, style == .compact ? 16 : (style == .menuItem ? 0 : 24))
+            .frame(maxWidth: (style == .floating || style == .inline) ? .infinity : (style == .menuItem ? .infinity : nil))
+            .frame(height: style == .floating ? 48 : (style == .menuItem ? nil : (style == .compact ? 40 : (style == .inline ? 40 : 50))))
+            .padding(.horizontal, style == .compact ? 16 : (style == .menuItem ? 0 : (style == .inline ? 20 : 24)))
             .padding(.vertical, style == .menuItem ? 0 : nil)
             .background(
                 Group {
                     if style == .menuItem {
                         // No background for menu item style
                         EmptyView()
-                    } else if style == .floating {
+                    } else if style == .floating || style == .inline {
                         Capsule()
                             .fill(
                                 LinearGradient(
@@ -79,7 +80,7 @@ struct EmergencyButton: View {
                     }
                 }
             )
-            .shadow(color: style == .menuItem ? .clear : emergencyRed.opacity(0.4), radius: style == .floating ? 16 : 12, x: 0, y: style == .floating ? 8 : 6)
+            .shadow(color: style == .menuItem ? .clear : emergencyRed.opacity(0.4), radius: (style == .floating || style == .inline) ? (style == .inline ? 12 : 16) : 12, x: 0, y: (style == .floating || style == .inline) ? (style == .inline ? 6 : 8) : 6)
             .overlay(
                 // Progress indicator for long press
                 Group {

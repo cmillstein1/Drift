@@ -38,18 +38,24 @@ struct DatingSettingsSheet: View {
     @State private var minAge: Double = 24
     @State private var maxAge: Double = 34
     @State private var showInterestedInModal: Bool = false
+    @State private var showVerification: Bool = false
     
-    private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
-    private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
+    private let charcoalColor = Color("Charcoal")
+    private let burntOrange = Color("BurntOrange")
     private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
-    private let softGray = Color(red: 0.96, green: 0.96, blue: 0.96)
+    private let softGray = Color("SoftGray")
+    private let warmWhite = Color(red: 0.99, green: 0.98, blue: 0.96)
+    
+    private var isVerified: Bool {
+        profileManager.currentProfile?.verified ?? false
+    }
     
     var body: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
                 Text("Dating Preferences")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.system(size: 24, weight: .bold))
                     .foregroundColor(charcoalColor)
                 
                 Spacer()
@@ -61,93 +67,195 @@ struct DatingSettingsSheet: View {
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(charcoalColor)
                         .frame(width: 32, height: 32)
-                        .background(softGray)
+                        .background(Color.gray.opacity(0.1))
                         .clipShape(Circle())
                 }
             }
             .padding(.horizontal, 24)
-            .padding(.vertical, 16)
-            .background(Color.white)
-            .overlay(
-                Rectangle()
-                    .frame(height: 1)
-                    .foregroundColor(Color.gray.opacity(0.2)),
-                alignment: .bottom
-            )
+            .padding(.top, 24)
+            .padding(.bottom, 16)
             
             // Content
-            VStack(alignment: .leading, spacing: 0) {
-                // I'm interested in
-                Button(action: {
-                    showInterestedInModal = true
-                }) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("I'm interested in")
-                                .font(.system(size: 17))
+            ScrollView {
+                VStack(spacing: 16) {
+                    // I'm interested in
+                    Button(action: {
+                        showInterestedInModal = true
+                    }) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("I'm interested in")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(charcoalColor)
+                                
+                                Text(interestedIn.displayName)
+                                    .font(.system(size: 13))
+                                    .foregroundColor(charcoalColor.opacity(0.6))
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(charcoalColor.opacity(0.4))
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                        )
+                    }
+                    .padding(.top, 8)
+                    
+                    // Maximum Distance
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Maximum distance")
+                                .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(charcoalColor)
                             
-                            Text(interestedIn.displayName)
-                                .font(.system(size: 15))
+                            Spacer()
+                            
+                            Text("\(Int(distance)) mi")
+                                .font(.system(size: 13))
                                 .foregroundColor(charcoalColor.opacity(0.6))
                         }
                         
-                        Spacer()
-                        
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(charcoalColor.opacity(0.4))
+                        Slider(value: $distance, in: 1...200, step: 1)
+                            .tint(burntOrange)
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 16)
-                }
-                
-                // Maximum Distance
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Maximum distance")
-                            .font(.system(size: 17))
+                    .padding(12)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                    )
+                    
+                    // Age Range
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Age range")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(charcoalColor)
+                            
+                            Spacer()
+                            
+                            Text("\(Int(minAge)) – \(Int(maxAge))")
+                                .font(.system(size: 13))
+                                .foregroundColor(charcoalColor.opacity(0.6))
+                        }
+                        
+                        // Age Range Slider (custom dual-thumb)
+                        AgeRangeSlider(
+                            minValue: $minAge,
+                            maxValue: $maxAge,
+                            range: 18...80,
+                            accentColor: burntOrange,
+                            gradientColors: [burntOrange, sunsetRose]
+                        )
+                        
+                        // Age Labels
+                        HStack {
+                            Text("18")
+                                .font(.system(size: 12))
+                                .foregroundColor(charcoalColor.opacity(0.4))
+                            Spacer()
+                            Text("80")
+                                .font(.system(size: 12))
+                                .foregroundColor(charcoalColor.opacity(0.4))
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                    )
+                    
+                    // Safety & Trust Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Safety & Trust")
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(charcoalColor)
                         
-                        Text("\(Int(distance)) mi")
-                            .font(.system(size: 15))
-                            .foregroundColor(charcoalColor.opacity(0.6))
+                        // Verification
+                        Button(action: {
+                            if !isVerified {
+                                showVerification = true
+                            }
+                        }) {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    if isVerified {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(
+                                                LinearGradient(
+                                                    gradient: Gradient(colors: [burntOrange, sunsetRose]),
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                            .frame(width: 40, height: 40)
+                                    } else {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(softGray)
+                                            .frame(width: 40, height: 40)
+                                    }
+                                    
+                                    Image(systemName: "checkmark.shield.fill")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundColor(isVerified ? .white : charcoalColor.opacity(0.4))
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(isVerified ? "Verified" : "Verify Your Identity")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(charcoalColor)
+                                    
+                                    Text(isVerified ? "Identity confirmed" : "Build trust with a verification badge")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(charcoalColor.opacity(0.6))
+                                }
+                                
+                                Spacer()
+                                
+                                if !isVerified {
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(charcoalColor.opacity(0.4))
+                                }
+                            }
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                            )
+                        }
                     }
-                    
-                    Slider(value: $distance, in: 1...200, step: 1)
-                        .tint(burntOrange)
-                }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 16)
-                
-                // Age Range
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Age range")
-                            .font(.system(size: 17))
-                            .foregroundColor(charcoalColor)
-                        
-                        Text("\(interestedIn.displayName) \(Int(minAge))–\(Int(maxAge))")
-                            .font(.system(size: 15))
-                            .foregroundColor(charcoalColor.opacity(0.6))
-                    }
-                    
-                    // Age Range Slider (custom dual-thumb)
-                    AgeRangeSlider(
-                        minValue: $minAge,
-                        maxValue: $maxAge,
-                        range: 18...80,
-                        accentColor: burntOrange,
-                        gradientColors: [burntOrange, sunsetRose]
+                    .padding(12)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 2)
                     )
                 }
                 .padding(.horizontal, 24)
-                .padding(.vertical, 16)
-                
-                Spacer()
+                .padding(.top, 8)
+                .padding(.bottom, 24)
             }
+            .background(warmWhite)
+            .scrollContentBackground(.hidden)
         }
-        .background(Color.white)
+        .background(warmWhite)
         .onAppear {
             loadPreferences()
         }
@@ -158,6 +266,9 @@ struct DatingSettingsSheet: View {
             )
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
+        }
+        .fullScreenCover(isPresented: $showVerification) {
+            VerificationView()
         }
     }
     
