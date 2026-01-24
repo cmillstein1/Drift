@@ -14,14 +14,12 @@ enum CommunityFilter: String, CaseIterable {
     case all = "All"
     case events = "Events"
     case buildHelp = "Help"
-    case market = "Market"
 
     var icon: String {
         switch self {
         case .all: return ""
         case .events: return "tent"
         case .buildHelp: return "wrench.and.screwdriver"
-        case .market: return "bag"
         }
     }
 }
@@ -255,8 +253,6 @@ struct CommunityScreen: View {
             return allPosts.filter { $0.type == .event }
         case .buildHelp:
             return allPosts.filter { $0.type == .help }
-        case .market:
-            return allPosts.filter { $0.type == .market }
         }
     }
 
@@ -290,20 +286,6 @@ struct CommunityScreen: View {
                 likes: nil,
                 replies: 5,
                 price: nil
-            ),
-            CommunityPost(
-                id: UUID(),
-                type: .market,
-                authorName: "Mike Seller",
-                authorAvatar: nil,
-                timeAgo: "2h ago",
-                location: nil,
-                category: "For Sale",
-                title: "Dometic CFX3 55 Fridge",
-                content: "Barely used, 55L capacity. Works great. Selling because I upgraded to a larger unit.",
-                likes: nil,
-                replies: nil,
-                price: "$450"
             ),
             CommunityPost(
                 id: UUID(),
@@ -616,10 +598,6 @@ struct CreateCommunityPostSheet: View {
     @State private var eventDate: Date = Date()
     @State private var eventTime: Date = Date()
     
-    // Market photo upload
-    @State private var marketPhotos: [Int: Data] = [:] // Index -> Image data
-    @State private var showingImagePicker: Bool = false
-    @State private var selectedPhotoIndex: Int = 0
 
     private let charcoal = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
@@ -678,46 +656,6 @@ struct CreateCommunityPostSheet: View {
                                 isSelected: selectedType == .help,
                                 onTap: { selectedType = .help }
                             )
-                            PostTypeCard(
-                                type: .market,
-                                isSelected: selectedType == .market,
-                                onTap: { selectedType = .market }
-                            )
-                        }
-                    }
-
-                    // Photos (Market only) - Above Title
-                    if selectedType == .market {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "camera")
-                                    .font(.system(size: 14))
-                                Text("Photos")
-                                    .font(.system(size: 14, weight: .medium))
-                            }
-                            .foregroundColor(charcoal)
-
-                            HStack(spacing: 8) {
-                                ForEach(0..<4, id: \.self) { index in
-                                    MarketPhotoSquare(
-                                        index: index,
-                                        imageData: marketPhotos[index],
-                                        onTap: {
-                                            selectedPhotoIndex = index
-                                            showingImagePicker = true
-                                        },
-                                        onRemove: {
-                                            marketPhotos.removeValue(forKey: index)
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                        .sheet(isPresented: $showingImagePicker) {
-                            MarketImagePicker(imageData: Binding(
-                                get: { marketPhotos[selectedPhotoIndex] },
-                                set: { marketPhotos[selectedPhotoIndex] = $0 }
-                            ))
                         }
                     }
 
@@ -765,8 +703,6 @@ struct CreateCommunityPostSheet: View {
                         eventFields
                     } else if selectedType == .help {
                         helpFields
-                    } else if selectedType == .market {
-                        marketFields
                     }
                 }
                 .padding(24)

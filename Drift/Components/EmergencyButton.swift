@@ -27,122 +27,132 @@ struct EmergencyButton: View {
     private let longPressDuration: TimeInterval = 2.0 // Require 2 second hold
     
     var body: some View {
-        Button(action: {}) {
-            HStack(spacing: style == .compact ? 6 : (style == .menuItem ? 12 : (style == .inline ? 12 : 12))) {
-                ZStack {
-                    if style == .menuItem {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(emergencyRed.opacity(0.1))
-                            .frame(width: 40, height: 40)
-                    }
-                    
-                    Image(systemName: "phone.fill")
-                        .font(.system(size: style == .compact ? 14 : (style == .menuItem ? 16 : (style == .inline ? 16 : 18)), weight: .semibold))
-                        .foregroundColor(style == .menuItem ? emergencyRed : .white)
-                }
-                
-                if style != .compact {
-                    Text("Emergency Services")
-                        .font(.system(size: style == .floating ? 16 : (style == .menuItem ? 16 : (style == .inline ? 15 : 17)), weight: .semibold))
-                        .foregroundColor(style == .menuItem ? charcoalColor : .white)
-                }
-                
-                if style == .menuItem {
-                    Spacer()
-                    
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(emergencyRed.opacity(0.6))
-                }
-            }
-            .foregroundColor(style == .menuItem ? .clear : .white)
-            .frame(maxWidth: (style == .floating || style == .inline) ? .infinity : (style == .menuItem ? .infinity : nil))
-            .frame(height: style == .floating ? 48 : (style == .menuItem ? nil : (style == .compact ? 40 : (style == .inline ? 40 : 50))))
-            .padding(.horizontal, style == .compact ? 16 : (style == .menuItem ? 0 : (style == .inline ? 20 : 24)))
-            .padding(.vertical, style == .menuItem ? 0 : nil)
-            .background(
-                Group {
-                    if style == .menuItem {
-                        // No background for menu item style
-                        EmptyView()
-                    } else if style == .floating || style == .inline {
-                        Capsule()
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [emergencyRed, emergencyRed.opacity(0.9)]),
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                    } else {
-                        Capsule()
-                            .fill(emergencyRed)
-                    }
-                }
-            )
-            .shadow(color: style == .menuItem ? .clear : emergencyRed.opacity(0.4), radius: (style == .floating || style == .inline) ? (style == .inline ? 12 : 16) : 12, x: 0, y: (style == .floating || style == .inline) ? (style == .inline ? 6 : 8) : 6)
-            .overlay(
-                // Progress indicator for long press
-                Group {
-                    if isPressing {
-                        GeometryReader { geometry in
-                            ZStack(alignment: .leading) {
-                                // Background progress bar
-                                Rectangle()
-                                    .fill(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [
-                                                Color.white.opacity(0.8),
-                                                Color.white.opacity(0.6)
-                                            ]),
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
-                                    .frame(width: geometry.size.width * pressProgress)
-                                
-                                // Animated shimmer effect
-                                Rectangle()
-                                    .fill(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [
-                                                Color.clear,
-                                                Color.white.opacity(0.4),
-                                                Color.clear
-                                            ]),
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
-                                    .frame(width: geometry.size.width * pressProgress)
-                                    .blur(radius: 2)
-                            }
+        VStack(spacing: (style == .prominent || style == .inline) ? 8 : 0) {
+            Button(action: {}) {
+                HStack(spacing: style == .compact ? 6 : (style == .menuItem ? 12 : (style == .inline ? 12 : 12))) {
+                    ZStack {
+                        if style == .menuItem {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(emergencyRed.opacity(0.1))
+                                .frame(width: 40, height: 40)
                         }
-                        .clipShape(Capsule())
-                        .animation(.linear(duration: 0.1), value: pressProgress)
+                        
+                        Image(systemName: "phone.fill")
+                            .font(.system(size: style == .compact ? 14 : (style == .menuItem ? 16 : (style == .inline ? 16 : 18)), weight: .semibold))
+                            .foregroundColor(style == .menuItem ? emergencyRed : .white)
+                    }
+                    
+                    if style != .compact {
+                        Text("Emergency Services")
+                            .font(.system(size: style == .floating ? 16 : (style == .menuItem ? 16 : (style == .inline ? 15 : 17)), weight: .semibold))
+                            .foregroundColor(style == .menuItem ? charcoalColor : .white)
+                    }
+                    
+                    if style == .menuItem {
+                        Spacer()
+                        
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(emergencyRed.opacity(0.6))
                     }
                 }
-            )
-        }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    if !isPressing {
-                        startLongPress()
+                .foregroundColor(style == .menuItem ? .clear : .white)
+                .frame(maxWidth: (style == .floating || style == .inline) ? .infinity : (style == .menuItem ? .infinity : nil))
+                .frame(height: style == .floating ? 48 : (style == .menuItem ? nil : (style == .compact ? 40 : (style == .inline ? 36 : (style == .prominent ? 44 : 50)))))
+                .padding(.horizontal, style == .compact ? 16 : (style == .menuItem ? 0 : (style == .inline ? 20 : 24)))
+                .padding(.vertical, style == .menuItem ? 0 : nil)
+                .background(
+                    Group {
+                        if style == .menuItem {
+                            // No background for menu item style
+                            EmptyView()
+                        } else if style == .floating || style == .inline {
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [emergencyRed, emergencyRed.opacity(0.9)]),
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                        } else {
+                            Capsule()
+                                .fill(emergencyRed)
+                        }
                     }
-                }
-                .onEnded { _ in
-                    cancelLongPress()
-                }
-        )
-        .alert("⚠️ Emergency Services", isPresented: $showConfirmation) {
-            Button("Cancel", role: .cancel) { }
-            Button("Call \(EmergencyManager.shared.currentEmergencyNumber)", role: .destructive) {
-                EmergencyManager.shared.callEmergency()
+                )
+                .shadow(color: style == .menuItem ? .clear : emergencyRed.opacity(0.4), radius: (style == .floating || style == .inline) ? (style == .inline ? 12 : 16) : 12, x: 0, y: (style == .floating || style == .inline) ? (style == .inline ? 6 : 8) : 6)
+                .overlay(
+                    // Progress indicator for long press
+                    Group {
+                        if isPressing {
+                            GeometryReader { geometry in
+                                ZStack(alignment: .leading) {
+                                    // Background progress bar
+                                    Rectangle()
+                                        .fill(
+                                            LinearGradient(
+                                                gradient: Gradient(colors: [
+                                                    Color.white.opacity(0.8),
+                                                    Color.white.opacity(0.6)
+                                                ]),
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                        .frame(width: geometry.size.width * pressProgress)
+                                    
+                                    // Animated shimmer effect
+                                    Rectangle()
+                                        .fill(
+                                            LinearGradient(
+                                                gradient: Gradient(colors: [
+                                                    Color.clear,
+                                                    Color.white.opacity(0.4),
+                                                    Color.clear
+                                                ]),
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                        .frame(width: geometry.size.width * pressProgress)
+                                        .blur(radius: 2)
+                                }
+                            }
+                            .clipShape(Capsule())
+                            .animation(.linear(duration: 0.1), value: pressProgress)
+                        }
+                    }
+                )
             }
-        } message: {
-            Text("This will immediately call \(EmergencyManager.shared.currentEmergencyNumber).\n\nYour location (GPS coordinates) will be automatically shared with emergency services.\n\nOn iPhone 14 or later with no cellular service, Emergency SOS via Satellite will be used automatically.\n\nOnly use this in a real emergency.")
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        if !isPressing {
+                            startLongPress()
+                        }
+                    }
+                    .onEnded { _ in
+                        cancelLongPress()
+                    }
+            )
+            .alert("⚠️ Emergency Services", isPresented: $showConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Call \(EmergencyManager.shared.currentEmergencyNumber)", role: .destructive) {
+                    EmergencyManager.shared.callEmergency()
+                }
+            } message: {
+                Text("This will immediately call \(EmergencyManager.shared.currentEmergencyNumber).\n\nYour location (GPS coordinates) will be automatically shared with emergency services.\n\nOn iPhone 14 or later with no cellular service, Emergency SOS via Satellite will be used automatically.\n\nOnly use this in a real emergency.")
+            }
+            
+            // Message below button for prominent and inline styles
+            if style == .prominent || style == .inline {
+                Text("Hold for 2 seconds to call emergency services.")
+                    .font(.system(size: 13))
+                    .foregroundColor(charcoalColor.opacity(0.6))
+            }
         }
+        .padding(.top, 8)
     }
     
     private func startLongPress() {

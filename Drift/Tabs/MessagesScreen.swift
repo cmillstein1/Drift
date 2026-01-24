@@ -14,6 +14,23 @@ enum MessageMode {
     case friends
 }
 
+// Convert MessageMode to DiscoverMode for the switcher
+extension MessageMode {
+    var discoverMode: DiscoverMode {
+        switch self {
+        case .dating: return .dating
+        case .friends: return .friends
+        }
+    }
+    
+    init(_ discoverMode: DiscoverMode) {
+        switch discoverMode {
+        case .dating: self = .dating
+        case .friends: self = .friends
+        }
+    }
+}
+
 struct MessagesScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var messagingManager = MessagingManager.shared
@@ -145,31 +162,6 @@ struct MessagesScreen: View {
         !supabaseManager.isFriendsOnly()
     }
     
-    private var segmentOptions: [SegmentOption] {
-        [
-            SegmentOption(
-                id: 0,
-                title: "Dating",
-                icon: "heart.fill",
-                activeGradient: LinearGradient(
-                    gradient: Gradient(colors: [burntOrange, pink500]),
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            ),
-            SegmentOption(
-                id: 1,
-                title: "Friends",
-                icon: "person.2.fill",
-                activeGradient: LinearGradient(
-                    gradient: Gradient(colors: [skyBlue, forestGreen]),
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-        ]
-    }
-    
     private var filteredConversations: [Conversation] {
         conversations.filter { conv in
             switch selectedMode {
@@ -189,24 +181,30 @@ struct MessagesScreen: View {
             ScrollView {
                 VStack(spacing: 0) {
                     // Dating/Friends Toggle - only show if dating is enabled
+                    // Match exact positioning from DiscoverScreen
                     if isDatingEnabled {
-                        SegmentToggle(
-                            options: segmentOptions,
-                            selectedIndex: Binding(
-                                get: { segmentIndex },
-                                set: { newIndex in
-                                    segmentIndex = newIndex
-                                    selectedMode = newIndex == 0 ? .dating : .friends
-                                    if newIndex == 0 {
-                                        loadLikesYou()
-                                    }
-                                }
-                            )
-                        )
-                        .frame(maxWidth: 448)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 16)
-                        .padding(.bottom, 16)
+                        VStack(spacing: 0) {
+                            // Mode switcher row - matches discover view positioning
+                            HStack {
+                                DiscoverModeSwitcher(
+                                    mode: Binding(
+                                        get: { selectedMode.discoverMode },
+                                        set: { newMode in
+                                            selectedMode = MessageMode(newMode)
+                                            segmentIndex = newMode == .dating ? 0 : 1
+                                            if newMode == .dating {
+                                                loadLikesYou()
+                                            }
+                                        }
+                                    ),
+                                    style: .light
+                                )
+                                Spacer()
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.top, 10) // Slightly less padding to match DiscoverScreen
+                            .padding(.bottom, 20)
+                        }
                     }
                     
                     HStack(spacing: 12) {
