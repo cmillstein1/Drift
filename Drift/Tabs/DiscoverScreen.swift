@@ -29,6 +29,7 @@ struct DiscoverScreen: View {
     @State private var likeMessage: String = ""
     @State private var swipeProgress: CGFloat = 0
     @State private var showFilters: Bool = false
+    @State private var showDatingSettings: Bool = false
     @State private var lastScrollOffset: CGFloat = 0
     @State private var headerOpacity: Double = 1.0
     @State private var scrollPosition: CGFloat = 0
@@ -291,6 +292,9 @@ struct DiscoverScreen: View {
                     handleSwipe(direction: .left)
                 }
             )
+        }
+        .sheet(isPresented: $showDatingSettings) {
+            DatingSettingsSheet(isPresented: $showDatingSettings)
         }
     }
 
@@ -1024,31 +1028,71 @@ struct DiscoverScreen: View {
     // MARK: - Empty State
     @ViewBuilder
     private var emptyState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "heart.slash")
-                .font(.system(size: 48))
-                .foregroundColor(inkMain.opacity(0.3))
-
-            Text("No more profiles")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundColor(inkMain)
-
-            Text("Check back later for new matches")
-                .font(.system(size: 14))
-                .foregroundColor(inkSub)
-
-            Button {
-                recycleProfiles()
-            } label: {
-                Text("Refresh")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(coralPrimary)
-                    .clipShape(Capsule())
+        let forestGreen = Color("ForestGreen")
+        
+        VStack(spacing: 0) {
+            Spacer()
+            
+            VStack(spacing: 24) {
+                // Illustration
+                Image("Dating_Empty_State")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: 280, maxHeight: 280)
+                
+                // Main title
+                Text("You've seen everyone for now")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(inkMain)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                
+                // Subtitle
+                Text("Try changing your filters so more people match your criteria—or check back later!")
+                    .font(.system(size: 16))
+                    .foregroundColor(inkSub)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+                    .padding(.horizontal, 32)
+                
+                // Buttons
+                VStack(spacing: 12) {
+                    // Change filters button (primary)
+                    Button {
+                        showDatingSettings = true
+                    } label: {
+                        Text("Change filters")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(forestGreen)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .padding(.horizontal, 32)
+                    
+                    // Review skipped profiles button (secondary)
+                    Button {
+                        recycleProfiles()
+                    } label: {
+                        Text("Review skipped profiles")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(forestGreen)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(forestGreen.opacity(0.3), lineWidth: 1.5)
+                            )
+                    }
+                    .padding(.horizontal, 32)
+                }
+                .padding(.top, 8)
             }
-            .padding(.top, 8)
+            
+            Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(softGray)
@@ -1329,7 +1373,7 @@ struct DiscoverModeSwitcher: View {
                 .padding(.vertical, 10)
                 .background {
                     if mode == .dating {
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: 12)
                             .fill(
                                 LinearGradient(
                                     colors: [burntOrange, pink500],
@@ -1362,7 +1406,7 @@ struct DiscoverModeSwitcher: View {
                 .padding(.vertical, 10)
                 .background {
                     if mode == .friends {
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: 12)
                             .fill(friendsGradient)
                             .matchedGeometryEffect(id: "discoverSegmentBg", in: animation)
                     }
@@ -1372,7 +1416,7 @@ struct DiscoverModeSwitcher: View {
         }
         .padding(4)
         .background(containerBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(containerOverlay)
         .shadow(color: shadowColor, radius: shadowRadius, x: 0, y: shadowY)
     }
@@ -1414,10 +1458,10 @@ struct DiscoverModeSwitcher: View {
     private var containerOverlay: some View {
         switch style {
         case .dark:
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.white.opacity(0.1), lineWidth: 1)
         case .light:
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.gray.opacity(0.2), lineWidth: 1)
         }
     }
