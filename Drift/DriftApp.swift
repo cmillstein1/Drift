@@ -46,7 +46,12 @@ struct DriftApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                if supabaseManager.isAuthenticated {
+                // Show splash screen while checking auth status
+                if supabaseManager.isCheckingAuth {
+                    SplashScreen()
+                        .transition(.opacity)
+                        .zIndex(2)
+                } else if supabaseManager.isAuthenticated {
                     if profileManager.isLoading && profileManager.currentProfile == nil {
                         // Wait for profile to load before deciding
                         ZStack {
@@ -106,6 +111,7 @@ struct DriftApp: App {
             }
             .animation(.easeInOut(duration: 0.6), value: hasCompletedOnboarding)
             .animation(.easeInOut(duration: 0.6), value: supabaseManager.isShowingOnboarding)
+            .animation(.easeInOut(duration: 0.3), value: supabaseManager.isCheckingAuth)
             .task(id: supabaseManager.isAuthenticated) {
                 // Fetch profile when authenticated to check onboarding status
                 if supabaseManager.isAuthenticated && profileManager.currentProfile == nil {

@@ -6,18 +6,18 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct InviteCodeSheet: View {
     @Binding var isOpen: Bool
     let onSubmit: (String) -> Void
     
+    @StateObject private var inviteManager = InviteManager.shared
     @State private var digits: [String] = Array(repeating: "", count: 6)
     @State private var showCheckmark = false
     @State private var showError = false
+    @State private var isValidating = false
     @FocusState private var focusedField: Int?
-    
-    // Master invite code
-    private let masterCode = "000000"
     
     var body: some View {
         ScrollView {
@@ -86,7 +86,11 @@ struct InviteCodeSheet: View {
                         // Button is disabled, validation happens automatically
                     }) {
                         ZStack {
-                            if showCheckmark {
+                            if isValidating {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .scaleEffect(1.2)
+                            } else if showCheckmark {
                                 // Show checkmark when code is valid
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 24, weight: .bold))
@@ -109,6 +113,7 @@ struct InviteCodeSheet: View {
                     .frame(height: 56)
                     .foregroundColor(.white)
                     .background(
+                        isValidating ? Color(red: 0.80, green: 0.40, blue: 0.20).opacity(0.7) : // dimmed while validating
                         showCheckmark ? Color(red: 0.13, green: 0.55, blue: 0.13) : // green when valid
                         showError ? Color.red : // red when invalid
                         Color(red: 0.80, green: 0.40, blue: 0.20) // burnt-orange otherwise
@@ -116,6 +121,7 @@ struct InviteCodeSheet: View {
                     .clipShape(Capsule())
                     .padding(.horizontal, 24)
                     .padding(.bottom, 20)
+                    .disabled(isValidating)
                     
                     // Footer - Waitlist link
                     HStack(spacing: 4) {
@@ -144,6 +150,7 @@ struct InviteCodeSheet: View {
             digits = Array(repeating: "", count: 6)
             showCheckmark = false
             showError = false
+            isValidating = false
             // Focus first field when sheet appears
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 focusedField = 0
@@ -157,7 +164,7 @@ struct InviteCodeSheet: View {
             showError = false
         }
         
-        // Filter to only numbers
+        // Filter to only numbers (6-digit numeric codes)
         let filtered = newValue.filter { $0.isNumber }
         
         // Handle backspace - move to previous field
@@ -228,32 +235,42 @@ struct InviteCodeSheet: View {
             return
         }
         
-        // Small delay for better UX
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            if code == masterCode {
-                // Valid code - show checkmark
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    showCheckmark = true
-                    showError = false
-                }
+        // Validate via edge function
+        isValidating = true
+        showError = false
+        showCheckmark = false
+        
+        Task {
+            let isValid = await inviteManager.validateInviteCode(code)
+            
+            await MainActor.run {
+                isValidating = false
                 
-                // Dismiss sheet after showing checkmark briefly
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                    onSubmit(code)
-                    isOpen = false
-                }
-            } else {
-                // Invalid code - show X
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    showError = true
-                    showCheckmark = false
-                }
-                
-                // Clear all digits after showing error
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    digits = Array(repeating: "", count: 6)
-                    showError = false
-                    focusedField = 0
+                if isValid {
+                    // Valid code - show checkmark
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        showCheckmark = true
+                        showError = false
+                    }
+                    
+                    // Dismiss sheet after showing checkmark briefly
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                        onSubmit(code)
+                        isOpen = false
+                    }
+                } else {
+                    // Invalid code - show X
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        showError = true
+                        showCheckmark = false
+                    }
+                    
+                    // Clear all digits after showing error
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        digits = Array(repeating: "", count: 6)
+                        showError = false
+                        focusedField = 0
+                    }
                 }
             }
         }
