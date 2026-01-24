@@ -23,6 +23,8 @@ public class SupabaseManager: ObservableObject {
     @Published public var currentUser: Auth.User?
     /// Whether a user is currently authenticated.
     @Published public var isAuthenticated = false
+    /// Whether authentication status is currently being checked.
+    @Published public var isCheckingAuth = true
     /// Whether the welcome splash screen should be displayed.
     @Published public var isShowingWelcomeSplash = false
     /// Whether the onboarding flow should be displayed.
@@ -46,6 +48,7 @@ public class SupabaseManager: ObservableObject {
 
     /// Checks the current authentication status and updates state accordingly.
     public func checkAuthStatus() async {
+        self.isCheckingAuth = true
         do {
             let session = try await client.auth.session
             self.currentUser = session.user
@@ -78,6 +81,7 @@ public class SupabaseManager: ObservableObject {
             self.isShowingOnboarding = false
             self.isShowingPreferenceSelection = false
         }
+        self.isCheckingAuth = false
     }
 
     // MARK: - Sign In

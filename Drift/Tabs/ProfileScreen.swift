@@ -19,6 +19,7 @@ struct ProfileScreen: View {
     @State private var showDatingSettings = false
     @State private var navigateToFriendsGrid = false
     @State private var showPaywall = false
+    @State private var showGenerateInvite = false
     @State private var navigationPath: [String] = []
 
     private var profile: UserProfile? {
@@ -114,6 +115,11 @@ struct ProfileScreen: View {
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallScreen(isOpen: $showPaywall, source: .general)
+            }
+            .sheet(isPresented: $showGenerateInvite) {
+                GenerateInviteSheet(isPresented: $showGenerateInvite)
+                    .presentationDetents([.height(480)])
+                    .presentationDragIndicator(.visible)
             }
             .onAppear {
                 Task {
@@ -426,6 +432,21 @@ struct ProfileScreen: View {
                     iconBackground: Color.purple.opacity(0.1),
                     iconColor: Color.purple,
                     title: "Help & Support",
+                    subtitle: nil
+                )
+            }
+            
+            menuDivider
+            
+            // Generate Invite Code
+            Button(action: {
+                showGenerateInvite = true
+            }) {
+                ProfileMenuRow(
+                    icon: "gift.fill",
+                    iconBackground: burntOrange.opacity(0.1),
+                    iconColor: burntOrange,
+                    title: "Generate Invite Code",
                     subtitle: nil
                 )
             }
