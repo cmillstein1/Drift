@@ -30,6 +30,12 @@ struct DiscoverScreen: View {
     @State private var swipeProgress: CGFloat = 0
     @State private var showFilters: Bool = false
     @State private var lastScrollOffset: CGFloat = 0
+    @State private var headerOpacity: Double = 1.0
+    @State private var scrollPosition: CGFloat = 0
+    @State private var currentScrollOffset: CGFloat = 0
+    @State private var isScrolledDown: Bool = false // Track if user has scrolled down
+    @State private var maxScrollOffset: CGFloat = 0 // Track the maximum scroll offset reached
+    @State private var lastScrollDirection: CGFloat = 0 // Track last scroll direction (negative = down, positive = up)
 
     // Colors from HTML
     private let softGray = Color("SoftGray")
@@ -39,6 +45,8 @@ struct DiscoverScreen: View {
     private let tealPrimary = Color(red: 0.18, green: 0.83, blue: 0.75) // #2DD4BF
     private let gray100 = Color(red: 0.95, green: 0.95, blue: 0.96) // bg-gray-100
     private let gray700 = Color(red: 0.37, green: 0.37, blue: 0.42) // text-gray-700
+    private let burntOrange = Color("BurntOrange")
+    private let pink500 = Color(red: 0.93, green: 0.36, blue: 0.51)
 
     private var profiles: [UserProfile] {
         profileManager.discoverProfiles
@@ -63,6 +71,85 @@ struct DiscoverScreen: View {
                 print("Failed to load profiles: \(error)")
             }
         }
+    }
+    
+    private func handleScrollOffset(_ offset: CGFloat) {
+        // Calculate header opacity based on scroll position
+        let fadeThreshold: CGFloat = 100
+        if offset > -fadeThreshold {
+            // Near top - show header
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                headerOpacity = 1.0
+            }
+        } else {
+            // Scrolled down - hide header
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                headerOpacity = 0.0
+            }
+        }
+        
+        // Handle tab bar visibility based on scroll position and direction
+        let scrollDelta = offset - lastScrollOffset
+        
+        // Track maximum scroll offset reached (most negative value)
+        if offset < maxScrollOffset {
+            maxScrollOffset = offset
+        }
+        
+        // Always show tab bar when near top (within first 50px of scroll)
+        if offset > -50 {
+            if !tabBarVisibility.isVisible {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    tabBarVisibility.isVisible = true
+                }
+            }
+            isScrolledDown = false
+            maxScrollOffset = 0 // Reset when back at top
+            lastScrollOffset = offset
+            lastScrollDirection = 0
+            return
+        }
+        
+        // Track if user has scrolled down past threshold
+        if offset < -50 {
+            isScrolledDown = true
+        }
+        
+        // Hide/show based on scroll direction when scrolled down
+        // Only update if there's meaningful scroll movement (at least 2px)
+        // Only show tab bar if user is actually scrolling up (not just bouncing at bottom)
+        if abs(scrollDelta) > 2 {
+            // Determine if this is a sustained upward scroll (not a bounce)
+            // A bounce would be: scrolling up briefly then immediately back down
+            // A real scroll up would be: consistent upward movement
+            
+            let isConsistentScrollUp = scrollDelta > 0 && (lastScrollDirection >= 0 || scrollDelta > 5)
+            
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                if scrollDelta < 0 {
+                    // Scrolling down - hide tab bar
+                    tabBarVisibility.isVisible = false
+                    lastScrollDirection = scrollDelta
+                } else if scrollDelta > 0 && isScrolledDown && isConsistentScrollUp {
+                    // Scrolling up AND we were scrolled down AND it's a consistent upward scroll
+                    // Only show if we're actually making progress toward the top
+                    // Don't show if we're still very far from top (likely a bounce)
+                    if offset > -200 {
+                        // We're within 200px of top - safe to show tab bar
+                        tabBarVisibility.isVisible = true
+                    } else if offset > maxScrollOffset + 100 {
+                        // We've scrolled up more than 100px from the bottom - likely intentional
+                        tabBarVisibility.isVisible = true
+                    }
+                }
+            }
+            
+            // Update last scroll direction
+            if abs(scrollDelta) > 2 {
+                lastScrollDirection = scrollDelta
+            }
+        }
+        lastScrollOffset = offset
     }
     
     private func recycleProfiles() {
@@ -136,7 +223,7 @@ struct DiscoverScreen: View {
 
     var body: some View {
         ZStack {
-            Color.white.ignoresSafeArea()
+            softGray.ignoresSafeArea()
 
             let discoveryMode = supabaseManager.getDiscoveryMode()
 
@@ -157,7 +244,9 @@ struct DiscoverScreen: View {
             if discoveryMode == .dating || (discoveryMode == .both && mode == .dating) {
                 loadProfiles()
             }
+            // Initialize tab bar as visible and reset scroll offset tracking
             tabBarVisibility.isVisible = true
+            lastScrollOffset = 0
         }
         .onDisappear {
             tabBarVisibility.isVisible = true
@@ -209,20 +298,79 @@ struct DiscoverScreen: View {
     @ViewBuilder
     private var datingView: some View {
         ZStack {
-            Color.white
+            softGray.ignoresSafeArea()
 
             if let profile = currentCard {
                 // Main scrollable content
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
                         // ==========================================
-                        // HERO SECTION - h-[500px]
+                        // HEADER SECTION - Mode switcher, name, location (fades on scroll)
                         // ==========================================
-                        GeometryReader { geo in
-                            ZStack(alignment: .bottom) {
-                                // Hero image (first photo or avatar)
-                                if let heroUrl = profile.photos.first ?? profile.avatarUrl,
-                                   let url = URL(string: heroUrl) {
+                        VStack(spacing: 0) {
+                            // Mode switcher row - matches friends view positioning
+                            if supabaseManager.getDiscoveryMode() == .both {
+                                HStack {
+                                    modeSwitcher(style: .light)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 24)
+                                .padding(.top, 12)
+                                .padding(.bottom, 20)
+                            }
+                            
+                            // Name and location section
+                            VStack(alignment: .leading, spacing: 4) {
+                                // Name and age
+                                Text("\(profile.displayName), \(profile.age ?? 0)")
+                                    .font(.system(size: 28, weight: .heavy))
+                                    .tracking(-0.5)
+                                    .foregroundColor(inkMain)
+                                
+                                // Location
+                                if let location = profile.location {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "mappin")
+                                            .font(.system(size: 14))
+                                        Text(location)
+                                    }
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(inkSub)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 24)
+                            .padding(.bottom, 24)
+                        }
+                        .padding(.top, 60) // Account for status bar
+                        .background(softGray)
+                        .opacity(headerOpacity)
+                        .background(
+                            GeometryReader { geo in
+                                let namedOffset = geo.frame(in: .named("discoverScroll")).minY
+                                Color.clear
+                                    .preference(
+                                        key: ScrollOffsetPreferenceKey.self,
+                                        value: namedOffset
+                                    )
+                                    .onAppear {
+                                        currentScrollOffset = namedOffset
+                                    }
+                                    .onChange(of: namedOffset) { oldValue, newValue in
+                                        // Directly update state when offset changes
+                                        currentScrollOffset = newValue
+                                        handleScrollOffset(newValue)
+                                    }
+                            }
+                        )
+                        
+                        // ==========================================
+                        // FIRST PHOTO - Below header
+                        // ==========================================
+                        if let firstPhotoUrl = profile.photos.first ?? profile.avatarUrl,
+                           let url = URL(string: firstPhotoUrl) {
+                            GeometryReader { geo in
+                                ZStack(alignment: .bottom) {
                                     AsyncImage(url: url) { phase in
                                         if let image = phase.image {
                                             image
@@ -238,148 +386,142 @@ struct DiscoverScreen: View {
                                     }
                                     .frame(width: geo.size.width, height: 500)
                                     .clipped()
-                                } else {
-                                    placeholderGradient
-                                        .frame(width: geo.size.width, height: 500)
-                                }
-
-                                // Gradient overlay
-                                LinearGradient(
-                                    stops: [
-                                        .init(color: .black.opacity(0.8), location: 0.0),
-                                        .init(color: .clear, location: 0.4)
-                                    ],
-                                    startPoint: .bottom,
-                                    endPoint: .top
-                                )
-                                .frame(width: geo.size.width, height: 500)
-
-                                // Hero overlay content
-                                HStack(alignment: .bottom, spacing: 16) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("\(profile.displayName), \(profile.age ?? 0)")
-                                            .font(.system(size: 36, weight: .heavy))
-                                            .tracking(-0.5)
-                                            .foregroundColor(.white)
-
-                                        if let location = profile.location {
-                                            HStack(spacing: 8) {
-                                                Image(systemName: "mappin")
-                                                    .font(.system(size: 14))
-                                                Text(location)
+                                    
+                                    // Gradient overlay
+                                    LinearGradient(
+                                        stops: [
+                                            .init(color: .black.opacity(0.8), location: 0.0),
+                                            .init(color: .clear, location: 0.4)
+                                        ],
+                                        startPoint: .bottom,
+                                        endPoint: .top
+                                    )
+                                    .frame(width: geo.size.width, height: 500)
+                                    
+                                    // Like button - bottom right
+                                    VStack {
+                                        Spacer()
+                                        HStack {
+                                            Spacer()
+                                            Button {
+                                                handleSwipe(direction: .right)
+                                            } label: {
+                                                Image(systemName: "heart.fill")
+                                                    .font(.system(size: 24))
+                                                    .foregroundColor(.white)
+                                                    .frame(width: 56, height: 56)
+                                                    .background(Color.white.opacity(0.2))
+                                                    .clipShape(Circle())
+                                                    .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
+                                                    .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
                                             }
-                                            .font(.system(size: 16, weight: .medium))
-                                            .foregroundColor(.white.opacity(0.9))
+                                            .padding(.trailing, 24)
+                                            .padding(.bottom, 24)
                                         }
                                     }
-
-                                    Spacer()
-
-                                    // Like button
-                                    Button {
-                                        handleSwipe(direction: .right)
-                                    } label: {
-                                        Image(systemName: "heart.fill")
-                                            .font(.system(size: 24))
-                                            .foregroundColor(.white)
-                                            .frame(width: 56, height: 56)
-                                            .background(Color.white.opacity(0.2))
-                                            .clipShape(Circle())
-                                            .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
-                                            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
-                                    }
                                 }
-                                .padding(24)
                             }
+                            .frame(height: 500)
+                        } else {
+                            // Placeholder if no photo
+                            placeholderGradient
+                                .frame(height: 500)
                         }
-                        .frame(height: 500)
 
                         // ==========================================
-                        // BIO SECTION - p-6 space-y-6
+                        // ABOUT SECTION - After first photo
                         // ==========================================
-                        VStack(alignment: .leading, spacing: 24) {
-                            if let bio = profile.bio, !bio.isEmpty {
+                        if let bio = profile.bio, !bio.isEmpty {
+                            VStack(alignment: .leading, spacing: 16) {
+                                // About heading with accent line
+                                HStack(spacing: 12) {
+                                    // Accent line with gradient
+                                    LinearGradient(
+                                        colors: [coralPrimary, coralPrimary.opacity(0.6)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                    .frame(width: 4, height: 20)
+                                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                                    
+                                    Text("ABOUT")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .tracking(1)
+                                        .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
+                                }
+                                
+                                // About text
                                 Text(bio)
-                                    .font(.system(size: 18))
+                                    .font(.system(size: 16))
                                     .foregroundColor(inkMain)
                                     .lineSpacing(6)
                             }
-
-                            // Tags row (interests)
-                            if !profile.interests.isEmpty {
-                                WrappingHStack(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
-                                    ForEach(profile.interests, id: \.self) { interest in
-                                        Text(interest)
-                                            .font(.system(size: 14, weight: .semibold))
-                                            .foregroundColor(gray700)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(gray100)
-                                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                                    }
-                                }
-                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 24)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(softGray)
                         }
-                        .padding(24)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.white)
 
                         // ==========================================
-                        // PROMPT SECTION 1 - First prompt answer (after hero photo)
+                        // PROMPT SECTION 1 - First prompt answer (after About)
                         // ==========================================
                         if let promptAnswers = profile.promptAnswers, !promptAnswers.isEmpty, promptAnswers.count > 0 {
-                            HStack(spacing: 0) {
-                                Rectangle()
-                                    .fill(coralPrimary)
-                                    .frame(width: 4)
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(promptAnswers[0].prompt.uppercased())
-                                        .font(.system(size: 12, weight: .bold))
-                                        .tracking(1)
-                                        .foregroundColor(coralPrimary)
-
-                                    Text(promptAnswers[0].answer)
-                                        .font(.system(size: 20, weight: .medium))
-                                        .foregroundColor(inkMain)
-                                }
-                                .padding(.leading, 16)
-                                .padding(.vertical, 4)
-
-                                Spacer()
+                            VStack(spacing: 16) {
+                                // Prompt title - centered, uppercase
+                                Text(promptAnswers[0].prompt.uppercased())
+                                    .font(.system(size: 14, weight: .bold))
+                                    .tracking(1)
+                                    .foregroundColor(Color.gray)
+                                
+                                // Answer card - centered, white background
+                                Text(promptAnswers[0].answer)
+                                    .font(.system(size: 18))
+                                    .foregroundColor(inkMain)
+                                    .multilineTextAlignment(.center)
+                                    .padding(20)
+                                    .frame(maxWidth: .infinity)
+                                    .background(Color.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                                    )
                             }
                             .padding(.horizontal, 24)
-                            .padding(.vertical, 8)
-                            .background(Color.white)
+                            .padding(.vertical, 32)
+                            .frame(maxWidth: .infinity)
+                            .background(softGray)
                         } else if let simplePleasure = profile.simplePleasure, !simplePleasure.isEmpty {
                             // Fallback to old prompt for backward compatibility
-                            HStack(spacing: 0) {
-                                Rectangle()
-                                    .fill(coralPrimary)
-                                    .frame(width: 4)
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("MY SIMPLE PLEASURE")
-                                        .font(.system(size: 12, weight: .bold))
-                                        .tracking(1)
-                                        .foregroundColor(coralPrimary)
-
-                                    Text(simplePleasure)
-                                        .font(.system(size: 20, weight: .medium))
-                                        .foregroundColor(inkMain)
-                                }
-                                .padding(.leading, 16)
-                                .padding(.vertical, 4)
-
-                                Spacer()
+                            VStack(spacing: 16) {
+                                Text("MY SIMPLE PLEASURE")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .tracking(1)
+                                    .foregroundColor(Color.gray)
+                                
+                                Text(simplePleasure)
+                                    .font(.system(size: 18))
+                                    .foregroundColor(inkMain)
+                                    .multilineTextAlignment(.center)
+                                    .padding(20)
+                                    .frame(maxWidth: .infinity)
+                                    .background(Color.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                                    )
                             }
                             .padding(.horizontal, 24)
-                            .padding(.vertical, 8)
-                            .background(Color.white)
+                            .padding(.vertical, 32)
+                            .frame(maxWidth: .infinity)
+                            .background(softGray)
                         }
 
                         // ==========================================
-                        // RIG PHOTO SECTION - mt-6 h-[400px]
+                        // SECOND PHOTO SECTION
                         // ==========================================
                         if profile.photos.count > 1 {
                             GeometryReader { geo in
@@ -397,8 +539,9 @@ struct DiscoverScreen: View {
                                     .frame(width: geo.size.width, height: 400)
                                     .clipped()
 
-                                    // Like button top-right
+                                    // Like button - bottom right
                                     VStack {
+                                        Spacer()
                                         HStack {
                                             Spacer()
                                             Button {
@@ -414,9 +557,8 @@ struct DiscoverScreen: View {
                                                     .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
                                             }
                                             .padding(.trailing, 24)
-                                            .padding(.top, 16)
+                                            .padding(.bottom, 24)
                                         }
-                                        Spacer()
                                     }
 
                                     // Rig info card bottom-left (only if rigInfo exists)
@@ -452,11 +594,61 @@ struct DiscoverScreen: View {
                                 }
                             }
                             .frame(height: 400)
-                            .padding(.top, 24)
+                        } else if profile.photos.isEmpty && profile.avatarUrl == nil {
+                            // If no photos at all, show placeholder
+                            placeholderGradient
+                                .frame(height: 400)
                         }
 
                         // ==========================================
-                        // PROMPT SECTION 2 - Second prompt answer (after second photo)
+                        // INTERESTS SECTION - After second photo (or first if only one photo)
+                        // ==========================================
+                        if !profile.interests.isEmpty {
+                            VStack(alignment: .leading, spacing: 16) {
+                                // Interests heading with accent line
+                                HStack(spacing: 12) {
+                                    // Accent line with gradient
+                                    LinearGradient(
+                                        colors: [coralPrimary, coralPrimary.opacity(0.6)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                    .frame(width: 4, height: 20)
+                                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                                    
+                                    Text("INTERESTS")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .tracking(1)
+                                        .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
+                                }
+                                
+                                // Interest tags with emojis
+                                WrappingHStack(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                                    ForEach(profile.interests, id: \.self) { interest in
+                                        HStack(spacing: 6) {
+                                            if let emoji = DriftUI.emoji(for: interest) {
+                                                Text(emoji)
+                                                    .font(.system(size: 14))
+                                            }
+                                            Text(interest)
+                                                .font(.system(size: 14, weight: .medium))
+                                        }
+                                        .foregroundColor(gray700)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(burntOrange.opacity(0.15))
+                                        .clipShape(Capsule())
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 24)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(softGray)
+                        }
+
+                        // ==========================================
+                        // PROMPT SECTION 2 - Second prompt answer (after Interests)
                         // ==========================================
                         if let promptAnswers = profile.promptAnswers, promptAnswers.count > 1 {
                             VStack(spacing: 16) {
@@ -482,7 +674,7 @@ struct DiscoverScreen: View {
                             .padding(.horizontal, 24)
                             .padding(.vertical, 32)
                             .frame(maxWidth: .infinity)
-                            .background(Color.gray.opacity(0.05))
+                            .background(softGray)
                         } else if let datingLooksLike = profile.datingLooksLike, !datingLooksLike.isEmpty {
                             // Fallback to old prompt for backward compatibility
                             VStack(spacing: 16) {
@@ -508,13 +700,15 @@ struct DiscoverScreen: View {
                             .padding(.horizontal, 24)
                             .padding(.vertical, 32)
                             .frame(maxWidth: .infinity)
-                            .background(Color.gray.opacity(0.05))
+                            .background(softGray)
                         }
 
                         // ==========================================
-                        // ADDITIONAL PHOTOS with prompt answers
+                        // ADDITIONAL PHOTOS with prompt answers (photos 3+)
                         // ==========================================
-                        ForEach(Array(profile.photos.dropFirst(2).enumerated()), id: \.offset) { index, photoUrl in
+                        // Only show if there are more than 2 photos
+                        if profile.photos.count > 2 {
+                            ForEach(Array(profile.photos.dropFirst(2).enumerated()), id: \.offset) { index, photoUrl in
                             GeometryReader { geo in
                                 ZStack {
                                     AsyncImage(url: URL(string: photoUrl)) { phase in
@@ -530,8 +724,9 @@ struct DiscoverScreen: View {
                                     .frame(width: geo.size.width, height: 400)
                                     .clipped()
 
-                                    // Like button top-right
+                                    // Like button - bottom right
                                     VStack {
+                                        Spacer()
                                         HStack {
                                             Spacer()
                                             Button {
@@ -547,9 +742,8 @@ struct DiscoverScreen: View {
                                                     .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
                                             }
                                             .padding(.trailing, 24)
-                                            .padding(.top, 16)
+                                            .padding(.bottom, 24)
                                         }
-                                        Spacer()
                                     }
                                 }
                             }
@@ -580,78 +774,132 @@ struct DiscoverScreen: View {
                                 .padding(.horizontal, 24)
                                 .padding(.vertical, 32)
                                 .frame(maxWidth: .infinity)
-                                .background(Color.gray.opacity(0.05))
+                                .background(softGray)
                             }
+                        }
                         }
 
                         // Bottom padding for tab bar
                         Spacer().frame(height: LayoutConstants.tabBarBottomPadding)
                     }
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear
-                                .preference(
-                                    key: ScrollOffsetPreferenceKey.self,
-                                    value: geo.frame(in: .named("discoverScroll")).minY
-                                )
-                        }
-                    )
                 }
                 .coordinateSpace(name: "discoverScroll")
-                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
-                    // Near top of content - always show tab bar
-                    if offset > -100 {
+                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newOffset in
+                    // Update scroll position
+                    scrollPosition = newOffset
+                    
+                    // Calculate header opacity based on scroll position
+                    // Fade out when scrolling down, fade in when at top
+                    let fadeThreshold: CGFloat = 100
+                    if newOffset > -fadeThreshold {
+                        // Near top - show header
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            tabBarVisibility.isVisible = true
+                            headerOpacity = 1.0
                         }
-                        lastScrollOffset = offset
-                        return
-                    }
-
-                    let scrollDelta = offset - lastScrollOffset
-                    if abs(scrollDelta) > 8 {
+                    } else {
+                        // Scrolled down - hide header
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            if scrollDelta < 0 {
-                                // Scrolling down
-                                tabBarVisibility.isVisible = false
-                            } else if scrollDelta > 0 {
-                                // Scrolling up
+                            headerOpacity = 0.0
+                        }
+                    }
+                    
+                    // Handle tab bar visibility based on scroll position and direction
+                    let scrollDelta = newOffset - lastScrollOffset
+                    
+                    // Track maximum scroll offset reached (most negative value)
+                    if newOffset < maxScrollOffset {
+                        maxScrollOffset = newOffset
+                    }
+                    
+                    // Always show tab bar when near top (within first 50px of scroll)
+                    if newOffset > -50 {
+                        if !tabBarVisibility.isVisible {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                 tabBarVisibility.isVisible = true
                             }
                         }
-                        lastScrollOffset = offset
+                        isScrolledDown = false
+                        maxScrollOffset = 0 // Reset when back at top
+                        lastScrollOffset = newOffset
+                        lastScrollDirection = 0
+                        return
                     }
+                    
+                    // Track if user has scrolled down past threshold
+                    if newOffset < -50 {
+                        isScrolledDown = true
+                    }
+                    
+                    // Hide/show based on scroll direction when scrolled down
+                    // Only update if there's meaningful scroll movement (at least 2px)
+                    // Only show tab bar if user is actually scrolling up (not just bouncing at bottom)
+                    if abs(scrollDelta) > 2 {
+                        // Determine if this is a sustained upward scroll (not a bounce)
+                        // A bounce would be: scrolling up briefly then immediately back down
+                        // A real scroll up would be: consistent upward movement
+                        
+                        let isConsistentScrollUp = scrollDelta > 0 && (lastScrollDirection >= 0 || scrollDelta > 5)
+                        
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            if scrollDelta < 0 {
+                                // Scrolling down - hide tab bar
+                                tabBarVisibility.isVisible = false
+                                lastScrollDirection = scrollDelta
+                            } else if scrollDelta > 0 && isScrolledDown && isConsistentScrollUp {
+                                // Scrolling up AND we were scrolled down AND it's a consistent upward scroll
+                                // Only show if we're actually making progress toward the top
+                                // Don't show if we're still very far from top (likely a bounce)
+                                if newOffset > -200 {
+                                    // We're within 200px of top - safe to show tab bar
+                                    tabBarVisibility.isVisible = true
+                                } else if newOffset > maxScrollOffset + 100 {
+                                    // We've scrolled up more than 100px from the bottom - likely intentional
+                                    tabBarVisibility.isVisible = true
+                                }
+                            }
+                        }
+                        
+                        // Update last scroll direction
+                        if abs(scrollDelta) > 2 {
+                            lastScrollDirection = scrollDelta
+                        }
+                    }
+                    lastScrollOffset = newOffset
                 }
 
                 // ==========================================
-                // FLOATING HEADER - mode switcher + more button
+                // FLOATING HEADER - Appears when scrolled (fades in when header fades out)
                 // ==========================================
                 VStack {
                     HStack {
                         // Show mode switcher only in "both" mode
                         if supabaseManager.getDiscoveryMode() == .both {
-                            modeSwitcher(style: .dark)
+                            modeSwitcher(style: .light)
                         }
                         Spacer()
                         Button { } label: {
                             Image(systemName: "ellipsis")
                                 .font(.system(size: 20))
-                                .foregroundColor(.white)
+                                .foregroundColor(inkMain)
                                 .frame(width: 40, height: 40)
-                                .background(Color.white.opacity(0.2))
+                                .background(Color.white)
                                 .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
-                                .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+                                .overlay(Circle().stroke(Color.gray.opacity(0.2), lineWidth: 1))
+                                .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                         }
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 60) // Account for status bar / safe area
+                    .padding(.bottom, 16)
+                    .background(softGray)
 
                     Spacer()
                 }
+                .opacity(1.0 - headerOpacity) // Inverse of header opacity - shows when header is hidden
+                .allowsHitTesting(headerOpacity < 0.5) // Only allow interaction when visible
 
                 // ==========================================
-                // PASS BUTTON - bottom above tab bar
+                // PASS BUTTON - bottom left, slides with tab bar
                 // ==========================================
                 VStack {
                     Spacer()
@@ -668,13 +916,13 @@ struct DiscoverScreen: View {
                                 .overlay(Circle().stroke(Color.gray.opacity(0.15), lineWidth: 1))
                                 .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 4)
                         }
+                        .padding(.leading, 24)
+                        .padding(.bottom, LayoutConstants.tabBarHeight + 16) // Position above tab bar
+                        .offset(y: tabBarVisibility.isVisible ? 0 : LayoutConstants.tabBarHeight + 20) // Higher when tab bar is hidden
+                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: tabBarVisibility.isVisible)
 
                         Spacer()
                     }
-                    .padding(.leading, 24)
-                    .padding(.bottom, LayoutConstants.tabBarBottomPadding)
-                    .offset(y: tabBarVisibility.isVisible ? 0 : 120)
-                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: tabBarVisibility.isVisible)
                 }
             } else {
                 // Empty state when no profiles - always show tab bar
@@ -1030,7 +1278,14 @@ enum SwipeDirection {
 struct ScrollOffsetPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
+        // Take the minimum value (most negative = scrolled down most)
+        // This ensures we always get the actual scroll position
+        let next = nextValue()
+        if abs(next) > abs(value) {
+            value = next
+        } else {
+            value = next
+        }
     }
 }
 
@@ -1042,6 +1297,8 @@ struct DiscoverModeSwitcher: View {
     
     private let coralPrimary = Color(red: 1.0, green: 0.37, blue: 0.37)
     private let inkMain = Color(red: 0.07, green: 0.09, blue: 0.15)
+    private let burntOrange = Color("BurntOrange")
+    private let pink500 = Color(red: 0.93, green: 0.36, blue: 0.51)
     
     private let friendsGradient = LinearGradient(
         gradient: Gradient(colors: [
@@ -1073,7 +1330,13 @@ struct DiscoverModeSwitcher: View {
                 .background {
                     if mode == .dating {
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.white)
+                            .fill(
+                                LinearGradient(
+                                    colors: [burntOrange, pink500],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
                             .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
                             .matchedGeometryEffect(id: "discoverSegmentBg", in: animation)
                     }
@@ -1119,9 +1382,9 @@ struct DiscoverModeSwitcher: View {
     private var datingTextColor: Color {
         switch style {
         case .dark:
-            return mode == .dating ? coralPrimary : .white.opacity(0.9)
+            return mode == .dating ? .white : .white.opacity(0.9)
         case .light:
-            return mode == .dating ? coralPrimary : .gray.opacity(0.6)
+            return mode == .dating ? .white : .gray.opacity(0.6)
         }
     }
     

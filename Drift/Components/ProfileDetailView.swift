@@ -448,12 +448,22 @@ struct ProfileDetailView: View {
             age: 28,
             bio: "Van-lifer and photographer exploring the Pacific Coast. Always up for sunrise hikes and good coffee.",
             avatarUrl: "https://images.unsplash.com/photo-1682101525282-545b10c4bb55?w=800",
+            photos: [
+                "https://images.unsplash.com/photo-1682101525282-545b10c4bb55?w=800",
+                "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=800",
+                "https://images.unsplash.com/photo-1502680390469-be75c86b636f?w=800"
+            ],
             location: "Big Sur, CA",
             verified: true,
             lifestyle: .vanLife,
             nextDestination: "Portland, OR",
             interests: ["Van Life", "Photography", "Surf", "Early Riser"],
-            lookingFor: .dating
+            lookingFor: .dating,
+            promptAnswers: [
+                DriftBackend.PromptAnswer(prompt: "My simple pleasure is", answer: "Waking up before sunrise, making pour-over coffee, and watching the fog roll over the ocean."),
+                DriftBackend.PromptAnswer(prompt: "The best trip I ever took was", answer: "Driving the entire Pacific Coast Highway from San Diego to Seattle. Two months of pure magic."),
+                DriftBackend.PromptAnswer(prompt: "I'm really good at", answer: "Finding the most epic sunrise spots and making friends with local surfers.")
+            ] as [DriftBackend.PromptAnswer]
         ),
         isOpen: .constant(true),
         onLike: {},

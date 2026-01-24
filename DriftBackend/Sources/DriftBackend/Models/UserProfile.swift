@@ -206,7 +206,18 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         simplePleasure = try container.decodeIfPresent(String.self, forKey: .simplePleasure)
         rigInfo = try container.decodeIfPresent(String.self, forKey: .rigInfo)
         datingLooksLike = try container.decodeIfPresent(String.self, forKey: .datingLooksLike)
-        promptAnswers = try container.decodeIfPresent([PromptAnswer].self, forKey: .promptAnswers)
+        
+        // Decode promptAnswers from JSONB
+        // Supabase returns JSONB as a JSON array, so we can decode directly
+        if container.contains(.promptAnswers) {
+            if let answers = try? container.decode([PromptAnswer].self, forKey: .promptAnswers) {
+                promptAnswers = answers.isEmpty ? nil : answers
+            } else {
+                promptAnswers = nil
+            }
+        } else {
+            promptAnswers = nil
+        }
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         lastActiveAt = try container.decodeIfPresent(Date.self, forKey: .lastActiveAt)

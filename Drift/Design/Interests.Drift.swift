@@ -28,7 +28,11 @@ extension DriftUI {
         // Additional common ones
         "Coding": "💻", "Dogs": "🐕", "Cats": "🐱", "National Parks": "🏞️",
         "Stargazing": "⭐", "Van Building": "🚐", "Desert Life": "🏜️",
-        "Meditation": "🧘", "Hiking": "🥾", "Travel": "✈️"
+        "Meditation": "🧘", "Hiking": "🥾", "Travel": "✈️",
+        // Van life specific
+        "Van Life": "🚐", "Early Riser": "🌅", "Rock Climbing": "🧗",
+        "Mountain Biking": "🚵", "Woodworking": "🪵", "Surf": "🏄",
+        "Surfing": "🏄"
     ]
 
     /// Get emoji for an interest, returns nil if not found

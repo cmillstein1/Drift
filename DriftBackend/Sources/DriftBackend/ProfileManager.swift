@@ -25,6 +25,50 @@ public class ProfileManager: ObservableObject {
     }
 
     private init() {}
+    
+    // MARK: - Temporary Mock Data Helper (for testing)
+    
+    /// Adds mock prompts to a profile if missing
+    /// TODO: Remove this once database is properly seeded with prompts
+    private func addMockPrompts(to profile: UserProfile) -> UserProfile {
+        let mockPrompts = [
+            PromptAnswer(prompt: "My simple pleasure is", answer: "Waking up before sunrise, making pour-over coffee, and watching the fog roll over the ocean."),
+            PromptAnswer(prompt: "The best trip I ever took was", answer: "Driving the entire Pacific Coast Highway from San Diego to Seattle. Two months of pure magic."),
+            PromptAnswer(prompt: "I'm really good at", answer: "Finding the most epic sunrise spots and making friends with local surfers."),
+            PromptAnswer(prompt: "You can find me on weekends", answer: "Chasing waves at sunrise, exploring hidden beaches, and capturing the perfect golden hour shot."),
+            PromptAnswer(prompt: "I'm looking for someone who", answer: "Loves adventure as much as I do and isn't afraid to wake up early for a good sunrise."),
+            PromptAnswer(prompt: "My ideal first date is", answer: "A sunrise hike followed by coffee at a local roastery, then exploring a new beach together.")
+        ]
+        
+        // Create a new profile with prompts added
+        return UserProfile(
+            id: profile.id,
+            name: profile.name,
+            birthday: profile.birthday,
+            age: profile.age,
+            bio: profile.bio,
+            avatarUrl: profile.avatarUrl,
+            photos: profile.photos,
+            location: profile.location,
+            verified: profile.verified,
+            lifestyle: profile.lifestyle,
+            travelPace: profile.travelPace,
+            nextDestination: profile.nextDestination,
+            travelDates: profile.travelDates,
+            interests: profile.interests,
+            lookingFor: profile.lookingFor,
+            friendsOnly: profile.friendsOnly,
+            orientation: profile.orientation,
+            simplePleasure: profile.simplePleasure,
+            rigInfo: profile.rigInfo,
+            datingLooksLike: profile.datingLooksLike,
+            promptAnswers: mockPrompts,
+            createdAt: profile.createdAt,
+            updatedAt: profile.updatedAt,
+            lastActiveAt: profile.lastActiveAt,
+            onboardingCompleted: profile.onboardingCompleted
+        )
+    }
 
     // MARK: - Current Profile
 
@@ -152,13 +196,24 @@ public class ProfileManager: ObservableObject {
                 break
             }
 
-            let profiles: [UserProfile] = try await query
+            var profiles: [UserProfile] = try await query
                 .limit(limit)
                 .execute()
                 .value
 
             // Filter out excluded IDs
-            self.discoverProfiles = profiles.filter { !excludeIds.contains($0.id) }
+            profiles = profiles.filter { !excludeIds.contains($0.id) }
+            
+            // Temporary: Add mock prompts if missing (for testing)
+            // TODO: Remove this once database is properly seeded
+            profiles = profiles.map { profile in
+                if profile.promptAnswers == nil || profile.promptAnswers?.isEmpty == true {
+                    return addMockPrompts(to: profile)
+                }
+                return profile
+            }
+            
+            self.discoverProfiles = profiles
             isLoading = false
         } catch {
             isLoading = false
