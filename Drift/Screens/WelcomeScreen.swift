@@ -74,11 +74,102 @@ struct WelcomeScreen: View {
                 }
                 .padding(.top, 60)
                 
+                // When email login is shown, put form right below title (red circle area)
+                if showEmailLogin {
+                    // Email Login Form — positioned below Drift / tagline
+                    VStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Email")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.9))
+                            TextField("Enter your email", text: $email)
+                                .textInputAutocapitalization(.never)
+                                .keyboardType(.emailAddress)
+                                .autocorrectionDisabled()
+                                .font(.system(size: 16))
+                                .foregroundColor(charcoalColor)
+                                .padding(.horizontal, 20)
+                                .frame(height: 56)
+                                .background(Color.white)
+                                .clipShape(Capsule())
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Password")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.9))
+                            SecureField("Enter your password", text: $password)
+                                .font(.system(size: 16))
+                                .foregroundColor(charcoalColor)
+                                .padding(.horizontal, 20)
+                                .frame(height: 56)
+                                .background(Color.white)
+                                .clipShape(Capsule())
+                        }
+
+                        if let errorMessage = errorMessage {
+                            Text(errorMessage)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .padding(.top, 4)
+                        }
+
+                        Button(action: {
+                            Task {
+                                await handleEmailAuth()
+                            }
+                        }) {
+                            if isLoading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            } else {
+                                Text(isSignUp ? "Sign Up" : "Sign In")
+                                    .font(.system(size: 16, weight: .medium))
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .foregroundColor(.white)
+                        .background(charcoalColor)
+                        .clipShape(Capsule())
+                        .disabled(isLoading)
+
+                        Button(action: {
+                            isSignUp.toggle()
+                            errorMessage = nil
+                        }) {
+                            Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+                        .padding(.top, 4)
+
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                showEmailLogin = false
+                                errorMessage = nil
+                                email = ""
+                                password = ""
+                            }
+                        }) {
+                            Text("Back")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+                        .padding(.top, 4)
+                    }
+                    .padding(.top, 56)
+                    .padding(.horizontal, 24)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .trailing).combined(with: .opacity)
+                    ))
+                    Spacer()
+                } else {
                 Spacer()
                 
                 // Buttons Section – Sign in with Apple / Google / Email
                 VStack(spacing: 16) {
-                    if !showEmailLogin {
                         Text("For van-lifers, digital nomads, and those who choose the open road")
                             .font(.system(size: 18))
                             .foregroundColor(.white.opacity(0.9))
@@ -175,98 +266,9 @@ struct WelcomeScreen: View {
                             .opacity(buttonsOpacity)
                             .offset(y: buttonsOffset)
                     }
-
-                    if showEmailLogin {
-                            // Email Login Form
-                            VStack(spacing: 12) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Email")
-                                        .font(.subheadline)
-                                        .foregroundColor(.white.opacity(0.9))
-                                    TextField("Enter your email", text: $email)
-                                        .textInputAutocapitalization(.never)
-                                        .keyboardType(.emailAddress)
-                                        .autocorrectionDisabled()
-                                        .font(.system(size: 16))
-                                        .foregroundColor(charcoalColor)
-                                        .padding(.horizontal, 20)
-                                        .frame(height: 56)
-                                        .background(Color.white)
-                                        .clipShape(Capsule())
-                                }
-
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Password")
-                                        .font(.subheadline)
-                                        .foregroundColor(.white.opacity(0.9))
-                                    SecureField("Enter your password", text: $password)
-                                        .font(.system(size: 16))
-                                        .foregroundColor(charcoalColor)
-                                        .padding(.horizontal, 20)
-                                        .frame(height: 56)
-                                        .background(Color.white)
-                                        .clipShape(Capsule())
-                                }
-
-                                if let errorMessage = errorMessage {
-                                    Text(errorMessage)
-                                        .font(.caption)
-                                        .foregroundColor(.red)
-                                        .padding(.top, 4)
-                                }
-
-                                Button(action: {
-                                    Task {
-                                        await handleEmailAuth()
-                                    }
-                                }) {
-                                    if isLoading {
-                                        ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    } else {
-                                        Text(isSignUp ? "Sign Up" : "Sign In")
-                                            .font(.system(size: 16, weight: .medium))
-                                    }
-                                }
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 56)
-                                .foregroundColor(.white)
-                                .background(charcoalColor)
-                                .clipShape(Capsule())
-                                .disabled(isLoading)
-
-                                Button(action: {
-                                    isSignUp.toggle()
-                                    errorMessage = nil
-                                }) {
-                                    Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
-                                        .font(.subheadline)
-                                        .foregroundColor(.white.opacity(0.9))
-                                }
-                                .padding(.top, 4)
-
-                                Button(action: {
-                                    withAnimation(.easeInOut(duration: 0.3)) {
-                                        showEmailLogin = false
-                                        errorMessage = nil
-                                        email = ""
-                                        password = ""
-                                    }
-                                }) {
-                                    Text("Back")
-                                        .font(.subheadline)
-                                        .foregroundColor(.white.opacity(0.9))
-                                }
-                                .padding(.top, 4)
-                            }
-                            .transition(.asymmetric(
-                                insertion: .move(edge: .trailing).combined(with: .opacity),
-                                removal: .move(edge: .trailing).combined(with: .opacity)
-                            ))
-                    }
-                }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 64)
+                }
             }
         }
         .onAppear {
