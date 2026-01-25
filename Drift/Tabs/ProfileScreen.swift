@@ -20,6 +20,7 @@ struct ProfileScreen: View {
     @State private var navigateToFriendsGrid = false
     @State private var showPaywall = false
     @State private var showGenerateInvite = false
+    @State private var showNotificationsSheet = false
     @State private var navigationPath: [String] = []
 
     private var profile: UserProfile? {
@@ -119,6 +120,11 @@ struct ProfileScreen: View {
             .sheet(isPresented: $showGenerateInvite) {
                 GenerateInviteSheet(isPresented: $showGenerateInvite)
                     .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showNotificationsSheet) {
+                NotificationsSettingsSheet(isPresented: $showNotificationsSheet)
+                    .presentationDetents([.height(560), .large])
                     .presentationDragIndicator(.visible)
             }
             .onAppear {
@@ -397,7 +403,7 @@ struct ProfileScreen: View {
             
             // Notifications
             Button(action: {
-                // Notifications action
+                showNotificationsSheet = true
             }) {
                 ProfileMenuRow(
                     icon: "bell.fill",

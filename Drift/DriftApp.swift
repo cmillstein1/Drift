@@ -8,12 +8,103 @@
 import SwiftUI
 import DriftBackend
 import Supabase
+import FirebaseCore
+import FirebaseMessaging
+import UserNotifications
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        FirebaseApp.configure()
+
+        // Push notifications: set delegate and register
+        UNUserNotificationCenter.current().delegate = self
+        let authOptions: UNAuthorizationOptions = [.alert, .badge, .sound]
+        UNUserNotificationCenter.current().requestAuthorization(options: authOptions) { _, _ in }
+        application.registerForRemoteNotifications()
+        Messaging.messaging().delegate = self
+
+        return true
+    }
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        #if DEBUG
+        print("[FCM] APNs device token received (\(deviceToken.count) bytes) – FCM will get token next")
+        #endif
+        Messaging.messaging().apnsToken = deviceToken
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        #if DEBUG
+        print("[FCM] APNs registration FAILED (Simulator or missing capability): \(error.localizedDescription)")
+        #endif
+    }
+}
+
+// MARK: - UNUserNotificationCenterDelegate (foreground + user tap handling)
+extension AppDelegate: UNUserNotificationCenterDelegate {
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        let userInfo = notification.request.content.userInfo
+        Messaging.messaging().appDidReceiveMessage(userInfo)
+        #if DEBUG
+        let content = notification.request.content
+        print("[FCM] Notification received (foreground): \(content.title) – \(content.body)")
+        #endif
+        completionHandler([.banner, .badge, .sound, .list])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+        Messaging.messaging().appDidReceiveMessage(userInfo)
+        #if DEBUG
+        let content = response.notification.request.content
+        print("[FCM] Notification tapped: \(content.title) – \(content.body)")
+        #endif
+        completionHandler()
+    }
+
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        Messaging.messaging().appDidReceiveMessage(userInfo)
+        #if DEBUG
+        print("[FCM] Notification received (background): \(userInfo)")
+        #endif
+        completionHandler(.newData)
+    }
+}
+
+// MARK: - MessagingDelegate (FCM token)
+extension AppDelegate: MessagingDelegate {
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        #if DEBUG
+        if let token = fcmToken {
+            print("[FCM] Registration token (use this in Firebase → Send test message):")
+            print("[FCM] \(token)")
+        } else {
+            print("[FCM] Registration token is nil – check APNs and internet")
+        }
+        #endif
+        // TODO: Send token to your app server (e.g. Supabase) for targeting
+    }
+}
 
 @main
 struct DriftApp: App {
     @ObservedObject private var supabaseManager: SupabaseManager
     @StateObject private var revenueCatManager: RevenueCatManager
     @StateObject private var profileManager: ProfileManager
+    
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
 
     init() {
         // Initialize DriftBackend with API keys FIRST
