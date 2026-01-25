@@ -155,6 +155,32 @@ public class InviteManager: ObservableObject {
             throw InviteError.redemptionFailed(result.error ?? "Unknown error")
         }
     }
+
+    // MARK: - Check Invite Status
+
+    /// Returns whether the current user has already redeemed an invite code.
+    /// Used after sign-in to decide whether to show the Enter Invite Code screen.
+    /// Uses the redeem-invite edge function with checkUserStatus: true.
+    public func hasUserRedeemedInvite() async -> Bool {
+        guard SupabaseManager.shared.isAuthenticated else { return false }
+        do {
+            let session = try await client.auth.session
+            struct CheckStatusBody: Encodable {
+                let checkUserStatus = true
+            }
+            let response: InviteStatusResponse = try await client.functions.invoke(
+                "redeem-invite",
+                options: FunctionInvokeOptions(
+                    headers: ["Authorization": "Bearer \(session.accessToken)"],
+                    body: CheckStatusBody()
+                )
+            )
+            return response.hasRedeemed
+        } catch {
+            print("Invite status check error: \(error.localizedDescription)")
+            return false
+        }
+    }
 }
 
 // MARK: - Models
@@ -209,6 +235,14 @@ public struct Invitation: Codable {
         } else {
             expiresAt = nil
         }
+    }
+}
+
+/// Response from check-invite-status edge function.
+public struct InviteStatusResponse: Codable {
+    public let hasRedeemed: Bool
+    public init(hasRedeemed: Bool) {
+        self.hasRedeemed = hasRedeemed
     }
 }
 

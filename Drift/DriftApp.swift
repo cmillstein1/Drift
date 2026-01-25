@@ -52,7 +52,23 @@ struct DriftApp: App {
                         .transition(.opacity)
                         .zIndex(2)
                 } else if supabaseManager.isAuthenticated {
-                    if profileManager.isLoading && profileManager.currentProfile == nil {
+                    // Resolve invite status first; if nil we need to check the backend
+                    if supabaseManager.hasRedeemedInvite == nil {
+                        ZStack {
+                            Color(red: 0.98, green: 0.98, blue: 0.96)
+                                .ignoresSafeArea()
+                            ProgressView()
+                        }
+                        .transition(.opacity)
+                        .task {
+                            let redeemed = await InviteManager.shared.hasUserRedeemedInvite()
+                            supabaseManager.hasRedeemedInvite = redeemed
+                        }
+                    } else if supabaseManager.hasRedeemedInvite == false {
+                        // User has not entered a code yet – show Enter Invite Code screen
+                        EnterInviteCodeScreen()
+                            .transition(.opacity)
+                    } else if profileManager.isLoading && profileManager.currentProfile == nil {
                         // Wait for profile to load before deciding
                         ZStack {
                             Color(red: 0.98, green: 0.98, blue: 0.96)
@@ -105,13 +121,14 @@ struct DriftApp: App {
                             }
                     }
                 } else {
-                    // Show welcome screen with invite code input and sign-in options
+                    // Show sign-in screen (Apple / Google / Email)
                     WelcomeScreen()
                 }
             }
             .animation(.easeInOut(duration: 0.6), value: hasCompletedOnboarding)
             .animation(.easeInOut(duration: 0.6), value: supabaseManager.isShowingOnboarding)
             .animation(.easeInOut(duration: 0.3), value: supabaseManager.isCheckingAuth)
+            .animation(.easeInOut(duration: 0.6), value: supabaseManager.hasRedeemedInvite)
             .task(id: supabaseManager.isAuthenticated) {
                 // Fetch profile when authenticated to check onboarding status
                 if supabaseManager.isAuthenticated && profileManager.currentProfile == nil {

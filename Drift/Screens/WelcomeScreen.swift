@@ -12,8 +12,6 @@ import DriftBackend
 struct WelcomeScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     
-    @State private var showInviteSheet = false
-    @State private var hasValidInvite = false
     @State private var showEmailLogin = false
     @State private var email = ""
     @State private var password = ""
@@ -24,8 +22,6 @@ struct WelcomeScreen: View {
     @State private var titleOffset: CGFloat = -20
     @State private var buttonsOpacity: Double = 0
     @State private var buttonsOffset: CGFloat = 40
-    @State private var signInButtonsOpacity: Double = 0
-    @State private var signInButtonsOffset: CGFloat = 40
     
     // Charcoal color matching the design
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
@@ -80,10 +76,9 @@ struct WelcomeScreen: View {
                 
                 Spacer()
                 
-                // Buttons Section
+                // Buttons Section – Sign in with Apple / Google / Email
                 VStack(spacing: 16) {
-                    if !hasValidInvite {
-                        // Before invite code validation
+                    if !showEmailLogin {
                         Text("For van-lifers, digital nomads, and those who choose the open road")
                             .font(.system(size: 18))
                             .foregroundColor(.white.opacity(0.9))
@@ -93,122 +88,95 @@ struct WelcomeScreen: View {
                             .opacity(buttonsOpacity)
                             .offset(y: buttonsOffset)
                         
-                        // Invite Only Button
+                        // Sign in with Apple
+                        SignInWithAppleButton(
+                            onRequest: { request in
+                                request.requestedScopes = [.fullName, .email]
+                            },
+                            onCompletion: { result in
+                                handleAppleSignIn(result: result)
+                            }
+                        )
+                        .signInWithAppleButtonStyle(.black)
+                        .frame(height: 56)
+                        .clipShape(Capsule())
+                        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                        .opacity(buttonsOpacity)
+                        .offset(y: buttonsOffset)
+                        
+                        // Sign in with Google
                         Button(action: {
-                            showInviteSheet = true
+                            Task {
+                                await handleGoogleSignIn()
+                            }
                         }) {
-                            Text("Input Invite Code")
-                                .font(.system(size: 18, weight: .medium))
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 56)
-                                .foregroundColor(.white)
-                                .background(burntOrange)
-                                .clipShape(Capsule())
-                                .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                            HStack(spacing: 12) {
+                                Image("google_icon")
+                                    .resizable()
+                                    .renderingMode(.original)
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                                
+                                Text("Continue with Google")
+                                    .font(.system(size: 16, weight: .medium))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 56)
+                            .foregroundColor(charcoalColor)
+                            .background(Color.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 28)
+                                    .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                            )
+                            .clipShape(Capsule())
+                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                         }
                         .opacity(buttonsOpacity)
                         .offset(y: buttonsOffset)
-                        .scaleEffect(showInviteSheet ? 0.97 : 1.0)
-                        .animation(.easeInOut(duration: 0.1), value: showInviteSheet)
                         
-                        Text("Invite only · Safe, intentional connections")
-                            .font(.system(size: 14))
+                        // Divider
+                        HStack(spacing: 16) {
+                            Rectangle()
+                                .fill(Color.white.opacity(0.3))
+                                .frame(height: 1)
+                            Text("or")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white.opacity(0.6))
+                            Rectangle()
+                                .fill(Color.white.opacity(0.3))
+                                .frame(height: 1)
+                        }
+                        .padding(.vertical, 8)
+                        .opacity(buttonsOpacity)
+                        .offset(y: buttonsOffset)
+
+                        // Email option
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                showEmailLogin = true
+                            }
+                        }) {
+                            Text("Continue with email")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white.opacity(0.9))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        }
+                        .opacity(buttonsOpacity)
+                        .offset(y: buttonsOffset)
+
+                        // Terms
+                        Text("By continuing, you agree to Drift's Terms of Service\nand Privacy Policy")
+                            .font(.system(size: 12))
                             .foregroundColor(.white.opacity(0.6))
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(2)
                             .padding(.top, 8)
                             .opacity(buttonsOpacity)
                             .offset(y: buttonsOffset)
-                    } else {
-                        // After invite code validation - Show sign-in options
-                        if !showEmailLogin {
-                            VStack(spacing: 16) {
-                            // Sign in with Apple
-                            SignInWithAppleButton(
-                                onRequest: { request in
-                                    request.requestedScopes = [.fullName, .email]
-                                },
-                                onCompletion: { result in
-                                    handleAppleSignIn(result: result)
-                                }
-                            )
-                            .signInWithAppleButtonStyle(.black)
-                            .frame(height: 56)
-                            .clipShape(Capsule())
-                            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-                            
-                            // Sign in with Google
-                            Button(action: {
-                                Task {
-                                    await handleGoogleSignIn()
-                                }
-                            }) {
-                                HStack(spacing: 12) {
-                                    Image("google_icon")
-                                        .resizable()
-                                        .renderingMode(.original)
-                                        .scaledToFit()
-                                        .frame(width: 20, height: 20)
-                                    
-                                    Text("Continue with Google")
-                                        .font(.system(size: 16, weight: .medium))
-                                }
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 56)
-                                .foregroundColor(charcoalColor)
-                                .background(Color.white)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 28)
-                                        .stroke(Color.gray.opacity(0.3), lineWidth: 2)
-                                )
-                                .clipShape(Capsule())
-                                .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-                            }
-                            
-                            // Divider
-                            HStack(spacing: 16) {
-                                Rectangle()
-                                    .fill(Color.white.opacity(0.3))
-                                    .frame(height: 1)
-                                
-                                Text("or")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.white.opacity(0.6))
-                                
-                                Rectangle()
-                                    .fill(Color.white.opacity(0.3))
-                                    .frame(height: 1)
-                            }
-                            .padding(.vertical, 8)
+                    }
 
-                            // Email option
-                            Button(action: {
-                                withAnimation(.easeInOut(duration: 0.3)) {
-                                    showEmailLogin = true
-                                }
-                            }) {
-                                Text("Continue with email")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.9))
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 56)
-                            }
-
-                            // Terms
-                            Text("By continuing, you agree to Drift's Terms of Service\nand Privacy Policy")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white.opacity(0.6))
-                                .multilineTextAlignment(.center)
-                                .lineSpacing(2)
-                                .padding(.top, 8)
-                            }
-                            .opacity(signInButtonsOpacity)
-                            .offset(y: signInButtonsOffset)
-                            .transition(.asymmetric(
-                                insertion: .move(edge: .leading).combined(with: .opacity),
-                                removal: .move(edge: .leading).combined(with: .opacity)
-                            ))
-                        }
-
-                        if showEmailLogin {
+                    if showEmailLogin {
                             // Email Login Form
                             VStack(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 8) {
@@ -295,7 +263,6 @@ struct WelcomeScreen: View {
                                 insertion: .move(edge: .trailing).combined(with: .opacity),
                                 removal: .move(edge: .trailing).combined(with: .opacity)
                             ))
-                        }
                     }
                 }
                 .padding(.horizontal, 24)
@@ -314,29 +281,6 @@ struct WelcomeScreen: View {
                 buttonsOpacity = 1
                 buttonsOffset = 0
             }
-        }
-        .onChange(of: hasValidInvite) { oldValue, newValue in
-            if newValue {
-                // Animate sign-in buttons in when invite is validated
-                withAnimation(.easeOut(duration: 0.6).delay(0.2)) {
-                    signInButtonsOpacity = 1
-                    signInButtonsOffset = 0
-                }
-            }
-        }
-        .sheet(isPresented: $showInviteSheet) {
-            InviteCodeSheet(
-                isOpen: $showInviteSheet,
-                onSubmit: { code in
-                    // Code is valid, show sign-in buttons
-                    hasValidInvite = true
-                    // Animate sign-in buttons in
-                    withAnimation(.easeOut(duration: 0.6).delay(0.2)) {
-                        signInButtonsOpacity = 1
-                        signInButtonsOffset = 0
-                    }
-                }
-            )
         }
     }
     

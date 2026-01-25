@@ -92,7 +92,7 @@ struct GenerateInviteSheet: View {
     private func inviteCodeContent(code: String) -> some View {
         VStack(alignment: .center, spacing: 24) {
             // Header icon
-            Image("RV_Only")
+            Image("RV_Alt")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 124, height: 124)
