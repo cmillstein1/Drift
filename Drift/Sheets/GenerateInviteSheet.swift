@@ -15,155 +15,49 @@ struct GenerateInviteSheet: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var inviteManager = InviteManager.shared
     @State private var showShareSheet = false
+    @State private var copied = false
+    @State private var characterAnimations: [Bool] = []
     
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
+    private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
     private let forestGreen = Color("ForestGreen")
     private let skyBlue = Color("SkyBlue")
+    private let desertSand = Color("DesertSand")
     private let softGray = Color("SoftGray")
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("Invite Code")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(charcoalColor)
-                
-                Spacer()
-                
-                Button(action: {
-                    dismiss()
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(charcoalColor)
-                        .frame(width: 32, height: 32)
-                        .background(softGray)
-                        .clipShape(Circle())
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
-            .background(softGray)
-            
-            // Content
+        NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
-                    if let code = inviteManager.currentInviteCode {
-                        // Show generated code
-                        VStack(spacing: 16) {
-                            // Icon
-                            ZStack {
-                                Circle()
-                                    .fill(burntOrange.opacity(0.1))
-                                    .frame(width: 80, height: 80)
-                                
-                                Image(systemName: "gift.fill")
-                                    .font(.system(size: 36))
-                                    .foregroundColor(burntOrange)
-                            }
-                            .padding(.top, 32)
-                            
-                            // Code Display
-                            VStack(spacing: 8) {
-                                Text("Your Invite Code")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(charcoalColor.opacity(0.6))
-                                
-                                Text(code)
-                                    .font(.system(size: 32, weight: .bold, design: .monospaced))
-                                    .foregroundColor(charcoalColor)
-                                    .padding(.horizontal, 24)
-                                    .padding(.vertical, 16)
-                                    .background(Color.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .stroke(burntOrange.opacity(0.3), lineWidth: 2)
-                                    )
-                                    .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-                            }
-                            
-                            // Info text
-                            Text("Share this code with a friend to invite them to Drift")
-                                .font(.system(size: 14))
-                                .foregroundColor(charcoalColor.opacity(0.6))
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 32)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.bottom, 24)
-                    } else if inviteManager.isGenerating {
-                        // Loading state
-                        VStack(spacing: 16) {
-                            ProgressView()
-                                .scaleEffect(1.5)
-                                .tint(burntOrange)
-                            
-                            Text("Generating invite code...")
-                                .font(.system(size: 16))
-                                .foregroundColor(charcoalColor.opacity(0.6))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 60)
-                    } else {
-                        // Error state
-                        if let error = inviteManager.error {
-                            VStack(spacing: 16) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .font(.system(size: 48))
-                                    .foregroundColor(.red)
-                                
-                                Text("Error")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(charcoalColor)
-                                
-                                Text(error)
-                                    .font(.system(size: 14))
-                                    .foregroundColor(charcoalColor.opacity(0.6))
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 32)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 60)
-                        }
-                    }
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
-                .padding(.bottom, 100)
-            }
-            
-            // Share Button (only show when code is generated)
-            if inviteManager.currentInviteCode != nil {
                 VStack(spacing: 0) {
-                    Divider()
-                        .background(Color.gray.opacity(0.2))
-                    
-                    Button(action: {
-                        showShareSheet = true
-                    }) {
-                        HStack {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 18, weight: .semibold))
-                            
-                            Text("Share")
-                                .font(.system(size: 18, weight: .semibold))
-                        }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(burntOrange)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                    if let code = inviteManager.currentInviteCode {
+                        inviteCodeContent(code: code)
+                    } else if inviteManager.isGenerating {
+                        loadingContent
+                    } else if let error = inviteManager.error {
+                        errorContent(error: error)
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 16)
-                    .background(softGray)
+                }
+                .padding(.horizontal, 32)
+                .padding(.bottom, 16)
+            }
+            .scrollContentBackground(.hidden)
+            .background(softGray)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
                 }
             }
+            .toolbarBackground(softGray, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
         }
-        .background(softGray)
+        .background {
+            softGray
+                .ignoresSafeArea()
+        }
         .sheet(isPresented: $showShareSheet) {
             if let code = inviteManager.currentInviteCode {
                 ShareSheet(items: [ShareItemWithIcon(text: "Join me on Drift! Use my invite code: \(code)", inviteCode: code)])
@@ -177,6 +71,244 @@ struct GenerateInviteSheet: View {
                 }
             }
         }
+        .onChange(of: inviteManager.currentInviteCode) { oldValue, newValue in
+            if let code = newValue {
+                // Animate characters appearing one by one
+                characterAnimations = Array(repeating: false, count: code.count)
+                for index in 0..<code.count {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.1) {
+                        if index < characterAnimations.count {
+                            characterAnimations[index] = true
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Invite code content (properly spaced)
+    
+    @ViewBuilder
+    private func inviteCodeContent(code: String) -> some View {
+        VStack(alignment: .center, spacing: 24) {
+            // Header icon
+            Image("RV_Only")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 124, height: 124)
+                .padding(.top, 8)
+            
+            Text("Your Invite Code")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(charcoalColor)
+            
+            // Subtitle — single block with line spacing so it never overlaps
+            Text("Share this code with friends to invite them to Drift")
+                .font(.subheadline)
+                .foregroundColor(charcoalColor.opacity(0.6))
+                .multilineTextAlignment(.center)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 8)
+            
+            // Code display
+            VStack(spacing: 14) {
+                Text("INVITE CODE")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(charcoalColor.opacity(0.6))
+                    .tracking(1.4)
+                HStack(spacing: 8) {
+                    ForEach(Array(code.enumerated()), id: \.offset) { index, char in
+                        CharacterBox(
+                            character: String(char),
+                            index: index,
+                            isAnimated: characterAnimations.count > index ? characterAnimations[index] : false
+                        )
+                    }
+                }
+            }
+            .padding(.vertical, 28)
+            .padding(.horizontal, 28)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 28)
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [desertSand, desertSand.opacity(0.5)]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            )
+            .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+            
+            // Info card
+            HStack(alignment: .top, spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(skyBlue.opacity(0.2))
+                        .frame(width: 32, height: 32)
+                    Text("🎁")
+                        .font(.system(size: 18))
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Invite Your Community")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(charcoalColor)
+                    Text("Friends who join with your code get priority access. Help grow the Drift community!")
+                        .font(.system(size: 12))
+                        .foregroundColor(charcoalColor.opacity(0.7))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [skyBlue.opacity(0.1), forestGreen.opacity(0.1)]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(skyBlue.opacity(0.2), lineWidth: 1)
+            )
+            
+            // Buttons
+            VStack(spacing: 12) {
+                Button(action: handleCopy) {
+                    HStack(spacing: 8) {
+                        if copied {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 20, weight: .medium))
+                        } else {
+                            Image(systemName: "square.on.square")
+                                .font(.system(size: 20, weight: .medium))
+                        }
+                        Text(copied ? "Copied!" : "Copy Code")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [burntOrange, sunsetRose]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(Capsule())
+                    .shadow(color: burntOrange.opacity(0.35), radius: 8, x: 0, y: 4)
+                }
+                .buttonStyle(ScaleButtonStyle())
+                
+                Button(action: { showShareSheet = true }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 20, weight: .medium))
+                        Text("Share Invite")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundColor(charcoalColor)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(charcoalColor.opacity(0.25), lineWidth: 2)
+                    )
+                }
+                .buttonStyle(ScaleButtonStyle())
+            }
+        }
+    }
+    
+    private var loadingContent: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .scaleEffect(1.5)
+                .tint(burntOrange)
+            Text("Generating invite code...")
+                .font(.system(size: 16))
+                .foregroundColor(charcoalColor.opacity(0.6))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 60)
+    }
+    
+    private func errorContent(error: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 48))
+                .foregroundColor(.red)
+            Text("Error")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(charcoalColor)
+            Text(error)
+                .font(.system(size: 14))
+                .foregroundColor(charcoalColor.opacity(0.6))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 60)
+    }
+    
+    private func handleCopy() {
+        guard let code = inviteManager.currentInviteCode else { return }
+        
+        UIPasteboard.general.string = code
+        copied = true
+        
+        // Reset after 2 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            copied = false
+        }
+    }
+}
+
+// MARK: - Character Box
+
+struct CharacterBox: View {
+    let character: String
+    let index: Int
+    let isAnimated: Bool
+    
+    private let charcoalColor = Color("Charcoal")
+    
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.white)
+                .frame(width: 48, height: 56)
+                .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
+            
+            Text(character)
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundColor(charcoalColor)
+        }
+        .scaleEffect(isAnimated ? 1.0 : 0)
+        .rotationEffect(.degrees(isAnimated ? 0 : -180))
+        .animation(
+            .spring(response: 0.5, dampingFraction: 0.6),
+            value: isAnimated
+        )
+    }
+}
+
+// MARK: - Scale Button Style
+
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 

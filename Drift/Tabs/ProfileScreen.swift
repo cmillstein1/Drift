@@ -118,7 +118,7 @@ struct ProfileScreen: View {
             }
             .sheet(isPresented: $showGenerateInvite) {
                 GenerateInviteSheet(isPresented: $showGenerateInvite)
-                    .presentationDetents([.height(480)])
+                    .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
             }
             .onAppear {
