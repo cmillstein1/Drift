@@ -176,45 +176,45 @@ struct NotificationsSettingsSheet: View {
                         }
                         .padding(.bottom, 16)
 
-                        // FCM token for testing in Firebase Console
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Test in Firebase")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(charcoalColor)
-                            Text("Copy the device token below. In Firebase Console → Engage → Messaging → New campaign, use \"Send test message\" and paste this token.")
-                                .font(.system(size: 12))
-                                .foregroundColor(charcoalColor.opacity(0.6))
-                            if let token = fcmToken {
-                                HStack(spacing: 8) {
-                                    Text(token)
-                                        .font(.system(size: 10, design: .monospaced))
-                                        .foregroundColor(charcoalColor.opacity(0.8))
-                                        .lineLimit(2)
-                                        .truncationMode(.middle)
-                                    Button(action: {
-                                        UIPasteboard.general.string = token
-                                        tokenCopied = true
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { tokenCopied = false }
-                                    }) {
-                                        Text(tokenCopied ? "Copied" : "Copy")
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .foregroundColor(burntOrange)
-                                    }
-                                }
-                                .padding(12)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(softGray)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                            } else {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(12)
-                            }
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.top, 8)
-                        .padding(.bottom, 24)
+//                        // FCM token for testing in Firebase Console
+//                        VStack(alignment: .leading, spacing: 8) {
+//                            Text("Test in Firebase")
+//                                .font(.system(size: 14, weight: .medium))
+//                                .foregroundColor(charcoalColor)
+//                            Text("Copy the device token below. In Firebase Console → Engage → Messaging → New campaign, use \"Send test message\" and paste this token.")
+//                                .font(.system(size: 12))
+//                                .foregroundColor(charcoalColor.opacity(0.6))
+//                            if let token = fcmToken {
+//                                HStack(spacing: 8) {
+//                                    Text(token)
+//                                        .font(.system(size: 10, design: .monospaced))
+//                                        .foregroundColor(charcoalColor.opacity(0.8))
+//                                        .lineLimit(2)
+//                                        .truncationMode(.middle)
+//                                    Button(action: {
+//                                        UIPasteboard.general.string = token
+//                                        tokenCopied = true
+//                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { tokenCopied = false }
+//                                    }) {
+//                                        Text(tokenCopied ? "Copied" : "Copy")
+//                                            .font(.system(size: 13, weight: .semibold))
+//                                            .foregroundColor(burntOrange)
+//                                    }
+//                                }
+//                                .padding(12)
+//                                .frame(maxWidth: .infinity, alignment: .leading)
+//                                .background(softGray)
+//                                .clipShape(RoundedRectangle(cornerRadius: 10))
+//                            } else {
+//                                ProgressView()
+//                                    .scaleEffect(0.8)
+//                                    .frame(maxWidth: .infinity, alignment: .leading)
+//                                    .padding(12)
+//                            }
+//                        }
+//                        .padding(.horizontal, 24)
+//                        .padding(.top, 8)
+//                        .padding(.bottom, 24)
                     }
                 }
             }
