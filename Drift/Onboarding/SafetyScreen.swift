@@ -118,7 +118,7 @@ struct SafetyScreen: View {
                                 )
                             }
                             .padding(.horizontal, 24)
-                            .padding(.top, 48)
+                            .padding(.top, 38)
                         }
                     }
                     

@@ -33,6 +33,8 @@ public class SupabaseManager: ObservableObject {
     @Published public var isShowingPreferenceSelection = false
     /// Whether the friend onboarding flow should be displayed.
     @Published public var isShowingFriendOnboarding = false
+    /// Whether the current user has already redeemed an invite code. `nil` = not yet checked.
+    @Published public var hasRedeemedInvite: Bool?
 
     private init() {
         self.client = SupabaseClient(
@@ -77,6 +79,7 @@ public class SupabaseManager: ObservableObject {
         } catch {
             self.currentUser = nil
             self.isAuthenticated = false
+            self.hasRedeemedInvite = nil
             self.isShowingWelcomeSplash = false
             self.isShowingOnboarding = false
             self.isShowingPreferenceSelection = false
@@ -222,6 +225,7 @@ public class SupabaseManager: ObservableObject {
         try await client.auth.signOut()
         self.currentUser = nil
         self.isAuthenticated = false
+        self.hasRedeemedInvite = nil
         self.isShowingWelcomeSplash = false
         self.isShowingOnboarding = false
         self.isShowingPreferenceSelection = false
