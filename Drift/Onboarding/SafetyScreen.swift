@@ -54,17 +54,12 @@ struct SafetyScreen: View {
                     VStack(spacing: 32) {
                         // Add top padding since we removed the progress indicator
                         Spacer()
-                            .frame(height: 28)
+                            
                         VStack(spacing: 24) {
                             ZStack {
-                                RoundedRectangle(cornerRadius: 24)
-                                    .fill(forestGreen.opacity(0.2))
-                                    .frame(width: 120, height: 120)
-                                
-                                Image(systemName: "checkmark.shield.fill")
-                                    .font(.system(size: 64))
-                                    .foregroundColor(forestGreen)
-                                    .scaleEffect(iconScale * pulsingScale)
+                                Image("Campfire")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
                             }
                             .opacity(iconOpacity)
                             
@@ -118,7 +113,7 @@ struct SafetyScreen: View {
                                 )
                             }
                             .padding(.horizontal, 24)
-                            .padding(.top, 38)
+                            .padding(.bottom, 18)
                         }
                     }
                     
@@ -241,13 +236,18 @@ struct SafetyFeature: View {
                 Text(title)
                     .font(.system(size: 17, weight: .medium))
                     .foregroundColor(charcoalColor)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
                 
                 Text(description)
                     .font(.system(size: 14))
                     .foregroundColor(charcoalColor.opacity(0.6))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             
-            Spacer()
+            Spacer(minLength: 0)
         }
         .padding(20)
         .background(
