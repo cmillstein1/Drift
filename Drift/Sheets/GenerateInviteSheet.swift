@@ -166,7 +166,7 @@ struct GenerateInviteSheet: View {
         .background(softGray)
         .sheet(isPresented: $showShareSheet) {
             if let code = inviteManager.currentInviteCode {
-                ShareSheet(items: [ShareItemWithIcon(text: "Join me on Drift! Use my invite code: \(code)")])
+                ShareSheet(items: [ShareItemWithIcon(text: "Join me on Drift! Use my invite code: \(code)", inviteCode: code)])
             }
         }
         .onAppear {
@@ -207,10 +207,12 @@ struct ShareSheet: UIViewControllerRepresentable {
 
 class ShareItemWithIcon: NSObject, UIActivityItemSource {
     let text: String
+    let inviteCode: String
     let appIcon: UIImage?
     
-    init(text: String) {
+    init(text: String, inviteCode: String) {
         self.text = text
+        self.inviteCode = inviteCode
         
         // Get app icon - try multiple methods
         var icon: UIImage?
@@ -230,7 +232,7 @@ class ShareItemWithIcon: NSObject, UIActivityItemSource {
             }
         }
         
-        // Method 3: Try common app icon names
+        // Method 3: Try common app icon asset names
         if icon == nil {
             let commonNames = ["AppIcon-60x60", "AppIcon-76x76", "AppIcon-1024x1024", "Icon-60", "Icon-76", "Icon"]
             for name in commonNames {
@@ -245,11 +247,14 @@ class ShareItemWithIcon: NSObject, UIActivityItemSource {
     }
     
     func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
-        return text
+        // Return URL so iOS uses link metadata for preview
+        return URL(string: "https://drift.app/invite?code=\(inviteCode)")!
     }
     
     func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? {
-        return text
+        // Return URL so the link metadata preview works
+        // The URL contains the invite code, and the preview shows the app icon
+        return URL(string: "https://drift.app/invite?code=\(inviteCode)")
     }
     
     func activityViewController(_ activityViewController: UIActivityViewController, subjectForActivityType activityType: UIActivity.ActivityType?) -> String {
@@ -260,12 +265,24 @@ class ShareItemWithIcon: NSObject, UIActivityItemSource {
     func activityViewControllerLinkMetadata(_ activityViewController: UIActivityViewController) -> LPLinkMetadata? {
         let metadata = LPLinkMetadata()
         metadata.title = "Join me on Drift!"
-        metadata.originalURL = URL(string: "https://drift.app")
+        metadata.originalURL = URL(string: "https://drift.app/invite?code=\(inviteCode)")
         
-        // Set the app icon as the preview image
+        // Set the app icon as the preview image - iOS will display this in the preview box
         if let icon = appIcon {
-            let imageProvider = NSItemProvider(object: icon)
-            metadata.imageProvider = imageProvider
+            // Create a high-resolution square version (iOS prefers square images for link previews)
+            let targetSize: CGFloat = 1024 // Large size for crisp display
+            let squareSize = CGSize(width: targetSize, height: targetSize)
+            
+            UIGraphicsBeginImageContextWithOptions(squareSize, false, 0)
+            defer { UIGraphicsEndImageContext() }
+            
+            // Draw icon to fill the entire square
+            icon.draw(in: CGRect(origin: .zero, size: squareSize))
+            
+            if let squareIcon = UIGraphicsGetImageFromCurrentImageContext() {
+                let imageProvider = NSItemProvider(object: squareIcon)
+                metadata.imageProvider = imageProvider
+            }
         }
         
         return metadata
