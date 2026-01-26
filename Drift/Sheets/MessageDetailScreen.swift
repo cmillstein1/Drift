@@ -316,6 +316,9 @@ struct MessageDetailScreen: View {
         }
         .onAppear {
             loadMessages()
+            Task {
+                try? await messagingManager.markAsRead(conversationId: conversation.id)
+            }
         }
         .onDisappear {
             messagingManager.sendStoppedTypingIndicator()

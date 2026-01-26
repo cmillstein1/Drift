@@ -239,14 +239,26 @@ public class MessagingManager: ObservableObject {
             throw MessagingError.notAuthenticated
         }
 
+        let now = Date()
+
         try await client
             .from("conversation_participants")
-            .update(["last_read_at": ISO8601DateFormatter().string(from: Date())])
+            .update(["last_read_at": ISO8601DateFormatter().string(from: now)])
             .eq("conversation_id", value: conversationId)
             .eq("user_id", value: userId)
             .execute()
 
-        // Update local unread count
+        // Update local conversation so the unread dot disappears immediately
+        if let idx = conversations.firstIndex(where: { $0.id == conversationId }) {
+            var conv = conversations[idx]
+            if var participants = conv.participants,
+               let pIdx = participants.firstIndex(where: { $0.userId == userId }) {
+                participants[pIdx].lastReadAt = now
+                conv.participants = participants
+                conversations[idx] = conv
+            }
+        }
+
         updateUnreadCount(userId: userId)
     }
 
