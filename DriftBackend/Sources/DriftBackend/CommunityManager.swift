@@ -202,6 +202,8 @@ public class CommunityManager: ObservableObject {
     ///   - datetime: Event date and time.
     ///   - location: General location.
     ///   - exactLocation: Exact location (revealed after joining).
+    ///   - latitude: Event latitude coordinate.
+    ///   - longitude: Event longitude coordinate.
     ///   - maxAttendees: Maximum number of attendees.
     ///   - images: Array of image URLs.
     /// - Returns: The created post.
@@ -212,6 +214,8 @@ public class CommunityManager: ObservableObject {
         datetime: Date,
         location: String? = nil,
         exactLocation: String? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
         maxAttendees: Int? = nil,
         privacy: EventPrivacy = .public,
         images: [String] = []
@@ -229,6 +233,8 @@ public class CommunityManager: ObservableObject {
             eventDatetime: datetime,
             eventLocation: location,
             eventExactLocation: exactLocation,
+            eventLatitude: latitude,
+            eventLongitude: longitude,
             maxAttendees: maxAttendees,
             eventPrivacy: privacy
         )

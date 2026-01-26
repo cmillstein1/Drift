@@ -52,26 +52,37 @@ class MapLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
 
 struct MapScreen: View {
     var embedded: Bool = false
-    
+
     @StateObject private var locationManager = MapLocationManager()
+    @StateObject private var communityManager = CommunityManager.shared
     @State private var campgrounds: [Campground] = []
     @State private var isLoadingCampgrounds = false
     @State private var currentRegion: MKCoordinateRegion?
     @State private var isFetchingAllUS = false
-    
+
     @State private var selectedCampground: Campground? = nil
+    @State private var selectedEvent: CommunityPost? = nil
     @State private var pulseScale: CGFloat = 1.0
     @State private var hasCenteredOnUser = false
     @State private var hasFetchedInitialCampgrounds = false
     @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
-    
+
     // Track search center and radius
     @State private var searchCenter: CLLocationCoordinate2D?
     @State private var searchRadiusMiles: Double = 200.0
     @State private var showSearchHereButton = false
-    
+
     // Map type selection
     @State private var selectedMapType: MapStyleType = .standard
+
+    // Filter events with coordinates
+    private var eventsWithLocation: [CommunityPost] {
+        communityManager.posts.filter { post in
+            post.type == .event &&
+            post.eventLatitude != nil &&
+            post.eventLongitude != nil
+        }
+    }
     
     enum MapStyleType: CaseIterable {
         case standard
@@ -124,7 +135,8 @@ struct MapScreen: View {
         ZStack {
             Map(position: $cameraPosition) {
                 UserAnnotation()
-                
+
+                // Campground markers
                 ForEach(campgrounds) { campground in
                     Annotation(campground.name, coordinate: CLLocationCoordinate2D(latitude: campground.location.latitude, longitude: campground.location.longitude)) {
                         CampgroundMapMarker(
@@ -134,6 +146,23 @@ struct MapScreen: View {
                         .onTapGesture {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 selectedCampground = campground
+                            }
+                        }
+                    }
+                }
+
+                // Event markers
+                ForEach(eventsWithLocation) { event in
+                    if let lat = event.eventLatitude, let lng = event.eventLongitude {
+                        Annotation(event.title, coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lng)) {
+                            EventMapMarker(
+                                event: event,
+                                isSelected: selectedEvent?.id == event.id
+                            )
+                            .onTapGesture {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    selectedEvent = event
+                                }
                             }
                         }
                     }
@@ -241,6 +270,11 @@ struct MapScreen: View {
         .sheet(item: $selectedCampground) { campground in
             CampgroundDetailSheet(campground: campground)
         }
+        .sheet(item: $selectedEvent) { event in
+            EventDetailSheet(initialPost: event)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
         .onAppear {
             withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
                 pulseScale = 1.3
@@ -249,6 +283,11 @@ struct MapScreen: View {
             // Request location permission if not already granted
             if locationManager.authorizationStatus == .notDetermined {
                 locationManager.requestLocationPermission()
+            }
+
+            // Fetch community posts for events
+            Task {
+                try? await communityManager.fetchPosts()
             }
 
             // If we already have user location, center on it and fetch campgrounds
@@ -486,6 +525,42 @@ struct CampgroundCard: View {
                 .fill(Color.white)
                 .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
         )
+    }
+}
+
+struct EventMapMarker: View {
+    let event: CommunityPost
+    let isSelected: Bool
+
+    @State private var scale: CGFloat = 1.0
+
+    private let burntOrange = Color("BurntOrange")
+    private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
+
+    var body: some View {
+        ZStack {
+            Image(systemName: "calendar.circle.fill")
+                .font(.system(size: isSelected ? 28 : 24, weight: .medium))
+                .foregroundColor(.white)
+                .frame(width: isSelected ? 48 : 40, height: isSelected ? 48 : 40)
+                .background(
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [burntOrange, sunsetRose]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white, lineWidth: isSelected ? 4 : 3)
+                        )
+                )
+                .shadow(color: .black.opacity(0.3), radius: isSelected ? 12 : 8, x: 0, y: 4)
+        }
+        .scaleEffect(scale)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
     }
 }
 

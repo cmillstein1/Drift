@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import MapKit
 import DriftBackend
 
 struct EventDetailSheet: View {
@@ -32,8 +33,7 @@ struct EventDetailSheet: View {
 
     private var attendeeProgress: CGFloat {
         guard let max = post.maxAttendees, max > 0 else { return 0 }
-        let current = post.currentAttendees ?? 0
-        return min(CGFloat(current) / CGFloat(max), 1.0)
+        return min(CGFloat(attendees.count) / CGFloat(max), 1.0)
     }
 
     var body: some View {
@@ -263,29 +263,35 @@ struct EventDetailSheet: View {
                 }
                 .foregroundColor(charcoal.opacity(0.5))
 
-                Text("\(post.currentAttendees ?? 0)/\(post.maxAttendees ?? 0) joined")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(charcoal)
+                if let max = post.maxAttendees, max > 0 {
+                    Text("\(attendees.count)/\(max) joined")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(charcoal)
 
-                // Progress bar
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.white)
-                            .frame(height: 6)
+                    // Progress bar
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.white)
+                                .frame(height: 6)
 
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [forestGreen, skyBlue]),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [forestGreen, skyBlue]),
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
                                 )
-                            )
-                            .frame(width: geometry.size.width * attendeeProgress, height: 6)
+                                .frame(width: geometry.size.width * attendeeProgress, height: 6)
+                        }
                     }
+                    .frame(height: 6)
+                } else {
+                    Text("\(attendees.count) joined")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(charcoal)
                 }
-                .frame(height: 6)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
@@ -328,11 +334,72 @@ struct EventDetailSheet: View {
                  : "Exact location shared after joining")
                 .font(.system(size: 13))
                 .foregroundColor(charcoal.opacity(0.5))
+
+            // Map preview when coordinates are available
+            if let lat = post.eventLatitude, let lng = post.eventLongitude {
+                eventMapPreview(latitude: lat, longitude: lng)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(softGray)
         .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func eventMapPreview(latitude: Double, longitude: Double) -> some View {
+        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        let region = MKCoordinateRegion(
+            center: coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        )
+
+        return Button {
+            openInAppleMaps(latitude: latitude, longitude: longitude)
+        } label: {
+            ZStack(alignment: .bottomTrailing) {
+                Map(initialPosition: .region(region), interactionModes: []) {
+                    Annotation("", coordinate: coordinate) {
+                        VStack(spacing: 0) {
+                            Image(systemName: "mappin.circle.fill")
+                                .font(.system(size: 28))
+                                .foregroundColor(burntOrange)
+                            Image(systemName: "arrowtriangle.down.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(burntOrange)
+                                .offset(y: -4)
+                        }
+                    }
+                }
+                .allowsHitTesting(false)
+
+                // Open in Maps hint
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.system(size: 12))
+                    Text("Open in Maps")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(charcoal.opacity(0.7))
+                .clipShape(Capsule())
+                .padding(8)
+            }
+            .frame(height: 140)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    private func openInAppleMaps(latitude: Double, longitude: Double) {
+        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        let placemark = MKPlacemark(coordinate: coordinate)
+        let mapItem = MKMapItem(placemark: placemark)
+        mapItem.name = post.eventLocation ?? post.title
+        mapItem.openInMaps(launchOptions: [
+            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDefault
+        ])
     }
 
     private var aboutSection: some View {
