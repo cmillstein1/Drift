@@ -24,9 +24,13 @@ public class CommunityManager: ObservableObject {
     private var postsChannel: RealtimeChannelV2?
     private var repliesChannel: RealtimeChannelV2?
     private var eventMessagesChannel: RealtimeChannelV2?
+    private var attendeesChannel: RealtimeChannelV2?
 
     /// Callback for new event messages (used by UI to append messages)
     public var onNewEventMessage: ((EventMessage) -> Void)?
+
+    /// Callback for attendee status changes (used by UI to refresh attendees/requests)
+    public var onAttendeeChange: ((UUID) -> Void)?
 
     private var client: SupabaseClient {
         SupabaseManager.shared.client
@@ -96,6 +100,7 @@ public class CommunityManager: ObservableObject {
                 // Check event attendance for event posts
                 let eventPostIds = posts.filter { $0.type == .event }.map { $0.id }
                 if !eventPostIds.isEmpty {
+                    // Check confirmed attendance
                     let attendances: [EventAttendee] = try await client
                         .from("event_attendees")
                         .select()
@@ -107,9 +112,22 @@ public class CommunityManager: ObservableObject {
 
                     let attendingPostIds = Set(attendances.map { $0.postId })
 
+                    // Check pending requests
+                    let pendingRequests: [EventAttendee] = try await client
+                        .from("event_attendees")
+                        .select()
+                        .eq("user_id", value: userId)
+                        .eq("status", value: "pending")
+                        .in("post_id", values: eventPostIds.map { $0.uuidString })
+                        .execute()
+                        .value
+
+                    let pendingPostIds = Set(pendingRequests.map { $0.postId })
+
                     for i in posts.indices {
                         if posts[i].type == .event {
                             posts[i].isAttendingEvent = attendingPostIds.contains(posts[i].id)
+                            posts[i].hasPendingRequest = pendingPostIds.contains(posts[i].id)
                         }
                     }
                 }
@@ -599,6 +617,135 @@ public class CommunityManager: ObservableObject {
         return attendees.map { $0.profile }
     }
 
+    /// Requests to join a private event (creates pending attendee).
+    ///
+    /// - Parameter postId: The event post's UUID.
+    public func requestToJoinEvent(_ postId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        let request = EventAttendeeCreateRequest(postId: postId, userId: userId, status: .pending)
+
+        try await client
+            .from("event_attendees")
+            .insert(request)
+            .execute()
+
+        // Update local state - mark as having pending request
+        if let index = posts.firstIndex(where: { $0.id == postId }) {
+            posts[index].hasPendingRequest = true
+        }
+    }
+
+    /// Cancels a pending join request.
+    ///
+    /// - Parameter postId: The event post's UUID.
+    public func cancelJoinRequest(_ postId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        try await client
+            .from("event_attendees")
+            .delete()
+            .eq("post_id", value: postId)
+            .eq("user_id", value: userId)
+            .eq("status", value: "pending")
+            .execute()
+
+        // Update local state
+        if let index = posts.firstIndex(where: { $0.id == postId }) {
+            posts[index].hasPendingRequest = false
+        }
+    }
+
+    /// Fetches pending join requests for an event (host only).
+    ///
+    /// - Parameter postId: The event post's UUID.
+    /// - Returns: Array of user profiles with pending requests.
+    public func fetchPendingRequests(_ postId: UUID) async throws -> [UserProfile] {
+        struct AttendeeRecord: Decodable {
+            let userId: UUID
+            let status: String
+            let profile: UserProfile
+
+            enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
+                case status
+                case profile = "profiles"
+            }
+        }
+
+        let attendees: [AttendeeRecord] = try await client
+            .from("event_attendees")
+            .select("user_id, status, profiles(*)")
+            .eq("post_id", value: postId)
+            .eq("status", value: "pending")
+            .execute()
+            .value
+
+        return attendees.map { $0.profile }
+    }
+
+    /// Approves a pending join request (host only).
+    ///
+    /// - Parameters:
+    ///   - postId: The event post's UUID.
+    ///   - userId: The requesting user's UUID.
+    public func approveJoinRequest(postId: UUID, userId: UUID) async throws {
+        try await client
+            .from("event_attendees")
+            .update(["status": "confirmed"])
+            .eq("post_id", value: postId)
+            .eq("user_id", value: userId)
+            .execute()
+
+        // Update local attendee count
+        if let index = posts.firstIndex(where: { $0.id == postId }) {
+            posts[index].currentAttendees = (posts[index].currentAttendees ?? 0) + 1
+        }
+    }
+
+    /// Denies a pending join request (host only).
+    ///
+    /// - Parameters:
+    ///   - postId: The event post's UUID.
+    ///   - userId: The requesting user's UUID.
+    public func denyJoinRequest(postId: UUID, userId: UUID) async throws {
+        try await client
+            .from("event_attendees")
+            .delete()
+            .eq("post_id", value: postId)
+            .eq("user_id", value: userId)
+            .execute()
+    }
+
+    /// Checks if current user has a pending request for an event.
+    ///
+    /// - Parameter postId: The event post's UUID.
+    /// - Returns: True if user has a pending request.
+    public func checkPendingRequest(_ postId: UUID) async throws -> Bool {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            return false
+        }
+
+        struct AttendeeRecord: Decodable {
+            let status: String
+        }
+
+        let records: [AttendeeRecord] = try await client
+            .from("event_attendees")
+            .select("status")
+            .eq("post_id", value: postId)
+            .eq("user_id", value: userId)
+            .eq("status", value: "pending")
+            .execute()
+            .value
+
+        return !records.isEmpty
+    }
+
     // MARK: - Help Post Actions
 
     /// Marks a help post as solved.
@@ -747,6 +894,122 @@ public class CommunityManager: ObservableObject {
         await repliesChannel?.unsubscribe()
         repliesChannel = nil
         currentReplies = []
+    }
+
+    /// Subscribes to real-time attendee updates for a specific event.
+    ///
+    /// - Parameter eventId: The event's UUID.
+    public func subscribeToAttendees(eventId: UUID) async {
+        // Unsubscribe from any existing channel first
+        await attendeesChannel?.unsubscribe()
+
+        let channel = client.realtimeV2.channel("event_attendees_\(eventId.uuidString.prefix(8))")
+
+        let changes = channel.postgresChange(
+            AnyAction.self,
+            schema: "public",
+            table: "event_attendees"
+        )
+
+        await channel.subscribe()
+        attendeesChannel = channel
+
+        print("[EventAttendees] Subscribed to realtime channel for event: \(eventId)")
+
+        Task { [weak self] in
+            for await change in changes {
+                guard let self = self else { return }
+
+                print("[EventAttendees] Received change: \(change)")
+
+                // Extract post_id from the change
+                var postIdString: String? = nil
+
+                switch change {
+                case .insert(let action):
+                    postIdString = action.record["post_id"]?.stringValue
+                case .update(let action):
+                    postIdString = action.record["post_id"]?.stringValue
+                case .delete(let action):
+                    postIdString = action.oldRecord["post_id"]?.stringValue
+                }
+
+                // Only handle changes for this event
+                guard let postIdStr = postIdString,
+                      let postId = UUID(uuidString: postIdStr),
+                      postId == eventId else {
+                    print("[EventAttendees] Change for different event, ignoring")
+                    continue
+                }
+
+                print("[EventAttendees] Notifying UI of attendee change")
+                await MainActor.run {
+                    self.onAttendeeChange?(eventId)
+                }
+            }
+        }
+    }
+
+    /// Unsubscribes from attendees channel.
+    public func unsubscribeFromAttendees() async {
+        await attendeesChannel?.unsubscribe()
+        attendeesChannel = nil
+        onAttendeeChange = nil
+    }
+
+    /// Subscribes to real-time changes for the current user's attendee status.
+    /// Used on the feed to detect when requests are approved/denied.
+    public func subscribeToMyAttendeeChanges() async {
+        guard let userId = SupabaseManager.shared.currentUser?.id else { return }
+
+        // Unsubscribe from any existing channel first
+        await attendeesChannel?.unsubscribe()
+
+        let channel = client.realtimeV2.channel("my_attendees_\(userId.uuidString.prefix(8))")
+
+        let changes = channel.postgresChange(
+            AnyAction.self,
+            schema: "public",
+            table: "event_attendees"
+        )
+
+        await channel.subscribe()
+        attendeesChannel = channel
+
+        print("[MyAttendees] Subscribed to realtime channel for user: \(userId)")
+
+        Task { [weak self] in
+            for await change in changes {
+                guard let self = self else { return }
+
+                // Extract user_id from the change to check if it's for current user
+                var changeUserId: String? = nil
+
+                switch change {
+                case .insert(let action):
+                    changeUserId = action.record["user_id"]?.stringValue
+                case .update(let action):
+                    changeUserId = action.record["user_id"]?.stringValue
+                case .delete(let action):
+                    changeUserId = action.oldRecord["user_id"]?.stringValue
+                }
+
+                // Only handle changes for current user
+                guard let userIdStr = changeUserId,
+                      userIdStr == userId.uuidString else {
+                    continue
+                }
+
+                print("[MyAttendees] Change detected for current user, refreshing posts...")
+
+                // Refresh posts to update attendance/pending status
+                await MainActor.run {
+                    Task {
+                        try? await self.fetchPosts()
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Event Group Messages

@@ -104,8 +104,35 @@ struct CommunityScreen: View {
                 .background(softGray)
 
                 // Posts Feed
-                ScrollView {
-                    LazyVStack(spacing: 16) {
+                List {
+                    if filteredPosts.isEmpty {
+                        // Empty State
+                        VStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.gray.opacity(0.1))
+                                    .frame(width: 80, height: 80)
+
+                                Image(systemName: "bubble.left.and.bubble.right")
+                                    .font(.system(size: 32))
+                                    .foregroundColor(.gray.opacity(0.4))
+                            }
+
+                            Text("No posts yet")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(charcoal)
+
+                            Text("Be the first to share something with the community!")
+                                .font(.system(size: 14))
+                                .foregroundColor(charcoal.opacity(0.6))
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 400)
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                    } else {
                         ForEach(filteredPosts) { post in
                             Group {
                                 if post.type == .event {
@@ -117,46 +144,34 @@ struct CommunityScreen: View {
                             .onTapGesture {
                                 selectedPost = post
                             }
+                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, LayoutConstants.tabBarBottomPadding + 20)
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .background(Color.clear)
                 .refreshable {
-                    try? await communityManager.fetchPosts(type: selectedFilter.postType)
-                }
-
-                // Empty State
-                if filteredPosts.isEmpty {
-                    VStack(spacing: 16) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.gray.opacity(0.1))
-                                .frame(width: 80, height: 80)
-                            
-                            Image(systemName: "bubble.left.and.bubble.right")
-                                .font(.system(size: 32))
-                                .foregroundColor(.gray.opacity(0.4))
-                        }
-                        
-                        Text("No posts yet")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(charcoal)
-                        
-                        Text("Be the first to share something with the community!")
-                            .font(.system(size: 14))
-                            .foregroundColor(charcoal.opacity(0.6))
-                            .multilineTextAlignment(.center)
+                    do {
+                        try await communityManager.fetchPosts(type: selectedFilter.postType)
+                        print("[CommunityScreen] Refresh completed, posts count: \(communityManager.posts.count)")
+                    } catch {
+                        print("[CommunityScreen] Refresh failed: \(error)")
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.horizontal, 32)
                 }
             }
 
         }
         .onAppear {
             loadData()
+            setupAttendeeRealtime()
+        }
+        .onDisappear {
+            Task {
+                await communityManager.unsubscribeFromAttendees()
+            }
         }
         .sheet(isPresented: $showCreateSheet) {
             CreateCommunityPostSheet()
@@ -178,7 +193,13 @@ struct CommunityScreen: View {
             loadData()
         }
     }
-    
+
+    private func setupAttendeeRealtime() {
+        Task {
+            await communityManager.subscribeToMyAttendeeChanges()
+        }
+    }
+
     // Filtered posts based on selected filter
     private var filteredPosts: [CommunityPost] {
         // Filter is applied at fetch time, so just return all posts
@@ -892,16 +913,6 @@ struct CreateCommunityPostSheet: View {
                         accentColor: burntOrange,
                         onTap: { eventPrivacy = .private }
                     )
-
-                    PrivacyOptionButton(
-                        title: EventPrivacy.inviteOnly.displayName,
-                        description: EventPrivacy.inviteOnly.description,
-                        icon: EventPrivacy.inviteOnly.icon,
-                        iconColor: burntOrange,
-                        isSelected: eventPrivacy == .inviteOnly,
-                        accentColor: burntOrange,
-                        onTap: { eventPrivacy = .inviteOnly }
-                    )
                 }
 
                 // Privacy Details
@@ -912,9 +923,8 @@ struct CreateCommunityPostSheet: View {
                             .foregroundColor(skyBlue)
 
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("**Public:** Your event appears in the community feed and can be discovered by all users.")
-                            Text("**Private:** Only people you invite can see and join the event.")
-                            Text("**Invite Only:** Event is visible but you manually approve each join request.")
+                            Text("**Public:** Anyone can see all details and join directly.")
+                            Text("**Private:** Date and description visible, but location and attendees hidden until approved. You approve each join request.")
                         }
                         .font(.system(size: 12))
                         .foregroundColor(charcoal.opacity(0.7))

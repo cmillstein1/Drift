@@ -59,33 +59,40 @@ public enum EventAttendeeStatus: String, Codable, Sendable {
 }
 
 /// Privacy setting for events
-public enum EventPrivacy: String, Codable, CaseIterable, Sendable {
+public enum EventPrivacy: String, Codable, Sendable {
     case `public` = "public"
     case `private` = "private"
-    case inviteOnly = "invite_only"
+    case inviteOnly = "invite_only"  // Legacy - treated same as private
+
+    // Only show public and private in UI
+    public static var selectableCases: [EventPrivacy] {
+        [.public, .private]
+    }
 
     public var displayName: String {
         switch self {
         case .public: return "Public"
-        case .private: return "Private"
-        case .inviteOnly: return "Invite Only"
+        case .private, .inviteOnly: return "Private"
         }
     }
 
     public var description: String {
         switch self {
         case .public: return "Anyone can see and join"
-        case .private: return "Only invited people can see"
-        case .inviteOnly: return "You approve each request"
+        case .private, .inviteOnly: return "Request to join, host approves"
         }
     }
 
     public var icon: String {
         switch self {
         case .public: return "globe"
-        case .private: return "lock"
-        case .inviteOnly: return "person.2"
+        case .private, .inviteOnly: return "lock"
         }
+    }
+
+    // Treat inviteOnly same as private
+    public var isPrivate: Bool {
+        self == .private || self == .inviteOnly
     }
 }
 
@@ -132,6 +139,7 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
     // Local UI state (not from database)
     public var isLikedByCurrentUser: Bool?
     public var isAttendingEvent: Bool?
+    public var hasPendingRequest: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id

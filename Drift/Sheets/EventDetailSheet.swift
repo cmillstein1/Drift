@@ -7,7 +7,9 @@
 
 import SwiftUI
 import MapKit
+import CoreLocation
 import DriftBackend
+import Auth
 
 struct EventDetailSheet: View {
     @Environment(\.dismiss) var dismiss
@@ -17,6 +19,9 @@ struct EventDetailSheet: View {
     @State private var showingCalendarAdded: Bool = false
     @State private var showingGroupChat: Bool = false
     @State private var attendees: [UserProfile] = []
+    @State private var pendingRequests: [UserProfile] = []
+    @State private var hasPendingRequest: Bool = false
+    @State private var cityLocation: String? = nil
 
     private let charcoal = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
@@ -31,9 +36,53 @@ struct EventDetailSheet: View {
         communityManager.posts.first(where: { $0.id == initialPost.id }) ?? initialPost
     }
 
+    // Check if current user is the host
+    private var isCurrentUserHost: Bool {
+        guard let currentUserId = SupabaseManager.shared.currentUser?.id else { return false }
+        return post.authorId == currentUserId
+    }
+
+    // Attendees excluding the host
+    private var nonHostAttendees: [UserProfile] {
+        attendees.filter { $0.id != post.authorId }
+    }
+
+    // Check if current user is in the attendees list (more reliable than post.isAttendingEvent)
+    private var isCurrentUserAttending: Bool {
+        guard let currentUserId = SupabaseManager.shared.currentUser?.id else { return false }
+        return attendees.contains { $0.id == currentUserId }
+    }
+
+    // Check if user can see private details (is attending, has pending request, or is host)
+    private var canSeePrivateDetails: Bool {
+        if post.eventPrivacy == .public {
+            return true
+        }
+        // Host can always see
+        if isCurrentUserHost {
+            return true
+        }
+        // Attending users can see (check both post flag and attendees list)
+        if post.isAttendingEvent == true || isCurrentUserAttending {
+            return true
+        }
+        return false
+    }
+
+    // Check if user can access chat (must be attending or host)
+    private var canAccessChat: Bool {
+        if isCurrentUserHost {
+            return true
+        }
+        if post.isAttendingEvent == true || isCurrentUserAttending {
+            return true
+        }
+        return false
+    }
+
     private var attendeeProgress: CGFloat {
         guard let max = post.maxAttendees, max > 0 else { return 0 }
-        return min(CGFloat(attendees.count) / CGFloat(max), 1.0)
+        return min(CGFloat(nonHostAttendees.count) / CGFloat(max), 1.0)
     }
 
     var body: some View {
@@ -58,6 +107,21 @@ struct EventDetailSheet: View {
         }
         .onAppear {
             loadAttendees()
+            loadPendingRequestStatus()
+            if isCurrentUserHost {
+                loadPendingRequests()
+            }
+            // Load city for private events
+            if post.eventPrivacy?.isPrivate == true && !canSeePrivateDetails {
+                loadCityFromCoordinates()
+            }
+            // Subscribe to realtime attendee changes
+            setupAttendeeRealtime()
+        }
+        .onDisappear {
+            Task {
+                await communityManager.unsubscribeFromAttendees()
+            }
         }
     }
 
@@ -68,6 +132,66 @@ struct EventDetailSheet: View {
             } catch {
                 print("Failed to load attendees: \(error)")
             }
+        }
+    }
+
+    private func loadPendingRequestStatus() {
+        Task {
+            do {
+                hasPendingRequest = try await communityManager.checkPendingRequest(initialPost.id)
+            } catch {
+                print("Failed to check pending request: \(error)")
+            }
+        }
+    }
+
+    private func loadPendingRequests() {
+        Task {
+            do {
+                pendingRequests = try await communityManager.fetchPendingRequests(initialPost.id)
+            } catch {
+                print("Failed to load pending requests: \(error)")
+            }
+        }
+    }
+
+    private func loadCityFromCoordinates() {
+        guard let lat = post.eventLatitude, let lng = post.eventLongitude else { return }
+
+        let location = CLLocation(latitude: lat, longitude: lng)
+        let geocoder = CLGeocoder()
+
+        geocoder.reverseGeocodeLocation(location) { placemarks, error in
+            if let placemark = placemarks?.first {
+                var parts: [String] = []
+                if let city = placemark.locality {
+                    parts.append(city)
+                }
+                if let state = placemark.administrativeArea {
+                    parts.append(state)
+                }
+                if !parts.isEmpty {
+                    cityLocation = parts.joined(separator: ", ")
+                }
+            }
+        }
+    }
+
+    private func setupAttendeeRealtime() {
+        // Set up callback for attendee changes
+        communityManager.onAttendeeChange = { [self] eventId in
+            guard eventId == initialPost.id else { return }
+            print("[EventDetailSheet] Attendee change detected, refreshing...")
+            loadAttendees()
+            loadPendingRequestStatus()
+            if isCurrentUserHost {
+                loadPendingRequests()
+            }
+        }
+
+        // Subscribe to realtime changes
+        Task {
+            await communityManager.subscribeToAttendees(eventId: initialPost.id)
         }
     }
 
@@ -208,24 +332,241 @@ struct EventDetailSheet: View {
             infoCardsGrid
                 .padding(.top, 24)
 
-            // Location Card
-            locationCard
+            // Location Card - hidden for private events unless attending
+            if canSeePrivateDetails {
+                locationCard
+            } else {
+                privateLocationCard
+            }
 
             // About Section
             aboutSection
 
-            // Who's Going Section
-            if !attendees.isEmpty {
+            // Who's Going Section - hidden for private events unless attending
+            if canSeePrivateDetails && !attendees.isEmpty {
                 whosGoingSection
             }
 
-            // Add to Calendar
-            if let eventDate = post.eventDatetime, eventDate > Date() {
+            // Pending Requests Section - only for host of private events
+            if isCurrentUserHost && post.eventPrivacy?.isPrivate == true && !pendingRequests.isEmpty {
+                pendingRequestsSection
+            }
+
+            // Add to Calendar - only for attendees
+            if canSeePrivateDetails, let eventDate = post.eventDatetime, eventDate > Date() {
                 addToCalendarButton
             }
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 120)
+    }
+
+    private var pendingRequestsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.badge.clock")
+                        .font(.system(size: 16))
+                        .foregroundColor(burntOrange)
+                    Text("Pending Requests")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(charcoal)
+                }
+
+                Spacer()
+
+                Text("\(pendingRequests.count)")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(burntOrange)
+                    .clipShape(Capsule())
+            }
+
+            ForEach(pendingRequests, id: \.id) { user in
+                pendingRequestRow(user: user)
+            }
+        }
+        .padding(16)
+        .background(burntOrange.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(burntOrange.opacity(0.2), lineWidth: 1)
+        )
+    }
+
+    private func pendingRequestRow(user: UserProfile) -> some View {
+        HStack(spacing: 12) {
+            // Avatar
+            if let avatarUrl = user.avatarUrl, let url = URL(string: avatarUrl) {
+                AsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                }
+                .frame(width: 44, height: 44)
+                .clipShape(Circle())
+            } else {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [burntOrange, sunsetRose]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(.white)
+                    )
+            }
+
+            // Name
+            Text(user.name ?? "Traveler")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(charcoal)
+
+            Spacer()
+
+            // Deny button
+            Button {
+                Task {
+                    try? await communityManager.denyJoinRequest(postId: post.id, userId: user.id)
+                    loadPendingRequests()
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 36, height: 36)
+                    .background(Color.gray.opacity(0.4))
+                    .clipShape(Circle())
+            }
+
+            // Approve button
+            Button {
+                Task {
+                    try? await communityManager.approveJoinRequest(postId: post.id, userId: user.id)
+                    loadPendingRequests()
+                    loadAttendees()
+                }
+            } label: {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 36, height: 36)
+                    .background(forestGreen)
+                    .clipShape(Circle())
+            }
+        }
+        .padding(12)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var privateLocationCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [burntOrange.opacity(0.6), sunsetRose.opacity(0.6)]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 36, height: 36)
+
+                    Image(systemName: "mappin")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+
+                Text("Location")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(charcoal)
+
+                Spacer()
+
+                // Private badge
+                HStack(spacing: 4) {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 10))
+                    Text("Private")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundColor(charcoal.opacity(0.5))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.gray.opacity(0.15))
+                .clipShape(Capsule())
+            }
+
+            if let city = cityLocation {
+                Text(city)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(charcoal)
+            } else if post.eventLatitude != nil {
+                Text("Loading area...")
+                    .font(.system(size: 15))
+                    .foregroundColor(charcoal.opacity(0.5))
+            }
+
+            Text("Exact location revealed after approval")
+                .font(.system(size: 13))
+                .foregroundColor(charcoal.opacity(0.4))
+
+            // Zoomed-out map preview for approximate area
+            if let lat = post.eventLatitude, let lng = post.eventLongitude {
+                privateMapPreview(latitude: lat, longitude: lng)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(softGray)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func privateMapPreview(latitude: Double, longitude: Double) -> some View {
+        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        // Zoomed out view - ~5km radius
+        let region = MKCoordinateRegion(
+            center: coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+        )
+
+        return ZStack {
+            Map(initialPosition: .region(region), interactionModes: []) {
+                // Show a larger, less precise circle instead of exact pin
+                MapCircle(center: coordinate, radius: 1500)
+                    .foregroundStyle(burntOrange.opacity(0.2))
+                    .stroke(burntOrange.opacity(0.5), lineWidth: 2)
+            }
+            .allowsHitTesting(false)
+
+            // Overlay text
+            VStack {
+                Spacer()
+                Text("Approximate area")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(charcoal.opacity(0.6))
+                    .clipShape(Capsule())
+                    .padding(.bottom, 8)
+            }
+        }
+        .frame(height: 120)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private var infoCardsGrid: some View {
@@ -256,41 +597,51 @@ struct EventDetailSheet: View {
             // Attendees Card
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
-                    Image(systemName: "person.2")
+                    Image(systemName: canSeePrivateDetails ? "person.2" : "lock.fill")
                         .font(.system(size: 14))
                     Text("Attendees")
                         .font(.system(size: 12, weight: .medium))
                 }
                 .foregroundColor(charcoal.opacity(0.5))
 
-                if let max = post.maxAttendees, max > 0 {
-                    Text("\(attendees.count)/\(max) joined")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(charcoal)
+                if canSeePrivateDetails {
+                    if let max = post.maxAttendees, max > 0 {
+                        Text("\(nonHostAttendees.count)/\(max) joined")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(charcoal)
 
-                    // Progress bar
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.white)
-                                .frame(height: 6)
+                        // Progress bar
+                        GeometryReader { geometry in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.white)
+                                    .frame(height: 6)
 
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [forestGreen, skyBlue]),
-                                        startPoint: .leading,
-                                        endPoint: .trailing
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [forestGreen, skyBlue]),
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
                                     )
-                                )
-                                .frame(width: geometry.size.width * attendeeProgress, height: 6)
+                                    .frame(width: geometry.size.width * attendeeProgress, height: 6)
+                            }
                         }
+                        .frame(height: 6)
+                    } else {
+                        Text("\(nonHostAttendees.count) joined")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(charcoal)
                     }
-                    .frame(height: 6)
                 } else {
-                    Text("\(attendees.count) joined")
+                    Text("Hidden")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(charcoal)
+                        .foregroundColor(charcoal.opacity(0.5))
+
+                    Text("Join to see")
+                        .font(.system(size: 12))
+                        .foregroundColor(charcoal.opacity(0.4))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -533,28 +884,52 @@ struct EventDetailSheet: View {
                 .frame(height: 1)
 
             HStack(spacing: 12) {
-                // Group Chat button
-                Button {
-                    showingGroupChat = true
-                } label: {
+                // Group Chat button - only for attendees and host
+                if canAccessChat {
+                    Button {
+                        showingGroupChat = true
+                    } label: {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(burntOrange)
+                            .frame(width: 52, height: 52)
+                            .background(Color.clear)
+                            .overlay(
+                                Circle()
+                                    .stroke(burntOrange, lineWidth: 2)
+                            )
+                    }
+                } else {
+                    // Disabled chat button for non-attendees
                     Image(systemName: "bubble.left.and.bubble.right")
                         .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(burntOrange)
+                        .foregroundColor(Color.gray.opacity(0.4))
                         .frame(width: 52, height: 52)
                         .background(Color.clear)
                         .overlay(
                             Circle()
-                                .stroke(burntOrange, lineWidth: 2)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 2)
                         )
                 }
 
                 // Join Button
                 Button {
                     Task {
-                        if post.isAttendingEvent == true {
+                        if post.isAttendingEvent == true || isCurrentUserAttending {
+                            // Leave event
                             try? await communityManager.leaveEvent(post.id)
                             EventHelper.shared.cancelEventReminder(eventId: post.id)
+                            loadAttendees() // Refresh attendees after leaving
+                        } else if hasPendingRequest {
+                            // Cancel pending request
+                            try? await communityManager.cancelJoinRequest(post.id)
+                            hasPendingRequest = false
+                        } else if post.eventPrivacy?.isPrivate == true {
+                            // Request to join private event
+                            try? await communityManager.requestToJoinEvent(post.id)
+                            hasPendingRequest = true
                         } else {
+                            // Direct join for public events
                             try? await communityManager.joinEvent(post.id)
                             if let eventDate = post.eventDatetime {
                                 await EventHelper.shared.scheduleEventReminder(
@@ -568,15 +943,16 @@ struct EventDetailSheet: View {
                         loadAttendees()
                     }
                 } label: {
-                    Text(post.isAttendingEvent == true ? "Joined" : "Join Activity")
+                    Text(joinButtonText)
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
                         .background(joinButtonBackground)
                         .clipShape(Capsule())
-                        .shadow(color: (post.isAttendingEvent == true ? charcoal : forestGreen).opacity(0.3), radius: 8, x: 0, y: 4)
+                        .shadow(color: joinButtonShadowColor.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
+                .disabled(isJoinDisabled)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
@@ -584,10 +960,72 @@ struct EventDetailSheet: View {
         }
     }
 
+    // Check if event is full (exclude host from count)
+    private var isEventFull: Bool {
+        guard let max = post.maxAttendees, max > 0 else { return false }
+        return nonHostAttendees.count >= max
+    }
+
+    private var isJoinDisabled: Bool {
+        // Host can never leave/join - they're always hosting
+        if isCurrentUserHost {
+            return true
+        }
+        // Already attending - can leave (not disabled)
+        if post.isAttendingEvent == true || isCurrentUserAttending {
+            return false
+        }
+        // Can't join if full
+        if isEventFull {
+            return true
+        }
+        return false
+    }
+
+    private var joinButtonText: String {
+        if isCurrentUserHost {
+            return "You're Hosting"
+        } else if post.isAttendingEvent == true || isCurrentUserAttending {
+            return "Joined"
+        } else if hasPendingRequest {
+            return "Requested"
+        } else if isEventFull {
+            return "Event Full"
+        } else if post.eventPrivacy?.isPrivate == true {
+            return "Request to Join"
+        } else {
+            return "Join Activity"
+        }
+    }
+
+    private var joinButtonShadowColor: Color {
+        if isCurrentUserHost {
+            return burntOrange
+        } else if post.isAttendingEvent == true || isCurrentUserAttending {
+            return charcoal
+        } else if hasPendingRequest {
+            return skyBlue
+        } else if isEventFull {
+            return Color.gray
+        } else {
+            return forestGreen
+        }
+    }
+
     @ViewBuilder
     private var joinButtonBackground: some View {
-        if post.isAttendingEvent == true {
+        if isCurrentUserHost {
+            LinearGradient(
+                gradient: Gradient(colors: [burntOrange, sunsetRose]),
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        } else if post.isAttendingEvent == true || isCurrentUserAttending {
             charcoal
+        } else if hasPendingRequest {
+            skyBlue
+        } else if isEventFull {
+            Color.gray.opacity(0.5)
         } else {
             LinearGradient(
                 gradient: Gradient(colors: [forestGreen, skyBlue]),

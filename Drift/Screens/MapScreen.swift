@@ -10,6 +10,7 @@ import MapKit
 import CoreLocation
 import Combine
 import DriftBackend
+import Auth
 
 class MapLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
@@ -83,6 +84,47 @@ struct MapScreen: View {
             post.eventLongitude != nil
         }
     }
+
+    // Check if current user can see exact location for an event
+    private func canSeeExactLocation(for event: CommunityPost) -> Bool {
+        // Public events - everyone sees exact location
+        if event.eventPrivacy == .public {
+            return true
+        }
+        // Host can see exact location
+        if let currentUserId = SupabaseManager.shared.currentUser?.id,
+           event.authorId == currentUserId {
+            return true
+        }
+        // Attendees can see exact location
+        if event.isAttendingEvent == true {
+            return true
+        }
+        return false
+    }
+
+    // Get display coordinates for an event (exact or approximate)
+    private func displayCoordinate(for event: CommunityPost) -> CLLocationCoordinate2D? {
+        guard let lat = event.eventLatitude, let lng = event.eventLongitude else {
+            return nil
+        }
+
+        if canSeeExactLocation(for: event) {
+            return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+        } else {
+            // For private events, offset by ~1-2km in a random but consistent direction
+            // Use event ID to generate consistent offset so marker doesn't jump around
+            let seed = event.id.hashValue
+            let angle = Double(abs(seed % 360)) * .pi / 180.0
+            let offsetKm = 1.0 + Double(abs(seed % 100)) / 100.0 // 1-2km offset
+
+            // Approximate conversion: 1 degree latitude ≈ 111km
+            let latOffset = (offsetKm / 111.0) * cos(angle)
+            let lngOffset = (offsetKm / (111.0 * cos(lat * .pi / 180.0))) * sin(angle)
+
+            return CLLocationCoordinate2D(latitude: lat + latOffset, longitude: lng + lngOffset)
+        }
+    }
     
     enum MapStyleType: CaseIterable {
         case standard
@@ -153,8 +195,8 @@ struct MapScreen: View {
 
                 // Event markers
                 ForEach(eventsWithLocation) { event in
-                    if let lat = event.eventLatitude, let lng = event.eventLongitude {
-                        Annotation(event.title, coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lng)) {
+                    if let coordinate = displayCoordinate(for: event) {
+                        Annotation(event.title, coordinate: coordinate) {
                             EventMapMarker(
                                 event: event,
                                 isSelected: selectedEvent?.id == event.id
@@ -536,6 +578,11 @@ struct EventMapMarker: View {
 
     private let burntOrange = Color("BurntOrange")
     private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
+    private let charcoal = Color("Charcoal")
+
+    private var isPrivateEvent: Bool {
+        event.eventPrivacy?.isPrivate == true
+    }
 
     var body: some View {
         ZStack {
@@ -558,6 +605,17 @@ struct EventMapMarker: View {
                         )
                 )
                 .shadow(color: .black.opacity(0.3), radius: isSelected ? 12 : 8, x: 0, y: 4)
+
+            // Private event lock badge
+            if isPrivateEvent {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(4)
+                    .background(charcoal)
+                    .clipShape(Circle())
+                    .offset(x: isSelected ? 18 : 14, y: isSelected ? -18 : -14)
+            }
         }
         .scaleEffect(scale)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
