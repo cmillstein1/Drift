@@ -26,8 +26,14 @@ public class MessagingManager: ObservableObject {
     private var messageChannel: RealtimeChannelV2?
     private var conversationsChannel: RealtimeChannelV2?
     private var currentConversationId: UUID?
+    private var isSubscribingToConversations = false
+    private var isSubscribingToMessages = false
     private var typingBroadcastSubscriptions: [RealtimeSubscription] = []
     private var typingClearTask: Task<Void, Never>?
+
+    /// Local participant state we just set (hide/unhide/leave). Preserved across refetches for a short window so the list doesn't flip back.
+    private var recentParticipantState: [UUID: (hiddenAt: Date?, leftAt: Date?, at: Date)] = [:]
+    private let recentParticipantStateWindow: TimeInterval = 5
 
     private var client: SupabaseClient {
         SupabaseManager.shared.client
@@ -40,27 +46,51 @@ public class MessagingManager: ObservableObject {
     /// Fetches all conversations for the current user.
     public func fetchConversations() async throws {
         guard let userId = SupabaseManager.shared.currentUser?.id else {
+            print("[Messages] fetchConversations skipped: no current user (not authenticated)")
             throw MessagingError.notAuthenticated
         }
 
+        print("[Messages] fetchConversations started (userId: \(userId.uuidString.prefix(8))...)")
         isLoading = true
-        errorMessage = nil
 
         do {
             // Fetch conversations with participants
-            let conversations: [Conversation] = try await client
-                .from("conversations")
-                .select("""
-                    *,
-                    participants:conversation_participants(*, profile:profiles(*))
-                """)
-                .order("updated_at", ascending: false)
-                .execute()
-                .value
+            let conversations: [Conversation]
+            do {
+                conversations = try await client
+                    .from("conversations")
+                    .select("""
+                        *,
+                        participants:conversation_participants(*, profile:profiles(*))
+                    """)
+                    .order("updated_at", ascending: false)
+                    .execute()
+                    .value
+            } catch {
+                if let decodingError = error as? DecodingError {
+                    switch decodingError {
+                    case .keyNotFound(let key, let context):
+                        print("[Messages] Decode failed: keyNotFound '\(key.stringValue)' at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
+                    case .typeMismatch(let type, let context):
+                        print("[Messages] Decode failed: typeMismatch \(type) at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
+                    case .valueNotFound(let type, let context):
+                        print("[Messages] Decode failed: valueNotFound \(type) at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
+                    case .dataCorrupted(let context):
+                        print("[Messages] Decode failed: dataCorrupted at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
+                    @unknown default:
+                        print("[Messages] Decode failed: \(decodingError)")
+                    }
+                } else {
+                    print("[Messages] fetchConversations request/parse error: \(error)")
+                }
+                throw error
+            }
+
+            print("[Messages] API returned \(conversations.count) conversation(s) | types: \(conversations.map { $0.type.rawValue })")
 
             // Enrich with other user data for 1:1 conversations
             var enrichedConversations: [Conversation] = []
-            for var conv in conversations {
+            for (idx, var conv) in conversations.enumerated() {
                 if let participants = conv.participants {
                     conv.otherUser = participants
                         .first(where: { $0.userId != userId })?
@@ -79,13 +109,67 @@ public class MessagingManager: ObservableObject {
 
                 conv.lastMessage = messages.first
                 enrichedConversations.append(conv)
+
+                let myParticipant = conv.participants?.first(where: { $0.userId == userId })
+                let hiddenAt = myParticipant?.hiddenAt
+                let leftAt = myParticipant?.leftAt
+                if idx < 3 {
+                    print("[Messages]   [\(idx)] conv \(conv.id.uuidString.prefix(8))... participants: \(conv.participants?.count ?? 0), hiddenAt: \(hiddenAt != nil ? "set" : "nil"), leftAt: \(leftAt != nil ? "set" : "nil"), otherUser: \(conv.otherUser != nil ? "yes" : "no")")
+                }
+            }
+            if conversations.count > 3 {
+                print("[Messages]   ... and \(conversations.count - 3) more")
             }
 
-            self.conversations = enrichedConversations
+            // Preserve recent hide/unhide/leave state so a refetch (realtime, onAppear) doesn't overwrite the UI
+            let now = Date()
+            for (convId, state) in recentParticipantState {
+                guard now.timeIntervalSince(state.at) <= recentParticipantStateWindow else { continue }
+                guard let idx = enrichedConversations.firstIndex(where: { $0.id == convId }) else { continue }
+                var conv = enrichedConversations[idx]
+                guard var participants = conv.participants,
+                      let pIdx = participants.firstIndex(where: { $0.userId == userId }) else { continue }
+                participants[pIdx].hiddenAt = state.hiddenAt
+                participants[pIdx].leftAt = state.leftAt
+                conv.participants = participants
+                enrichedConversations[idx] = conv
+            }
+            // Prune stale entries
+            recentParticipantState = recentParticipantState.filter { now.timeIntervalSince($0.value.at) <= recentParticipantStateWindow }
+
+            // Exclude conversations the user has left so the list stays accurate
+            let filtered = enrichedConversations.filter { !$0.hasLeft(for: userId) }
+            let visibleCount = filtered.filter { !$0.isHidden(for: userId) }.count
+            let hiddenCount = filtered.filter { $0.isHidden(for: userId) }.count
+
+            print("[Messages] After filter (not left): \(filtered.count) | visible: \(visibleCount), hidden: \(hiddenCount) | current list had: \(self.conversations.count) | types: \(filtered.map { $0.type.rawValue })")
+
+            // Never overwrite the list with empty once we have data (avoids "message shows up then disappears" from a second refetch returning empty)
+            let willAssign: Bool
+            if !filtered.isEmpty {
+                willAssign = true
+            } else if self.conversations.isEmpty {
+                willAssign = true
+            } else {
+                willAssign = false
+            }
+            print("[Messages] Assign list? \(willAssign) (filtered.isEmpty=\(filtered.isEmpty), conversations.isEmpty=\(self.conversations.isEmpty))")
+
+            if willAssign {
+                self.conversations = filtered
+                print("[Messages] conversations set to \(self.conversations.count) item(s)")
+            }
+
             self.updateUnreadCount(userId: userId)
             isLoading = false
         } catch {
             isLoading = false
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                print("[Messages] fetchConversations cancelled (request cancelled)")
+                return
+            }
+            print("[Messages] fetchConversations failed: \(error)")
             errorMessage = error.localizedDescription
             throw error
         }
@@ -161,7 +245,6 @@ public class MessagingManager: ObservableObject {
     /// - Parameter conversationId: The conversation's ID.
     public func fetchMessages(for conversationId: UUID) async throws {
         isLoading = true
-        errorMessage = nil
 
         do {
             let messages: [Message] = try await client
@@ -281,6 +364,84 @@ public class MessagingManager: ObservableObject {
         currentMessages.removeAll { $0.id == messageId }
     }
 
+    // MARK: - Hide / Unhide / Leave
+
+    /// Hides a conversation (moves to Hidden section). Reversible.
+    public func hideConversation(_ conversationId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw MessagingError.notAuthenticated
+        }
+        let nowDate = Date()
+        try await client
+            .from("conversation_participants")
+            .update(["hidden_at": ISO8601DateFormatter().string(from: nowDate)])
+            .eq("conversation_id", value: conversationId)
+            .eq("user_id", value: userId)
+            .execute()
+        updateParticipantFlag(conversationId: conversationId, userId: userId) { $0.hiddenAt = nowDate }
+        recentParticipantState[conversationId] = (hiddenAt: nowDate, leftAt: nil, at: nowDate)
+        updateUnreadCount(userId: userId)
+    }
+
+    /// Unhides a conversation (moves back to main list).
+    public func unhideConversation(_ conversationId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw MessagingError.notAuthenticated
+        }
+        // Encode hidden_at as null explicitly — Swift's Encodable skips nil optionals by default,
+        // so a plain Optional would produce {} and the column would never be cleared.
+        struct UnhidePayload: Encodable {
+            enum CodingKeys: String, CodingKey { case hidden_at }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encodeNil(forKey: .hidden_at)
+            }
+        }
+        try await client
+            .from("conversation_participants")
+            .update(UnhidePayload())
+            .eq("conversation_id", value: conversationId)
+            .eq("user_id", value: userId)
+            .execute()
+        let now = Date()
+        updateParticipantFlag(conversationId: conversationId, userId: userId) { $0.hiddenAt = nil }
+        recentParticipantState[conversationId] = (hiddenAt: nil, leftAt: nil, at: now)
+        updateUnreadCount(userId: userId)
+    }
+
+    /// Leaves (deletes) a conversation for the current user. Removes from list.
+    public func leaveConversation(_ conversationId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw MessagingError.notAuthenticated
+        }
+        let nowDate = Date()
+        try await client
+            .from("conversation_participants")
+            .update(["left_at": ISO8601DateFormatter().string(from: nowDate)])
+            .eq("conversation_id", value: conversationId)
+            .eq("user_id", value: userId)
+            .execute()
+        updateParticipantFlag(conversationId: conversationId, userId: userId) { $0.leftAt = nowDate }
+        recentParticipantState[conversationId] = (hiddenAt: nil, leftAt: nowDate, at: nowDate)
+        removeLeftConversationFromList(conversationId)
+        updateUnreadCount(userId: userId)
+    }
+
+    private func updateParticipantFlag(conversationId: UUID, userId: UUID, update: (inout ConversationParticipant) -> Void) {
+        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        var conv = conversations[idx]
+        guard var participants = conv.participants,
+              let pIdx = participants.firstIndex(where: { $0.userId == userId }) else { return }
+        update(&participants[pIdx])
+        conv.participants = participants
+        conversations[idx] = conv
+    }
+
+    /// Removes a conversation from the in-memory list after the user has left (so it doesn't reappear until next full fetch).
+    private func removeLeftConversationFromList(_ conversationId: UUID) {
+        conversations.removeAll { $0.id == conversationId }
+    }
+
     // MARK: - Image Upload
 
     /// Uploads an image for a message.
@@ -314,6 +475,11 @@ public class MessagingManager: ObservableObject {
     ///
     /// - Parameter conversationId: The conversation's ID.
     public func subscribeToMessages(conversationId: UUID) async {
+        if messageChannel != nil, currentConversationId == conversationId { return }
+        if isSubscribingToMessages { return }
+        isSubscribingToMessages = true
+        defer { isSubscribingToMessages = false }
+
         currentConversationId = conversationId
         typingUserId = nil
         typingClearTask?.cancel()
@@ -322,8 +488,11 @@ public class MessagingManager: ObservableObject {
 
         guard let currentUserId = SupabaseManager.shared.currentUser?.id else { return }
 
-        // Create channel and set up postgres change and broadcast BEFORE subscribing
+        await messageChannel?.unsubscribe()
+        messageChannel = nil
+
         let channel = client.realtimeV2.channel("messages:\(conversationId)")
+        messageChannel = channel
 
         let insertions = channel.postgresChange(
             InsertAction.self,
@@ -361,9 +530,7 @@ public class MessagingManager: ObservableObject {
         }
         typingBroadcastSubscriptions = [subTyping, subStopped]
 
-        // Subscribe first, then listen for changes
         await channel.subscribe()
-        messageChannel = channel
 
         Task {
             for await insertion in insertions {
@@ -394,14 +561,16 @@ public class MessagingManager: ObservableObject {
         }
     }
 
-    /// Unsubscribes from the current message channel.
+    /// Unsubscribes from the current message channel and removes it from the client.
     public func unsubscribeFromMessages() async {
         typingClearTask?.cancel()
         typingClearTask = nil
         typingBroadcastSubscriptions = []
         typingUserId = nil
-        await messageChannel?.unsubscribe()
-        messageChannel = nil
+        if let channel = messageChannel {
+            await client.realtimeV2.removeChannel(channel)
+            messageChannel = nil
+        }
         currentConversationId = nil
     }
 
@@ -434,12 +603,16 @@ public class MessagingManager: ObservableObject {
         }
     }
 
-    /// Subscribes to conversation updates.
+    /// Subscribes to conversation updates. Call once per session (e.g. in onAppear). If already subscribed, returns immediately so postgresChange is never registered after join.
     public func subscribeToConversations() async {
         guard let userId = SupabaseManager.shared.currentUser?.id else { return }
+        if conversationsChannel != nil { return }
+        if isSubscribingToConversations { return }
+        isSubscribingToConversations = true
+        defer { isSubscribingToConversations = false }
 
-        // Create channel and set up postgres change BEFORE subscribing
         let channel = client.realtimeV2.channel("conversations:\(userId)")
+        conversationsChannel = channel
 
         let updates = channel.postgresChange(
             UpdateAction.self,
@@ -447,9 +620,7 @@ public class MessagingManager: ObservableObject {
             table: "conversations"
         )
 
-        // Subscribe first, then listen for changes
         await channel.subscribe()
-        conversationsChannel = channel
 
         Task {
             for await _ in updates {
@@ -458,11 +629,13 @@ public class MessagingManager: ObservableObject {
         }
     }
 
-    /// Unsubscribes from all channels.
+    /// Unsubscribes from all channels and removes them from the client so the next subscribe gets a fresh channel (avoids "postgresChange after join" warning).
     public func unsubscribe() async {
         await unsubscribeFromMessages()
-        await conversationsChannel?.unsubscribe()
-        conversationsChannel = nil
+        if let channel = conversationsChannel {
+            await client.realtimeV2.removeChannel(channel)
+            conversationsChannel = nil
+        }
     }
 
     // MARK: - Private
