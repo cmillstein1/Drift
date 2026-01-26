@@ -1135,6 +1135,7 @@ struct DiscoverScreen: View {
 
             Spacer()
         }
+        .padding(.bottom, LayoutConstants.tabBarBottomPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(softGray)
     }

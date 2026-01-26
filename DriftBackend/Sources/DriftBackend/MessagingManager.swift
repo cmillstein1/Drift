@@ -20,10 +20,14 @@ public class MessagingManager: ObservableObject {
     @Published public var isLoading = false
     /// The last error message, if any.
     @Published public var errorMessage: String?
+    /// User ID of the other participant who is currently typing (nil if no one typing).
+    @Published public var typingUserId: UUID?
 
     private var messageChannel: RealtimeChannelV2?
     private var conversationsChannel: RealtimeChannelV2?
     private var currentConversationId: UUID?
+    private var typingBroadcastSubscriptions: [RealtimeSubscription] = []
+    private var typingClearTask: Task<Void, Never>?
 
     private var client: SupabaseClient {
         SupabaseManager.shared.client
@@ -299,8 +303,14 @@ public class MessagingManager: ObservableObject {
     /// - Parameter conversationId: The conversation's ID.
     public func subscribeToMessages(conversationId: UUID) async {
         currentConversationId = conversationId
+        typingUserId = nil
+        typingClearTask?.cancel()
+        typingClearTask = nil
+        typingBroadcastSubscriptions = []
 
-        // Create channel and set up postgres change BEFORE subscribing
+        guard let currentUserId = SupabaseManager.shared.currentUser?.id else { return }
+
+        // Create channel and set up postgres change and broadcast BEFORE subscribing
         let channel = client.realtimeV2.channel("messages:\(conversationId)")
 
         let insertions = channel.postgresChange(
@@ -309,6 +319,35 @@ public class MessagingManager: ObservableObject {
             table: "messages",
             filter: "conversation_id=eq.\(conversationId)"
         )
+
+        // Listen for typing indicators (before subscribe)
+        let subTyping = channel.onBroadcast(event: "typing") { [weak self] json in
+            Task { @MainActor in
+                guard let self else { return }
+                let userIdString = json["user_id"]?.stringValue ?? (json["payload"]?.objectValue?["user_id"]?.stringValue)
+                guard let uid = userIdString.flatMap({ UUID(uuidString: $0) }), uid != currentUserId else { return }
+                self.typingClearTask?.cancel()
+                self.typingUserId = uid
+                self.typingClearTask = Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(4))
+                    if !Task.isCancelled {
+                        self.typingUserId = nil
+                    }
+                }
+            }
+        }
+        let subStopped = channel.onBroadcast(event: "stopped_typing") { [weak self] json in
+            Task { @MainActor in
+                guard let self else { return }
+                let userIdString = json["user_id"]?.stringValue ?? (json["payload"]?.objectValue?["user_id"]?.stringValue)
+                guard let uid = userIdString.flatMap({ UUID(uuidString: $0) }) else { return }
+                if self.typingUserId == uid {
+                    self.typingUserId = nil
+                    self.typingClearTask?.cancel()
+                }
+            }
+        }
+        typingBroadcastSubscriptions = [subTyping, subStopped]
 
         // Subscribe first, then listen for changes
         await channel.subscribe()
@@ -345,9 +384,42 @@ public class MessagingManager: ObservableObject {
 
     /// Unsubscribes from the current message channel.
     public func unsubscribeFromMessages() async {
+        typingClearTask?.cancel()
+        typingClearTask = nil
+        typingBroadcastSubscriptions = []
+        typingUserId = nil
         await messageChannel?.unsubscribe()
         messageChannel = nil
         currentConversationId = nil
+    }
+
+    // MARK: - Typing Indicator
+
+    private struct TypingPayload: Codable {
+        let userId: String
+        enum CodingKeys: String, CodingKey {
+            case userId = "user_id"
+        }
+    }
+
+    /// Notifies other participants in the current conversation that this user is typing.
+    /// Call this when the user is editing the message field (debounce in UI).
+    public func sendTypingIndicator() {
+        guard let channel = messageChannel,
+              let userId = SupabaseManager.shared.currentUser?.id else { return }
+        Task {
+            try? await channel.broadcast(event: "typing", message: TypingPayload(userId: userId.uuidString))
+        }
+    }
+
+    /// Notifies other participants that this user stopped typing.
+    /// Call when the user clears the field or sends a message.
+    public func sendStoppedTypingIndicator() {
+        guard let channel = messageChannel,
+              let userId = SupabaseManager.shared.currentUser?.id else { return }
+        Task {
+            try? await channel.broadcast(event: "stopped_typing", message: TypingPayload(userId: userId.uuidString))
+        }
     }
 
     /// Subscribes to conversation updates.
