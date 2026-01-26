@@ -42,6 +42,7 @@ struct MessagesScreen: View {
     @State private var segmentIndex: Int = 0 // Default to dating (index 0)
     @State private var selectedProfileToView: UserProfile? = nil
     @State private var showLikesYouScreen = false
+    @State private var hiddenSectionExpanded = false
 
     private var conversations: [Conversation] {
         messagingManager.conversations
@@ -55,10 +56,10 @@ struct MessagesScreen: View {
         friendsManager.friends
     }
 
-    // Friends who don't have a conversation yet
+    // Friends who don't have a conversation yet (only count visible conversations)
     private var friendsWithoutConversation: [Friend] {
         let conversationUserIds = Set(
-            filteredConversations.compactMap { $0.otherUser?.id }
+            visibleConversations.compactMap { $0.otherUser?.id }
         )
         return acceptedFriends.filter { friend in
             guard let currentUserId = supabaseManager.currentUser?.id else { return false }
@@ -67,13 +68,15 @@ struct MessagesScreen: View {
         }
     }
 
+    /// Loads conversation list only. Realtime subscription is done once in onAppear Task to avoid double-subscribe and "postgresChange after join".
     private func loadConversations() {
+        print("[Messages] loadConversations() called")
         Task {
             do {
                 try await messagingManager.fetchConversations()
-                await messagingManager.subscribeToConversations()
+                print("[Messages] loadConversations() completed OK, list count: \(messagingManager.conversations.count)")
             } catch {
-                print("Failed to load conversations: \(error)")
+                print("[Messages] loadConversations() failed: \(error)")
             }
         }
     }
@@ -131,7 +134,10 @@ struct MessagesScreen: View {
                 try await friendsManager.fetchMatches()
             }
         } catch {
-            print("Failed to refresh: \(error)")
+            let nsError = error as NSError
+            if nsError.domain != NSURLErrorDomain || nsError.code != NSURLErrorCancelled {
+                print("Failed to refresh: \(error)")
+            }
         }
     }
 
@@ -199,12 +205,24 @@ struct MessagesScreen: View {
             }
         }
     }
+
+    /// Conversations to show in the main list (not left, not hidden).
+    private var visibleConversations: [Conversation] {
+        guard let userId = supabaseManager.currentUser?.id else { return [] }
+        return filteredConversations.filter { !$0.hasLeft(for: userId) && !$0.isHidden(for: userId) }
+    }
+
+    /// Conversations in the Hidden section (not left, hidden).
+    private var hiddenConversations: [Conversation] {
+        guard let userId = supabaseManager.currentUser?.id else { return [] }
+        return filteredConversations.filter { !$0.hasLeft(for: userId) && $0.isHidden(for: userId) }
+    }
     
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             softGray
                 .ignoresSafeArea()
-            
+
             ScrollView {
                 VStack(spacing: 0) {
                     // Dating/Friends Toggle - only show if dating is enabled
@@ -329,33 +347,132 @@ struct MessagesScreen: View {
                         .padding(.bottom, 24)
                     }
 
-                    // Conversations
-                    if !filteredConversations.isEmpty {
+                    // Main list: visible conversations (List with fixed height so it lays out inside ScrollView; swipe to Hide/Delete)
+                    if !visibleConversations.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
-                            if selectedMode == .friends && (!pendingFriendRequests.isEmpty || !friendsWithoutConversation.isEmpty) {
-                                Text("Conversations")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(charcoalColor)
-                                    .padding(.horizontal, 16)
-                            }
+                            Text("Messages")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(charcoalColor)
+                                .padding(.horizontal, 16)
 
-                            VStack(spacing: 8) {
-                                ForEach(filteredConversations) { conversation in
+                            List {
+                                ForEach(visibleConversations) { conversation in
                                     ConversationRow(
                                         conversation: conversation,
-                                        currentUserId: supabaseManager.currentUser?.id
-                                    ) {
-                                        selectedConversation = conversation
-                                    }
-                                    .padding(.horizontal, 16)
+                                        currentUserId: supabaseManager.currentUser?.id,
+                                        onTap: { selectedConversation = conversation },
+                                        onHide: {
+                                            Task {
+                                                messagingManager.errorMessage = nil
+                                                do {
+                                                    try await messagingManager.hideConversation(conversation.id)
+                                                } catch {
+                                                    messagingManager.errorMessage = error.localizedDescription
+                                                }
+                                            }
+                                        },
+                                        onUnhide: nil,
+                                        onDelete: {
+                                            Task {
+                                                messagingManager.errorMessage = nil
+                                                do {
+                                                    try await messagingManager.leaveConversation(conversation.id)
+                                                } catch {
+                                                    messagingManager.errorMessage = error.localizedDescription
+                                                }
+                                            }
+                                        }
+                                    )
+                                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                    .listRowSeparator(.hidden)
+                                    .listRowBackground(Color.clear)
                                 }
                             }
+                            .listStyle(.plain)
+                            .scrollContentBackground(.hidden)
+                            .scrollDisabled(true)
+                            .frame(minHeight: CGFloat(visibleConversations.count) * 96)
                         }
                         .padding(.bottom, 24)
                     }
 
+                    // Hidden section (collapsible dropdown) — same 16pt corner radius as conversation cards
+                    if !hiddenConversations.isEmpty {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    hiddenSectionExpanded.toggle()
+                                }
+                            } label: {
+                                HStack {
+                                    Text("Hidden")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(charcoalColor)
+                                    Text("(\(hiddenConversations.count))")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(charcoalColor.opacity(0.7))
+                                    Spacer()
+                                    Image(systemName: hiddenSectionExpanded ? "chevron.up" : "chevron.down")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(charcoalColor.opacity(0.6))
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+
+                            if hiddenSectionExpanded {
+                                List {
+                                    ForEach(hiddenConversations) { conversation in
+                                        ConversationRow(
+                                            conversation: conversation,
+                                            currentUserId: supabaseManager.currentUser?.id,
+                                            onTap: { selectedConversation = conversation },
+                                            onHide: nil,
+                                            onUnhide: {
+                                                Task {
+                                                    messagingManager.errorMessage = nil
+                                                    do {
+                                                        try await messagingManager.unhideConversation(conversation.id)
+                                                    } catch {
+                                                        messagingManager.errorMessage = error.localizedDescription
+                                                    }
+                                                }
+                                            },
+                                            onDelete: {
+                                                Task {
+                                                    messagingManager.errorMessage = nil
+                                                    do {
+                                                        try await messagingManager.leaveConversation(conversation.id)
+                                                    } catch {
+                                                        messagingManager.errorMessage = error.localizedDescription
+                                                    }
+                                                }
+                                            }
+                                        )
+                                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                        .listRowSeparator(.hidden)
+                                        .listRowBackground(Color.clear)
+                                    }
+                                }
+                                .listStyle(.plain)
+                                .scrollContentBackground(.hidden)
+                                .scrollDisabled(true)
+                                .frame(minHeight: CGFloat(hiddenConversations.count) * 96)
+                                .padding(.bottom, 16)
+                            }
+                        }
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.white)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 24)
+                    }
+
                     // Empty State
-                    if filteredConversations.isEmpty && friendsWithoutConversation.isEmpty && (selectedMode == .dating || pendingFriendRequests.isEmpty) {
+                    if visibleConversations.isEmpty && hiddenConversations.isEmpty && friendsWithoutConversation.isEmpty && (selectedMode == .dating || pendingFriendRequests.isEmpty) {
                         VStack(spacing: 8) {
                             Text("No \(selectedMode == .dating ? "dating" : "friends") messages yet")
                                 .font(.system(size: 16, weight: .medium))
@@ -381,28 +498,75 @@ struct MessagesScreen: View {
             .refreshable {
                 await refreshData()
             }
+
+            // Error banner for hide/unhide/delete failures
+            if let message = messagingManager.errorMessage {
+                HStack {
+                    Text(message)
+                        .font(.system(size: 14))
+                        .foregroundColor(.white)
+                    Spacer()
+                    Button {
+                        messagingManager.errorMessage = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                }
+                .padding(12)
+                .background(charcoalColor)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+            }
         }
         .onAppear {
+            print("[Messages] MessagesScreen onAppear | isDatingEnabled: \(isDatingEnabled), selectedMode: \(selectedMode)")
             // Default to friends if dating is not enabled
             if !isDatingEnabled {
                 selectedMode = .friends
                 segmentIndex = 1
-            } else {
-                // Load likes and matches when dating is enabled
-                loadLikesYou()
-                loadMatches()
             }
+            // Load conversations first so the list appears; then friends/likes/matches
             loadConversations()
             loadFriendRequests()
             loadFriends()
+            if isDatingEnabled {
+                loadLikesYou()
+                loadMatches()
+            }
 
-            // Subscribe to real-time updates
+            // Subscribe to real-time updates (single subscription path)
             Task {
                 await MessagingManager.shared.subscribeToConversations()
                 await FriendsManager.shared.subscribeToFriendRequests()
                 await FriendsManager.shared.subscribeToSwipes()
                 await FriendsManager.shared.subscribeToMatches()
             }
+        }
+        .onChange(of: selectedMode) { _, newMode in
+            let uid = supabaseManager.currentUser?.id
+            let afterMode = messagingManager.conversations.filter { conv in
+                switch newMode {
+                case .dating: return conv.type == .dating
+                case .friends: return conv.type == .friends
+                }
+            }
+            let vis = (uid == nil ? 0 : afterMode.filter { !$0.hasLeft(for: uid!) && !$0.isHidden(for: uid!) }.count)
+            let hid = (uid == nil ? 0 : afterMode.filter { !$0.hasLeft(for: uid!) && $0.isHidden(for: uid!) }.count)
+            print("[Messages] selectedMode changed → \(newMode) | afterModeFilter: \(afterMode.count) | visible: \(vis), hidden: \(hid)")
+        }
+        .onChange(of: messagingManager.conversations.count) { _, newCount in
+            let uid = supabaseManager.currentUser?.id
+            let afterModeFilter: [Conversation] = messagingManager.conversations.filter { conv in
+                switch selectedMode {
+                case .dating: return conv.type == .dating
+                case .friends: return conv.type == .friends
+                }
+            }
+            let vis = (uid == nil ? 0 : afterModeFilter.filter { !$0.hasLeft(for: uid!) && !$0.isHidden(for: uid!) }.count)
+            let hid = (uid == nil ? 0 : afterModeFilter.filter { !$0.hasLeft(for: uid!) && $0.isHidden(for: uid!) }.count)
+            let typeBreakdown = Dictionary(grouping: messagingManager.conversations, by: { $0.type.rawValue }).mapValues(\.count)
+            print("[Messages] conversations.count changed → total: \(newCount) | selectedMode: \(selectedMode) | afterModeFilter: \(afterModeFilter.count) | visible: \(vis), hidden: \(hid) | types in list: \(typeBreakdown) | currentUser: \(uid != nil ? "yes" : "no")")
         }
         .onDisappear {
             Task {
@@ -451,6 +615,9 @@ struct ConversationRow: View {
     let conversation: Conversation
     let currentUserId: UUID?
     let onTap: () -> Void
+    var onHide: (() -> Void)? = nil
+    var onUnhide: (() -> Void)? = nil
+    var onDelete: (() -> Void)? = nil
 
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
@@ -611,6 +778,42 @@ struct ConversationRow: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if let onDelete {
+                Button(role: .destructive, action: onDelete) {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+            if let onHide {
+                Button(action: onHide) {
+                    Label("Hide", systemImage: "eye.slash")
+                }
+                .tint(charcoalColor)
+            }
+            if let onUnhide {
+                Button(action: onUnhide) {
+                    Label("Unhide", systemImage: "eye")
+                }
+                .tint(forestGreen)
+            }
+        }
+        .contextMenu {
+            if let onHide {
+                Button(action: onHide) {
+                    Label("Hide", systemImage: "eye.slash")
+                }
+            }
+            if let onUnhide {
+                Button(action: onUnhide) {
+                    Label("Unhide", systemImage: "eye")
+                }
+            }
+            if let onDelete {
+                Button(role: .destructive, action: onDelete) {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        }
     }
 }
 

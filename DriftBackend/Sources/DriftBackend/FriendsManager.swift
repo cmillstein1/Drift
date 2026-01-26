@@ -59,6 +59,7 @@ public class FriendsManager: ObservableObject {
             isLoading = false
         } catch {
             isLoading = false
+            if isURLCancelled(error) { return }
             errorMessage = error.localizedDescription
             throw error
         }
@@ -86,6 +87,7 @@ public class FriendsManager: ObservableObject {
             isLoading = false
         } catch {
             isLoading = false
+            if isURLCancelled(error) { return }
             errorMessage = error.localizedDescription
             throw error
         }
@@ -416,6 +418,7 @@ public class FriendsManager: ObservableObject {
             isLoading = false
         } catch {
             isLoading = false
+            if isURLCancelled(error) { return }
             errorMessage = error.localizedDescription
             throw error
         }
@@ -447,6 +450,7 @@ public class FriendsManager: ObservableObject {
 
         print("🔍 Fetching people who liked me (userId: \(userId))")
 
+        do {
         // Get all swipes where someone swiped right on the current user
         let incomingLikes: [Swipe] = try await client
             .from("swipes")
@@ -480,24 +484,30 @@ public class FriendsManager: ObservableObject {
 
         self.peopleLikedMe = profiles
         print("📊 Total peopleLikedMe: \(self.peopleLikedMe.count)")
+        } catch {
+            if isURLCancelled(error) { return }
+            throw error
+        }
     }
 
     // MARK: - Realtime Subscriptions
 
-    /// Subscribes to realtime updates for friend requests.
+    /// Subscribes to realtime updates for friend requests. If already subscribed, returns immediately.
     public func subscribeToFriendRequests() async {
         guard let userId = SupabaseManager.shared.currentUser?.id else { return }
+        if friendsChannel != nil { return }
 
-        friendsChannel = client.realtimeV2.channel("friends:\(userId)")
+        let channel = client.realtimeV2.channel("friends:\(userId)")
+        friendsChannel = channel
 
-        let insertions = friendsChannel?.postgresChange(
+        let insertions = channel.postgresChange(
             InsertAction.self,
             schema: "public",
             table: "friends",
             filter: "addressee_id=eq.\(userId)"
         )
 
-        let updates = friendsChannel?.postgresChange(
+        let updates = channel.postgresChange(
             UpdateAction.self,
             schema: "public",
             table: "friends",
@@ -505,32 +515,30 @@ public class FriendsManager: ObservableObject {
         )
 
         Task {
-            if let insertions = insertions {
-                for await _ in insertions {
-                    try? await self.fetchPendingRequests()
-                }
+            for await _ in insertions {
+                try? await self.fetchPendingRequests()
             }
         }
 
         Task {
-            if let updates = updates {
-                for await _ in updates {
-                    try? await self.fetchFriends()
-                    try? await self.fetchPendingRequests()
-                }
+            for await _ in updates {
+                try? await self.fetchFriends()
+                try? await self.fetchPendingRequests()
             }
         }
 
-        await friendsChannel?.subscribe()
+        await channel.subscribe()
     }
 
-    /// Subscribes to realtime updates for matches.
+    /// Subscribes to realtime updates for matches. If already subscribed, returns immediately.
     public func subscribeToMatches() async {
         guard let userId = SupabaseManager.shared.currentUser?.id else { return }
+        if matchesChannel != nil { return }
 
-        matchesChannel = client.realtimeV2.channel("matches:\(userId)")
+        let channel = client.realtimeV2.channel("matches:\(userId)")
+        matchesChannel = channel
 
-        let insertions = matchesChannel?.postgresChange(
+        let insertions = channel.postgresChange(
             InsertAction.self,
             schema: "public",
             table: "matches",
@@ -538,23 +546,23 @@ public class FriendsManager: ObservableObject {
         )
 
         Task {
-            if let insertions = insertions {
-                for await _ in insertions {
-                    try? await self.fetchMatches()
-                }
+            for await _ in insertions {
+                try? await self.fetchMatches()
             }
         }
 
-        await matchesChannel?.subscribe()
+        await channel.subscribe()
     }
 
-    /// Subscribes to realtime updates for incoming swipes (likes).
+    /// Subscribes to realtime updates for incoming swipes (likes). If already subscribed, returns immediately.
     public func subscribeToSwipes() async {
         guard let userId = SupabaseManager.shared.currentUser?.id else { return }
+        if swipesChannel != nil { return }
 
-        swipesChannel = client.realtimeV2.channel("swipes:\(userId)")
+        let channel = client.realtimeV2.channel("swipes:\(userId)")
+        swipesChannel = channel
 
-        let insertions = swipesChannel?.postgresChange(
+        let insertions = channel.postgresChange(
             InsertAction.self,
             schema: "public",
             table: "swipes",
@@ -562,28 +570,37 @@ public class FriendsManager: ObservableObject {
         )
 
         Task {
-            if let insertions = insertions {
-                for await insertion in insertions {
-                    // Only refresh if it was a right swipe (like)
-                    if let directionValue = insertion.record["direction"]?.stringValue,
-                       directionValue == "right" || directionValue == "up" {
-                        try? await self.fetchPeopleLikedMe()
-                    }
+            for await insertion in insertions {
+                // Only refresh if it was a right swipe (like)
+                if let directionValue = insertion.record["direction"]?.stringValue,
+                   directionValue == "right" || directionValue == "up" {
+                    try? await self.fetchPeopleLikedMe()
                 }
             }
         }
 
-        await swipesChannel?.subscribe()
+        await channel.subscribe()
     }
 
-    /// Unsubscribes from all realtime channels.
+    /// Unsubscribes from all realtime channels and removes them so the next subscribe gets fresh channels (postgresChange before join).
     public func unsubscribe() async {
-        await friendsChannel?.unsubscribe()
-        await matchesChannel?.unsubscribe()
-        await swipesChannel?.unsubscribe()
-        friendsChannel = nil
-        matchesChannel = nil
-        swipesChannel = nil
+        if let ch = friendsChannel {
+            await client.realtimeV2.removeChannel(ch)
+            friendsChannel = nil
+        }
+        if let ch = matchesChannel {
+            await client.realtimeV2.removeChannel(ch)
+            matchesChannel = nil
+        }
+        if let ch = swipesChannel {
+            await client.realtimeV2.removeChannel(ch)
+            swipesChannel = nil
+        }
+    }
+
+    private func isURLCancelled(_ error: Error) -> Bool {
+        let ns = error as NSError
+        return ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled
     }
 }
 

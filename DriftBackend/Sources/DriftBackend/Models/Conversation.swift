@@ -68,6 +68,25 @@ public struct Conversation: Codable, Identifiable, Sendable {
         }
         return lastMessageDate > lastReadAt
     }
+
+    /// Whether the given user has left this conversation (delete).
+    /// If we can't find the participant (e.g. decode failed or not loaded), treat as not left so the conversation still shows.
+    public func hasLeft(for userId: UUID) -> Bool {
+        guard let participant = participants?.first(where: { $0.userId == userId }) else { return false }
+        return participant.leftAt != nil
+    }
+
+    /// Whether the given user has this conversation in Hidden (reversible).
+    /// If we can't find the participant, treat as not hidden so the conversation still shows.
+    public func isHidden(for userId: UUID) -> Bool {
+        guard let participant = participants?.first(where: { $0.userId == userId }) else { return false }
+        return participant.hiddenAt != nil
+    }
+
+    /// Current user's participant for this conversation, if present.
+    public func participant(for userId: UUID) -> ConversationParticipant? {
+        participants?.first(where: { $0.userId == userId })
+    }
 }
 
 // MARK: - ConversationParticipant
@@ -79,6 +98,8 @@ public struct ConversationParticipant: Codable, Identifiable, Sendable {
     public let joinedAt: Date?
     public var lastReadAt: Date?
     public var isMuted: Bool
+    public var hiddenAt: Date?
+    public var leftAt: Date?
 
     // Joined data
     public var profile: UserProfile?
@@ -90,6 +111,8 @@ public struct ConversationParticipant: Codable, Identifiable, Sendable {
         case joinedAt = "joined_at"
         case lastReadAt = "last_read_at"
         case isMuted = "is_muted"
+        case hiddenAt = "hidden_at"
+        case leftAt = "left_at"
         case profile
     }
 
@@ -100,6 +123,8 @@ public struct ConversationParticipant: Codable, Identifiable, Sendable {
         joinedAt: Date? = nil,
         lastReadAt: Date? = nil,
         isMuted: Bool = false,
+        hiddenAt: Date? = nil,
+        leftAt: Date? = nil,
         profile: UserProfile? = nil
     ) {
         self.id = id
@@ -108,6 +133,8 @@ public struct ConversationParticipant: Codable, Identifiable, Sendable {
         self.joinedAt = joinedAt
         self.lastReadAt = lastReadAt
         self.isMuted = isMuted
+        self.hiddenAt = hiddenAt
+        self.leftAt = leftAt
         self.profile = profile
     }
 }
