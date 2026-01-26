@@ -18,6 +18,8 @@ struct MessageDetailScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @State private var messageText: String = ""
     @FocusState private var isInputFocused: Bool
+    @State private var typingDebounceTask: Task<Void, Never>?
+    @State private var lastTypingSentAt: Date?
 
     private var currentUserId: UUID? {
         supabaseManager.currentUser?.id
@@ -254,6 +256,25 @@ struct MessageDetailScreen: View {
                         }
                     }
                 }
+
+                // Typing indicator in a chat bubble (iMessage-style: light grey, tail on bottom-left)
+                if messagingManager.typingUserId != nil {
+                    HStack(alignment: .bottom, spacing: 0) {
+                        TypingIndicatorView(color: charcoalColor.opacity(0.85))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(Color(.systemGray6))
+                            .clipShape(RoundedCorner(radius: 20, corners: [.topLeft, .topRight, .bottomRight]))
+                            .overlay(
+                                RoundedCorner(radius: 20, corners: [.topLeft, .topRight, .bottomRight])
+                                    .stroke(Color.black.opacity(0.06), lineWidth: 0.5)
+                            )
+                            .shadow(color: .black.opacity(0.06), radius: 2, x: 0, y: 1)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+                }
                 
                 // Input Area
                 HStack(spacing: 12) {
@@ -297,8 +318,29 @@ struct MessageDetailScreen: View {
             loadMessages()
         }
         .onDisappear {
+            messagingManager.sendStoppedTypingIndicator()
             Task {
                 await messagingManager.unsubscribeFromMessages()
+            }
+        }
+        .onChange(of: messageText) { _, newValue in
+            if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                messagingManager.sendStoppedTypingIndicator()
+                lastTypingSentAt = nil
+                return
+            }
+            typingDebounceTask?.cancel()
+            // Throttle typing to at most once per second
+            let now = Date()
+            if lastTypingSentAt == nil || now.timeIntervalSince(lastTypingSentAt!) > 1 {
+                messagingManager.sendTypingIndicator()
+                lastTypingSentAt = now
+            }
+            typingDebounceTask = Task {
+                try? await Task.sleep(for: .seconds(2))
+                if !Task.isCancelled {
+                    messagingManager.sendStoppedTypingIndicator()
+                }
             }
         }
     }
@@ -320,6 +362,8 @@ struct MessageDetailScreen: View {
 
         let textToSend = trimmedText
         messageText = ""
+        typingDebounceTask?.cancel()
+        messagingManager.sendStoppedTypingIndicator()
 
         Task {
             do {
@@ -327,6 +371,32 @@ struct MessageDetailScreen: View {
             } catch {
                 print("Failed to send message: \(error)")
             }
+        }
+    }
+}
+
+// MARK: - Typing Indicator (native iOS-style three bouncing dots)
+private struct TypingIndicatorView: View {
+    let color: Color
+    @State private var animating = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<3, id: \.self) { index in
+                Circle()
+                    .fill(color)
+                    .frame(width: 6, height: 6)
+                    .scaleEffect(animating ? 1.0 : 0.5)
+                    .animation(
+                        .easeInOut(duration: 0.4)
+                        .repeatForever(autoreverses: true)
+                        .delay(Double(index) * 0.15),
+                        value: animating
+                    )
+            }
+        }
+        .onAppear {
+            animating = true
         }
     }
 }
