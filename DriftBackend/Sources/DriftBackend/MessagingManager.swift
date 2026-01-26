@@ -138,7 +138,14 @@ public class MessagingManager: ObservableObject {
             recentParticipantState = recentParticipantState.filter { now.timeIntervalSince($0.value.at) <= recentParticipantStateWindow }
 
             // Exclude conversations the user has left so the list stays accurate
-            let filtered = enrichedConversations.filter { !$0.hasLeft(for: userId) }
+            var filtered = enrichedConversations.filter { !$0.hasLeft(for: userId) }
+            // Exclude conversations with blocked users (blocker and blockee should not see each other)
+            let blockedIds = (try? await FriendsManager.shared.fetchBlockedExclusionUserIds()) ?? []
+            let blockedSet = Set(blockedIds)
+            filtered = filtered.filter { conv in
+                guard let otherId = conv.otherUser?.id else { return true }
+                return !blockedSet.contains(otherId)
+            }
             let visibleCount = filtered.filter { !$0.isHidden(for: userId) }.count
             let hiddenCount = filtered.filter { $0.isHidden(for: userId) }.count
 

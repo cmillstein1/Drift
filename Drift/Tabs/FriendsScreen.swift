@@ -45,7 +45,8 @@ struct FriendsScreen: View {
                 let friendIds = friendsManager.friends.map { friend in
                     friend.requesterId == currentUserId ? friend.addresseeId : friend.requesterId
                 }
-                let excludeIds = swipedIds + friendIds
+                let blockedIds = (try? await friendsManager.fetchBlockedExclusionUserIds()) ?? []
+                let excludeIds = swipedIds + friendIds + blockedIds
                 try await profileManager.fetchDiscoverProfiles(
                     lookingFor: .friends,
                     excludeIds: excludeIds
