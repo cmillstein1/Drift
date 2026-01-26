@@ -10,7 +10,7 @@ public enum ConversationType: String, Codable, Sendable {
 
 // MARK: - Conversation
 
-public struct Conversation: Codable, Identifiable, Sendable {
+public struct Conversation: Codable, Identifiable, Hashable, Sendable {
     public let id: UUID
     public let type: ConversationType
     public var activityId: UUID?
@@ -58,6 +58,14 @@ public struct Conversation: Codable, Identifiable, Sendable {
 
     public var avatarUrl: String? {
         otherUser?.avatarUrl
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    public static func == (lhs: Conversation, rhs: Conversation) -> Bool {
+        lhs.id == rhs.id
     }
 
     public func hasUnreadMessages(for userId: UUID) -> Bool {

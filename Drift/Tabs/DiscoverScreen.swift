@@ -7,6 +7,7 @@
 
 import SwiftUI
 import DriftBackend
+import Auth
 
 enum DiscoverMode {
     case dating
@@ -1268,14 +1269,23 @@ struct FriendsListContent: View {
     }
 
     private func loadProfiles() {
+        guard let currentUserId = supabaseManager.currentUser?.id else {
+            isLoading = false
+            return
+        }
         isLoading = true
         Task {
             do {
                 swipedIds = try await friendsManager.fetchSwipedUserIds()
                 try await friendsManager.fetchSentRequests()
+                try await friendsManager.fetchFriends()
+                let friendIds = friendsManager.friends.map { friend in
+                    friend.requesterId == currentUserId ? friend.addresseeId : friend.requesterId
+                }
+                let excludeIds = swipedIds + friendIds
                 try await profileManager.fetchDiscoverProfiles(
                     lookingFor: .friends,
-                    excludeIds: swipedIds
+                    excludeIds: excludeIds
                 )
             } catch {
                 print("Failed to load friends profiles: \(error)")
