@@ -64,9 +64,6 @@ struct ProfileScreen: View {
                             // Discovery Mode
                             discoveryModeButton
                             
-                            // My Friends Button
-                            myFriendsButton
-                            
                             // Settings Menu
                             settingsMenuSection
                             
@@ -104,9 +101,7 @@ struct ProfileScreen: View {
                     .presentationDragIndicator(.visible)
             }
             .navigationDestination(for: String.self) { destination in
-                if destination == "friendsGrid" {
-                    FriendsGridScreen()
-                } else if destination == "verification" {
+                if destination == "verification" {
                     VerificationView()
                 } else if destination == "editProfile" {
                     EditProfileScreen(onBack: {
@@ -325,56 +320,6 @@ struct ProfileScreen: View {
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
         }
-    }
-    
-    // MARK: - My Friends Button
-    
-    private var myFriendsButton: some View {
-        NavigationLink(value: "friendsGrid") {
-            HStack(spacing: 12) {
-                // Icon container
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white.opacity(0.2))
-                        .frame(width: 48, height: 48)
-                    
-                    Image(systemName: "person.2.fill")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(.white)
-                }
-                
-                // Text
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("My Friends")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                    
-                    Text("View all your connections")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.8))
-                }
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundColor(.white.opacity(0.8))
-            }
-            .padding(20)
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        skyBlue,
-                        forestGreen
-                    ]),
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-        }
-        .buttonStyle(PlainButtonStyle())
     }
     
     // MARK: - Settings Menu Section

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import DriftBackend
+import Auth
 
 struct FriendsScreen: View {
     @StateObject private var profileManager = ProfileManager.shared
@@ -31,19 +32,23 @@ struct FriendsScreen: View {
     }
 
     private func loadProfiles() {
+        guard let currentUserId = supabaseManager.currentUser?.id else {
+            isLoading = false
+            return
+        }
         isLoading = true
         Task {
             do {
-                // Fetch already swiped IDs
                 swipedIds = try await friendsManager.fetchSwipedUserIds()
-
-                // Fetch sent friend requests
                 try await friendsManager.fetchSentRequests()
-
-                // Fetch friends profiles excluding already swiped
+                try await friendsManager.fetchFriends()
+                let friendIds = friendsManager.friends.map { friend in
+                    friend.requesterId == currentUserId ? friend.addresseeId : friend.requesterId
+                }
+                let excludeIds = swipedIds + friendIds
                 try await profileManager.fetchDiscoverProfiles(
                     lookingFor: .friends,
-                    excludeIds: swipedIds
+                    excludeIds: excludeIds
                 )
             } catch {
                 print("Failed to load friends profiles: \(error)")

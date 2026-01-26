@@ -35,6 +35,7 @@ struct MessagesScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var messagingManager = MessagingManager.shared
     @StateObject private var friendsManager = FriendsManager.shared
+    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
 
     @State private var searchText: String = ""
     @State private var selectedMode: MessageMode = .dating
@@ -43,6 +44,8 @@ struct MessagesScreen: View {
     @State private var selectedProfileToView: UserProfile? = nil
     @State private var showLikesYouScreen = false
     @State private var hiddenSectionExpanded = false
+    @State private var showMyFriendsSheet = false
+    @State private var pendingConversationToOpen: Conversation?
 
     private var conversations: [Conversation] {
         messagingManager.conversations
@@ -219,18 +222,19 @@ struct MessagesScreen: View {
     }
     
     var body: some View {
-        ZStack(alignment: .top) {
-            softGray
-                .ignoresSafeArea()
+        NavigationStack {
+            ZStack(alignment: .top) {
+                softGray
+                    .ignoresSafeArea()
 
-            ScrollView {
+                ScrollView {
                 VStack(spacing: 0) {
                     // Dating/Friends Toggle - only show if dating is enabled
                     // Match exact positioning from DiscoverScreen
-                    if isDatingEnabled {
-                        VStack(spacing: 0) {
-                            // Mode switcher row - matches discover view positioning
-                            HStack {
+                    VStack(spacing: 0) {
+                        // Mode switcher row + My Friends button (top right)
+                        HStack {
+                            if isDatingEnabled {
                                 DiscoverModeSwitcher(
                                     mode: Binding(
                                         get: { selectedMode.discoverMode },
@@ -244,12 +248,29 @@ struct MessagesScreen: View {
                                     ),
                                     style: .light
                                 )
-                                Spacer()
                             }
-                            .padding(.horizontal, 24)
-                            .padding(.top, 10) // Slightly less padding to match DiscoverScreen
-                            .padding(.bottom, 20)
+                            Spacer()
+                            if selectedMode == .friends {
+                                Button {
+                                    showMyFriendsSheet = true
+                                } label: {
+                                    Image(systemName: "person.2.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(charcoalColor)
+                                        .frame(width: 40, height: 40)
+                                        .background(Color.white)
+                                        .clipShape(Circle())
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                        )
+                                        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                                }
+                            }
                         }
+                        .padding(.horizontal, 24)
+                        .padding(.top, 10)
+                        .padding(.bottom, 20)
                     }
                     
                     HStack(spacing: 12) {
@@ -577,13 +598,32 @@ struct MessagesScreen: View {
         .sheet(isPresented: $showLikesYouScreen) {
             LikesYouScreen()
         }
-        .fullScreenCover(item: $selectedConversation) { conversation in
+        .sheet(isPresented: $showMyFriendsSheet, onDismiss: {
+            if let conv = pendingConversationToOpen {
+                selectedConversation = conv
+                pendingConversationToOpen = nil
+            }
+        }) {
+            MyFriendsSheet(onSelectConversation: { conversation in
+                pendingConversationToOpen = conversation
+                showMyFriendsSheet = false
+            })
+        }
+        .navigationDestination(item: $selectedConversation) { conversation in
             MessageDetailScreen(
                 conversation: conversation,
                 onClose: {
                     selectedConversation = nil
+                    tabBarVisibility.isVisible = true
                 }
             )
+            .navigationBarBackButtonHidden(true)
+            .onAppear {
+                tabBarVisibility.isVisible = false
+            }
+            .onDisappear {
+                tabBarVisibility.isVisible = true
+            }
         }
         .fullScreenCover(item: $selectedProfileToView) { profile in
             ProfileDetailView(
@@ -607,6 +647,7 @@ struct MessagesScreen: View {
                     selectedProfileToView = nil
                 }
             )
+        }
         }
     }
 }
