@@ -44,6 +44,19 @@ struct GenerateInviteSheet: View {
             .scrollContentBackground(.hidden)
             .background(softGray)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        Task {
+                            await inviteManager.generateInviteCode()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(burntOrange)
+                    }
+                    .disabled(inviteManager.isGenerating)
+                    .opacity(inviteManager.isGenerating ? 0.5 : 1)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
                         dismiss()
@@ -64,8 +77,11 @@ struct GenerateInviteSheet: View {
             }
         }
         .onAppear {
-            // Generate code when sheet appears
-            if inviteManager.currentInviteCode == nil && !inviteManager.isGenerating {
+            // Generate code when sheet appears, or animate existing code
+            if let existingCode = inviteManager.currentInviteCode {
+                // Code already exists - trigger the animation
+                animateCode(existingCode)
+            } else if !inviteManager.isGenerating {
                 Task {
                     await inviteManager.generateInviteCode()
                 }
@@ -73,15 +89,7 @@ struct GenerateInviteSheet: View {
         }
         .onChange(of: inviteManager.currentInviteCode) { oldValue, newValue in
             if let code = newValue {
-                // Animate characters appearing one by one
-                characterAnimations = Array(repeating: false, count: code.count)
-                for index in 0..<code.count {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.1) {
-                        if index < characterAnimations.count {
-                            characterAnimations[index] = true
-                        }
-                    }
-                }
+                animateCode(code)
             }
         }
     }
@@ -260,12 +268,24 @@ struct GenerateInviteSheet: View {
         .padding(.vertical, 60)
     }
     
+    private func animateCode(_ code: String) {
+        // Reset and animate characters appearing one by one
+        characterAnimations = Array(repeating: false, count: code.count)
+        for index in 0..<code.count {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.1) {
+                if index < characterAnimations.count {
+                    characterAnimations[index] = true
+                }
+            }
+        }
+    }
+
     private func handleCopy() {
         guard let code = inviteManager.currentInviteCode else { return }
-        
+
         UIPasteboard.general.string = code
         copied = true
-        
+
         // Reset after 2 seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             copied = false

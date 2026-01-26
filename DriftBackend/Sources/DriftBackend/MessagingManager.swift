@@ -106,7 +106,7 @@ public class MessagingManager: ObservableObject {
             .from("conversations")
             .select("""
                 *,
-                participants:conversation_participants(user_id)
+                participants:conversation_participants(*)
             """)
             .eq("type", value: type.rawValue)
             .execute()
@@ -205,6 +205,26 @@ public class MessagingManager: ObservableObject {
             .from("messages")
             .insert(request)
             .execute()
+
+        // Update the local conversation's lastMessage for immediate UI feedback
+        if let index = conversations.firstIndex(where: { $0.id == conversationId }) {
+            let senderProfile = try? await ProfileManager.shared.fetchProfile(by: userId)
+            let newMessage = Message(
+                id: UUID(),
+                conversationId: conversationId,
+                senderId: userId,
+                content: content,
+                images: images,
+                createdAt: Date(),
+                deletedAt: nil,
+                sender: senderProfile
+            )
+            conversations[index].lastMessage = newMessage
+            conversations[index].updatedAt = Date()
+
+            // Re-sort conversations by updatedAt
+            conversations.sort { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
+        }
     }
 
     /// Marks a conversation as read.

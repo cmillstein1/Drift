@@ -3,9 +3,11 @@
 //  Drift
 //
 //  Detail sheet for Marketplace posts in the community
+//  NOTE: This file is deprecated - marketplace was removed from community
 //
 
 import SwiftUI
+import DriftBackend
 
 struct MarketplaceDetailSheet: View {
     @Environment(\.dismiss) var dismiss
@@ -157,7 +159,7 @@ struct MarketplaceDetailSheet: View {
                 Spacer()
                 HStack {
                     Spacer()
-                    Text(post.price ?? "$0")
+                    Text("$0") // Price field removed
                         .font(.system(size: 24, weight: .bold))
                         .foregroundColor(.white)
                         .padding(.horizontal, 16)
@@ -198,7 +200,7 @@ struct MarketplaceDetailSheet: View {
                 HStack(spacing: 6) {
                     Image(systemName: "bag")
                         .font(.system(size: 12))
-                    Text(post.category ?? "For Sale")
+                    Text("For Sale") // Category field removed
                         .font(.system(size: 12, weight: .semibold))
                 }
                 .foregroundColor(skyBlue)
@@ -263,7 +265,7 @@ struct MarketplaceDetailSheet: View {
                 }
                 .foregroundColor(charcoal.opacity(0.6))
                 
-                Text(post.location ?? "Santa Monica, CA")
+                Text(post.eventLocation ?? "Unknown Location")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(charcoal)
                     .lineLimit(1)
@@ -331,7 +333,7 @@ struct MarketplaceDetailSheet: View {
                     .frame(width: 48, height: 48)
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(post.authorName)
+                    Text(post.author?.name ?? "Anonymous")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(charcoal)
                     
@@ -486,21 +488,9 @@ struct MarketplaceDetailSheet: View {
     }
 }
 
-#Preview {
-    MarketplaceDetailSheet(
-        post: CommunityPost(
-            id: UUID(),
-            type: .market,
-            authorName: "Sarah Builder",
-            authorAvatar: nil,
-            timeAgo: "2h ago",
-            location: "Santa Monica, CA",
-            category: "Solar Panels",
-            title: "200W Portable Solar Panel",
-            content: "Barely used 200W portable solar panel. Perfect for van life or camping. Includes carrying case and MC4 connectors. Works great, selling because I upgraded to a larger system.",
-            likes: nil,
-            replies: nil,
-            price: "$150"
-        )
-    )
-}
+// Preview disabled - marketplace feature was removed
+// #Preview {
+//     MarketplaceDetailSheet(
+//         post: CommunityPost(...)
+//     )
+// }

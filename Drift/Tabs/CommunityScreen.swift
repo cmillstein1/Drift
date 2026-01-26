@@ -22,47 +22,14 @@ enum CommunityFilter: String, CaseIterable {
         case .buildHelp: return "wrench.and.screwdriver"
         }
     }
-}
 
-// MARK: - Post Type Enum
-
-enum CommunityPostType: String {
-    case event
-    case help
-    case market
-    
-    var badgeColor: Color {
+    var postType: CommunityPostType? {
         switch self {
-        case .event: return .purple
-        case .help: return Color("BurntOrange")
-        case .market: return Color("SkyBlue")
+        case .all: return nil
+        case .events: return .event
+        case .buildHelp: return .help
         }
     }
-    
-    var icon: String {
-        switch self {
-        case .event: return "tent"
-        case .help: return "wrench.and.screwdriver"
-        case .market: return "bag"
-        }
-    }
-}
-
-// MARK: - Post Model
-
-struct CommunityPost: Identifiable {
-    let id: UUID
-    let type: CommunityPostType
-    let authorName: String
-    let authorAvatar: String?
-    let timeAgo: String
-    let location: String?
-    let category: String?
-    let title: String
-    let content: String
-    let likes: Int?
-    let replies: Int?
-    let price: String?
 }
 
 // MARK: - Main Screen
@@ -70,10 +37,8 @@ struct CommunityPost: Identifiable {
 struct CommunityScreen: View {
     @State private var selectedFilter: CommunityFilter = .all
     @State private var showCreateSheet: Bool = false
-    @State private var selectedActivity: Activity? = nil
-    @State private var selectedHelpPost: CommunityPost? = nil
-    @State private var selectedMarketPost: CommunityPost? = nil
-    @StateObject private var activityManager = ActivityManager.shared
+    @State private var selectedPost: CommunityPost? = nil
+    @StateObject private var communityManager = CommunityManager.shared
 
     private let charcoal = Color("Charcoal")
     private let softGray = Color("SoftGray")
@@ -83,8 +48,8 @@ struct CommunityScreen: View {
     private func loadData() {
         Task {
             do {
-                try await activityManager.fetchActivities(category: nil)
-                await activityManager.subscribeToActivities()
+                try await communityManager.fetchPosts(type: selectedFilter.postType)
+                await communityManager.subscribeToPosts()
             } catch {
                 print("Failed to load community data: \(error)")
             }
@@ -142,25 +107,24 @@ struct CommunityScreen: View {
                 ScrollView {
                     LazyVStack(spacing: 16) {
                         ForEach(filteredPosts) { post in
-                            CommunityPostCard(post: post)
-                                .onTapGesture {
-                                    switch post.type {
-                                    case .event:
-                                        // Convert CommunityPost to Activity for detail view
-                                        selectedActivity = activityFromPost(post)
-                                    case .help:
-                                        // Show help detail sheet
-                                        selectedHelpPost = post
-                                    case .market:
-                                        // Show marketplace detail sheet
-                                        selectedMarketPost = post
-                                    }
+                            Group {
+                                if post.type == .event {
+                                    EventCard(post: post)
+                                } else {
+                                    CommunityPostCard(post: post)
                                 }
+                            }
+                            .onTapGesture {
+                                selectedPost = post
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
                     .padding(.bottom, LayoutConstants.tabBarBottomPadding + 20)
+                }
+                .refreshable {
+                    try? await communityManager.fetchPosts(type: selectedFilter.postType)
                 }
 
                 // Empty State
@@ -199,123 +163,26 @@ struct CommunityScreen: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
-        .sheet(item: $selectedActivity) { activity in
-            ActivityDetailSheet(activity: activity)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
+        .sheet(item: $selectedPost) { post in
+            if post.type == .event {
+                EventDetailSheet(initialPost: post)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.hidden)
+            } else {
+                CommunityPostDetailSheet(initialPost: post)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
         }
-        .sheet(item: $selectedHelpPost) { post in
-            BuilderHelpDetailSheet(post: post)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-        }
-        .sheet(item: $selectedMarketPost) { post in
-            MarketplaceDetailSheet(post: post)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
+        .onChange(of: selectedFilter) { _, _ in
+            loadData()
         }
     }
     
-    // Convert CommunityPost to Activity for detail view
-    private func activityFromPost(_ post: CommunityPost) -> Activity {
-        Activity(
-            id: post.id,
-            hostId: UUID(), // Placeholder
-            title: post.title,
-            description: post.content,
-            category: .social, // Default category for community events
-            location: post.location ?? "Location TBD",
-            exactLocation: nil,
-            imageUrl: nil,
-            startsAt: Date().addingTimeInterval(86400), // Placeholder: tomorrow
-            durationMinutes: 60,
-            maxAttendees: 10,
-            currentAttendees: post.likes ?? 0,
-            host: UserProfile(
-                id: UUID(),
-                name: post.authorName,
-                avatarUrl: post.authorAvatar,
-                verified: false,
-                lifestyle: .vanLife,
-                interests: [],
-                lookingFor: .friends
-            )
-        )
-    }
-
     // Filtered posts based on selected filter
     private var filteredPosts: [CommunityPost] {
-        let allPosts = samplePosts
-        switch selectedFilter {
-        case .all:
-            return allPosts
-        case .events:
-            return allPosts.filter { $0.type == .event }
-        case .buildHelp:
-            return allPosts.filter { $0.type == .help }
-        }
-    }
-
-    // Sample data
-    private var samplePosts: [CommunityPost] {
-        [
-            CommunityPost(
-                id: UUID(),
-                type: .event,
-                authorName: "Sarah Mitchell",
-                authorAvatar: nil,
-                timeAgo: "Just now",
-                location: "Nearby",
-                category: nil,
-                title: "Morning Yoga Flow",
-                content: "Anyone interested in a 30min flow tomorrow morning? I have extra mats!",
-                likes: 12,
-                replies: nil,
-                price: nil
-            ),
-            CommunityPost(
-                id: UUID(),
-                type: .help,
-                authorName: "Dave Builder",
-                authorAvatar: nil,
-                timeAgo: "1h ago",
-                location: nil,
-                category: "Electrical",
-                title: "Inverter keeps tripping?",
-                content: "I have a 2000W Renogy inverter that trips every time I turn on my blender. Battery bank is full. Anyone seen this?",
-                likes: nil,
-                replies: 5,
-                price: nil
-            ),
-            CommunityPost(
-                id: UUID(),
-                type: .event,
-                authorName: "Jordan Park",
-                authorAvatar: nil,
-                timeAgo: "3h ago",
-                location: "Big Sur, CA",
-                category: nil,
-                title: "Weekend Surf Session",
-                content: "Heading to the beach this Saturday. Anyone want to join? Beginner friendly!",
-                likes: 8,
-                replies: nil,
-                price: nil
-            ),
-            CommunityPost(
-                id: UUID(),
-                type: .help,
-                authorName: "Emily Watts",
-                authorAvatar: nil,
-                timeAgo: "5h ago",
-                location: nil,
-                category: "Solar",
-                title: "Best solar panel angle?",
-                content: "Installing 400W panels on my roof. What angle works best for year-round use?",
-                likes: nil,
-                replies: 12,
-                price: nil
-            ),
-        ]
+        // Filter is applied at fetch time, so just return all posts
+        communityManager.posts
     }
 }
 
@@ -368,6 +235,7 @@ struct CommunitySegmentedControl: View {
 
 struct CommunityPostCard: View {
     let post: CommunityPost
+    @StateObject private var communityManager = CommunityManager.shared
 
     private let charcoal = Color("Charcoal")
     private let softGray = Color("SoftGray")
@@ -379,23 +247,34 @@ struct CommunityPostCard: View {
         switch post.type {
         case .event: return Color.purple.opacity(0.15)
         case .help: return burntOrange.opacity(0.15)
-        case .market: return skyBlue.opacity(0.15)
         }
     }
-    
+
     private var avatarIconColor: Color {
         switch post.type {
         case .event: return Color.purple
         case .help: return burntOrange
-        case .market: return skyBlue
         }
     }
-    
+
     private var badgeBackgroundColor: Color {
         switch post.type {
         case .event: return Color.purple.opacity(0.1)
         case .help: return burntOrange.opacity(0.1)
-        case .market: return skyBlue.opacity(0.1)
+        }
+    }
+
+    private var typeIcon: String {
+        switch post.type {
+        case .event: return "calendar"
+        case .help: return "wrench.and.screwdriver"
+        }
+    }
+
+    private var typeLabel: String {
+        switch post.type {
+        case .event: return "EVENT"
+        case .help: return "HELP"
         }
     }
 
@@ -404,22 +283,36 @@ struct CommunityPostCard: View {
             // Post Header
             HStack(spacing: 12) {
                 // Avatar with type-specific color
-                ZStack {
-                    Circle()
-                        .fill(avatarBackgroundColor)
-                        .frame(width: 44, height: 44)
-                    
-                    Image(systemName: "person.crop.rectangle")
-                        .font(.system(size: 18))
-                        .foregroundColor(avatarIconColor)
+                if let avatarUrl = post.author?.avatarUrl, let url = URL(string: avatarUrl) {
+                    AsyncImage(url: url) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(avatarIconColor)
+                    }
+                    .frame(width: 44, height: 44)
+                    .clipShape(Circle())
+                } else {
+                    ZStack {
+                        Circle()
+                            .fill(avatarBackgroundColor)
+                            .frame(width: 44, height: 44)
+
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(avatarIconColor)
+                    }
                 }
-                
+
                 // User Info
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(post.authorName)
+                    Text(post.author?.name ?? "Anonymous")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(charcoal)
-                    
+
                     HStack(spacing: 6) {
                         Image(systemName: "clock")
                             .font(.system(size: 11))
@@ -428,14 +321,14 @@ struct CommunityPostCard: View {
                     }
                     .foregroundColor(charcoal.opacity(0.5))
                 }
-                
+
                 Spacer()
-                
+
                 // Type Badge
                 HStack(spacing: 6) {
-                    Image(systemName: post.type.icon)
+                    Image(systemName: typeIcon)
                         .font(.system(size: 12))
-                    Text(post.type.rawValue.uppercased())
+                    Text(typeLabel)
                         .font(.system(size: 11, weight: .bold))
                         .tracking(0.5)
                 }
@@ -448,24 +341,24 @@ struct CommunityPostCard: View {
             .padding(.horizontal, 20)
             .padding(.top, 20)
             .padding(.bottom, 12)
-            
+
             // Post Content
             VStack(alignment: .leading, spacing: 8) {
                 Text(post.title)
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(charcoal)
                     .lineSpacing(2)
-                
+
                 Text(post.content)
                     .font(.system(size: 14))
                     .foregroundColor(charcoal.opacity(0.7))
                     .lineSpacing(4)
                     .lineLimit(2)
-                
+
                 // Metadata Tags
-                if post.location != nil || post.category != nil {
+                if post.eventLocation != nil || post.helpCategory != nil {
                     HStack(spacing: 8) {
-                        if let location = post.location {
+                        if let location = post.eventLocation {
                             HStack(spacing: 6) {
                                 Image(systemName: "mappin.circle.fill")
                                     .font(.system(size: 12))
@@ -478,15 +371,34 @@ struct CommunityPostCard: View {
                             .background(softGray)
                             .clipShape(Capsule())
                         }
-                        
-                        if let category = post.category {
-                            Text(category)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(charcoal.opacity(0.7))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(softGray)
-                                .clipShape(Capsule())
+
+                        if let category = post.helpCategory {
+                            HStack(spacing: 4) {
+                                Image(systemName: category.icon)
+                                    .font(.system(size: 10))
+                                Text(category.displayName)
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .foregroundColor(Color(category.color))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color(category.color).opacity(0.1))
+                            .clipShape(Capsule())
+                        }
+
+                        // Event date badge
+                        if let formattedDate = post.formattedEventDate {
+                            HStack(spacing: 4) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 10))
+                                Text(formattedDate)
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .foregroundColor(Color.purple)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.purple.opacity(0.1))
+                            .clipShape(Capsule())
                         }
                     }
                     .padding(.top, 4)
@@ -494,58 +406,82 @@ struct CommunityPostCard: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 16)
-            
+
             // Post Footer
             Rectangle()
                 .fill(softGray)
                 .frame(height: 1)
-            
+
             HStack {
                 // Engagement Stats
                 HStack(spacing: 20) {
-                    if let replies = post.replies {
+                    if post.replyCount > 0 {
                         HStack(spacing: 6) {
                             Image(systemName: "bubble.left")
                                 .font(.system(size: 14))
-                            Text("\(replies)")
+                            Text("\(post.replyCount)")
                                 .font(.system(size: 14, weight: .medium))
                         }
                         .foregroundColor(charcoal.opacity(0.4))
                     }
-                    
-                    if let likes = post.likes {
+
+                    Button {
+                        Task {
+                            try? await communityManager.togglePostLike(post.id)
+                        }
+                    } label: {
                         HStack(spacing: 6) {
-                            Image(systemName: "hand.thumbsup")
+                            Image(systemName: post.isLikedByCurrentUser == true ? "hand.thumbsup.fill" : "hand.thumbsup")
                                 .font(.system(size: 14))
-                            Text("\(likes)")
+                            Text("\(post.likeCount)")
                                 .font(.system(size: 14, weight: .medium))
                         }
-                        .foregroundColor(charcoal.opacity(0.4))
+                        .foregroundColor(post.isLikedByCurrentUser == true ? burntOrange : charcoal.opacity(0.4))
                     }
                 }
-                
+
                 Spacer()
-                
+
                 // Action Button
                 switch post.type {
                 case .event:
                     Button {
-                        // Join action
+                        Task {
+                            if post.isAttendingEvent == true {
+                                try? await communityManager.leaveEvent(post.id)
+                            } else {
+                                try? await communityManager.joinEvent(post.id)
+                            }
+                        }
                     } label: {
-                        Text("Join Event")
+                        Text(post.isAttendingEvent == true ? "Joined" : "Join Event")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(post.isAttendingEvent == true ? charcoal : .white)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 8)
-                            .background(charcoal)
+                            .background(post.isAttendingEvent == true ? Color.clear : charcoal)
                             .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(charcoal, lineWidth: post.isAttendingEvent == true ? 2 : 0)
+                            )
                     }
-                    
+
                 case .help:
-                    Button {
-                        // Help action
-                    } label: {
-                        Text("Offer Help")
+                    if post.isSolved == true {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 12))
+                            Text("Solved")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .foregroundColor(forestGreen)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 8)
+                        .background(forestGreen.opacity(0.1))
+                        .clipShape(Capsule())
+                    } else {
+                        Text("View")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(burntOrange)
                             .padding(.horizontal, 20)
@@ -555,21 +491,6 @@ struct CommunityPostCard: View {
                                 Capsule()
                                     .stroke(burntOrange, lineWidth: 2)
                             )
-                    }
-                    
-                case .market:
-                    if let price = post.price {
-                        HStack(spacing: 4) {
-                            Image(systemName: "dollarsign")
-                                .font(.system(size: 14))
-                            Text(price.replacingOccurrences(of: "$", with: ""))
-                                .font(.system(size: 16, weight: .bold))
-                        }
-                        .foregroundColor(forestGreen)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(forestGreen.opacity(0.1))
-                        .clipShape(Capsule())
                     }
                 }
             }
@@ -586,18 +507,18 @@ struct CommunityPostCard: View {
 
 struct CreateCommunityPostSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var communityManager = CommunityManager.shared
     @State private var selectedType: CommunityPostType? = .event
     @State private var title: String = ""
     @State private var details: String = ""
-    @State private var eventPrivacy: String = "public"
+    @State private var eventPrivacy: EventPrivacy = .public
     @State private var showPrivacyDetails: Bool = false
-    @State private var category: String = ""
-    @State private var condition: String = ""
-    @State private var price: String = ""
+    @State private var selectedCategory: HelpCategory? = nil
     @State private var location: String = ""
+    @State private var maxAttendees: String = ""
     @State private var eventDate: Date = Date()
     @State private var eventTime: Date = Date()
-    
+    @State private var isSubmitting: Bool = false
 
     private let charcoal = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
@@ -606,7 +527,14 @@ struct CreateCommunityPostSheet: View {
     private let warmWhite = Color(red: 0.99, green: 0.98, blue: 0.96)
 
     private var isFormValid: Bool {
-        selectedType != nil && !title.trimmingCharacters(in: .whitespaces).isEmpty && !details.trimmingCharacters(in: .whitespaces).isEmpty
+        guard let type = selectedType else { return false }
+        let hasTitle = !title.trimmingCharacters(in: .whitespaces).isEmpty
+        let hasDetails = !details.trimmingCharacters(in: .whitespaces).isEmpty
+
+        if type == .help {
+            return hasTitle && hasDetails && selectedCategory != nil
+        }
+        return hasTitle && hasDetails
     }
 
     var body: some View {
@@ -715,17 +643,24 @@ struct CreateCommunityPostSheet: View {
                     .frame(height: 1)
 
                 Button {
-                    dismiss()
+                    submitPost()
                 } label: {
-                    Text("Post")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(isFormValid ? .white : Color.gray.opacity(0.5))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(isFormValid ? burntOrange : Color.gray.opacity(0.3))
-                        .clipShape(Capsule())
+                    HStack(spacing: 8) {
+                        if isSubmitting {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.8)
+                        }
+                        Text(isSubmitting ? "Posting..." : "Post")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundColor(isFormValid && !isSubmitting ? .white : Color.gray.opacity(0.5))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(isFormValid && !isSubmitting ? burntOrange : Color.gray.opacity(0.3))
+                    .clipShape(Capsule())
                 }
-                .disabled(!isFormValid)
+                .disabled(!isFormValid || isSubmitting)
                 .padding(.horizontal, 24)
                 .padding(.vertical, 16)
             }
@@ -739,6 +674,50 @@ struct CreateCommunityPostSheet: View {
 
     private func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
+    private func submitPost() {
+        guard let type = selectedType, isFormValid else { return }
+        isSubmitting = true
+
+        Task {
+            do {
+                if type == .event {
+                    // Combine date and time
+                    let calendar = Calendar.current
+                    let dateComponents = calendar.dateComponents([.year, .month, .day], from: eventDate)
+                    let timeComponents = calendar.dateComponents([.hour, .minute], from: eventTime)
+                    var combined = DateComponents()
+                    combined.year = dateComponents.year
+                    combined.month = dateComponents.month
+                    combined.day = dateComponents.day
+                    combined.hour = timeComponents.hour
+                    combined.minute = timeComponents.minute
+                    let eventDatetime = calendar.date(from: combined) ?? eventDate
+
+                    _ = try await communityManager.createEventPost(
+                        title: title.trimmingCharacters(in: .whitespaces),
+                        content: details.trimmingCharacters(in: .whitespaces),
+                        datetime: eventDatetime,
+                        location: location.isEmpty ? nil : location,
+                        maxAttendees: Int(maxAttendees),
+                        privacy: eventPrivacy,
+                        images: []
+                    )
+                } else {
+                    _ = try await communityManager.createHelpPost(
+                        title: title.trimmingCharacters(in: .whitespaces),
+                        content: details.trimmingCharacters(in: .whitespaces),
+                        category: selectedCategory ?? .other,
+                        images: []
+                    )
+                }
+                dismiss()
+            } catch {
+                print("Failed to create post: \(error)")
+                isSubmitting = false
+            }
+        }
     }
 
     // MARK: - Event Fields
@@ -816,6 +795,28 @@ struct CreateCommunityPostSheet: View {
                     )
             }
 
+            // Max Attendees
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.2")
+                        .font(.system(size: 14))
+                    Text("Max Attendees")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .foregroundColor(charcoal)
+
+                TextField("Leave empty for unlimited", text: $maxAttendees)
+                    .font(.system(size: 16))
+                    .keyboardType(.numberPad)
+                    .padding(16)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                    )
+            }
+
             // Privacy Settings
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
@@ -843,33 +844,33 @@ struct CreateCommunityPostSheet: View {
                 // Privacy Options
                 VStack(spacing: 12) {
                     PrivacyOptionButton(
-                        title: "Public",
-                        description: "Anyone can see and join",
-                        icon: "globe",
+                        title: EventPrivacy.public.displayName,
+                        description: EventPrivacy.public.description,
+                        icon: EventPrivacy.public.icon,
                         iconColor: forestGreen,
-                        isSelected: eventPrivacy == "public",
+                        isSelected: eventPrivacy == .public,
                         accentColor: burntOrange,
-                        onTap: { eventPrivacy = "public" }
+                        onTap: { eventPrivacy = .public }
                     )
 
                     PrivacyOptionButton(
-                        title: "Private",
-                        description: "Only invited people can see",
-                        icon: "lock",
+                        title: EventPrivacy.private.displayName,
+                        description: EventPrivacy.private.description,
+                        icon: EventPrivacy.private.icon,
                         iconColor: charcoal,
-                        isSelected: eventPrivacy == "private",
+                        isSelected: eventPrivacy == .private,
                         accentColor: burntOrange,
-                        onTap: { eventPrivacy = "private" }
+                        onTap: { eventPrivacy = .private }
                     )
 
                     PrivacyOptionButton(
-                        title: "Invite Only",
-                        description: "You approve each request",
-                        icon: "person.2",
+                        title: EventPrivacy.inviteOnly.displayName,
+                        description: EventPrivacy.inviteOnly.description,
+                        icon: EventPrivacy.inviteOnly.icon,
                         iconColor: burntOrange,
-                        isSelected: eventPrivacy == "invite-only",
+                        isSelected: eventPrivacy == .inviteOnly,
                         accentColor: burntOrange,
-                        onTap: { eventPrivacy = "invite-only" }
+                        onTap: { eventPrivacy = .inviteOnly }
                     )
                 }
 
@@ -913,17 +914,29 @@ struct CreateCommunityPostSheet: View {
                 .foregroundColor(charcoal)
 
             Menu {
-                Button("Electrical & Solar") { category = "Electrical & Solar" }
-                Button("Plumbing & Water") { category = "Plumbing & Water" }
-                Button("Insulation") { category = "Insulation" }
-                Button("Woodwork & Furniture") { category = "Woodwork & Furniture" }
-                Button("Mechanical & Engine") { category = "Mechanical & Engine" }
-                Button("Other") { category = "Other" }
+                ForEach(HelpCategory.allCases, id: \.self) { category in
+                    Button {
+                        selectedCategory = category
+                    } label: {
+                        HStack {
+                            Image(systemName: category.icon)
+                            Text(category.displayName)
+                        }
+                    }
+                }
             } label: {
                 HStack {
-                    Text(category.isEmpty ? "Select a category..." : category)
-                        .font(.system(size: 16))
-                        .foregroundColor(category.isEmpty ? Color.gray.opacity(0.5) : charcoal)
+                    if let category = selectedCategory {
+                        Image(systemName: category.icon)
+                            .foregroundColor(Color(category.color))
+                        Text(category.displayName)
+                            .font(.system(size: 16))
+                            .foregroundColor(charcoal)
+                    } else {
+                        Text("Select a category...")
+                            .font(.system(size: 16))
+                            .foregroundColor(Color.gray.opacity(0.5))
+                    }
                     Spacer()
                     Image(systemName: "chevron.down")
                         .font(.system(size: 14))
@@ -940,175 +953,6 @@ struct CreateCommunityPostSheet: View {
         }
     }
 
-    // MARK: - Market Fields
-
-    @ViewBuilder
-    private var marketFields: some View {
-        VStack(spacing: 16) {
-            // Price
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Price")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(charcoal)
-
-                HStack(spacing: 8) {
-                    Image(systemName: "dollarsign")
-                        .font(.system(size: 16))
-                        .foregroundColor(charcoal.opacity(0.4))
-
-                    TextField("0.00", text: $price)
-                        .font(.system(size: 16))
-                        .keyboardType(.decimalPad)
-                }
-                .padding(16)
-                .background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray.opacity(0.3), lineWidth: 2)
-                )
-            }
-
-            // Condition
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Condition")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(charcoal)
-
-                Menu {
-                    Button("New") { condition = "New" }
-                    Button("Like New") { condition = "Like New" }
-                    Button("Good") { condition = "Good" }
-                    Button("Fair") { condition = "Fair" }
-                } label: {
-                    HStack {
-                        Text(condition.isEmpty ? "Select condition..." : condition)
-                            .font(.system(size: 16))
-                            .foregroundColor(condition.isEmpty ? Color.gray.opacity(0.5) : charcoal)
-                        Spacer()
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 14))
-                            .foregroundColor(charcoal.opacity(0.4))
-                    }
-                    .padding(16)
-                    .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.gray.opacity(0.3), lineWidth: 2)
-                    )
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Market Photo Square
-
-struct MarketPhotoSquare: View {
-    let index: Int
-    let imageData: Data?
-    let onTap: () -> Void
-    let onRemove: () -> Void
-    
-    private let charcoal = Color("Charcoal")
-    private let burntOrange = Color("BurntOrange")
-    
-    var body: some View {
-        GeometryReader { geometry in
-            let size = geometry.size.width
-            
-            ZStack {
-                if let data = imageData, let uiImage = UIImage(data: data) {
-                    // Photo exists
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: size, height: size)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            // Remove button
-                            Button(action: onRemove) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(.white)
-                                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                            }
-                            .offset(x: 6, y: -6),
-                            alignment: .topTrailing
-                        )
-                } else {
-                    // Empty slot
-                    Button(action: onTap) {
-                        VStack(spacing: 6) {
-                            Image(systemName: index == 0 ? "camera.fill" : "plus")
-                                .font(.system(size: index == 0 ? 24 : 20, weight: .medium))
-                                .foregroundColor(index == 0 ? burntOrange : charcoal.opacity(0.4))
-                            
-                            if index == 0 {
-                                Text("Add")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(charcoal.opacity(0.6))
-                            }
-                        }
-                        .frame(width: size, height: size)
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(
-                                    index == 0 ? burntOrange : Color.gray.opacity(0.3),
-                                    style: StrokeStyle(lineWidth: 2, dash: index == 0 ? [] : [6])
-                                )
-                        )
-                    }
-                }
-            }
-        }
-        .aspectRatio(1, contentMode: .fit)
-    }
-}
-
-// MARK: - Market Image Picker
-
-struct MarketImagePicker: UIViewControllerRepresentable {
-    @Binding var imageData: Data?
-    @Environment(\.dismiss) private var dismiss
-    
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.delegate = context.coordinator
-        picker.sourceType = .photoLibrary
-        picker.allowsEditing = true
-        return picker
-    }
-    
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let parent: MarketImagePicker
-        
-        init(_ parent: MarketImagePicker) {
-            self.parent = parent
-        }
-        
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-            if let editedImage = info[.editedImage] as? UIImage {
-                parent.imageData = editedImage.jpegData(compressionQuality: 0.8)
-            } else if let originalImage = info[.originalImage] as? UIImage {
-                parent.imageData = originalImage.jpegData(compressionQuality: 0.8)
-            }
-            parent.dismiss()
-        }
-        
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            parent.dismiss()
-        }
-    }
 }
 
 // MARK: - Privacy Option Button
@@ -1181,7 +1025,13 @@ struct PostTypeCard: View {
         switch type {
         case .event: return .purple
         case .help: return burntOrange
-        case .market: return Color("SkyBlue")
+        }
+    }
+
+    private var icon: String {
+        switch type {
+        case .event: return "calendar"
+        case .help: return "wrench.and.screwdriver"
         }
     }
 
@@ -1189,14 +1039,13 @@ struct PostTypeCard: View {
         switch type {
         case .event: return "Event"
         case .help: return "Help"
-        case .market: return "Market"
         }
     }
 
     var body: some View {
         Button(action: onTap) {
             VStack(spacing: 8) {
-                Image(systemName: type.icon)
+                Image(systemName: icon)
                     .font(.system(size: 24))
                     .foregroundColor(isSelected ? iconColor : charcoal.opacity(0.6))
 

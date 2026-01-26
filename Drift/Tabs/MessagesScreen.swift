@@ -108,6 +108,33 @@ struct MessagesScreen: View {
         }
     }
 
+    private func loadMatches() {
+        Task {
+            do {
+                // This will also create conversations for any matches that don't have one
+                try await friendsManager.fetchMatches()
+                // Refresh conversations after matches are processed
+                try await messagingManager.fetchConversations()
+            } catch {
+                print("Failed to load matches: \(error)")
+            }
+        }
+    }
+
+    private func refreshData() async {
+        do {
+            try await messagingManager.fetchConversations()
+            try await friendsManager.fetchPendingRequests()
+            try await friendsManager.fetchFriends()
+            if selectedMode == .dating {
+                try await friendsManager.fetchPeopleLikedMe()
+                try await friendsManager.fetchMatches()
+            }
+        } catch {
+            print("Failed to refresh: \(error)")
+        }
+    }
+
     private func startConversationWithFriend(_ friend: Friend) {
         guard let currentUserId = supabaseManager.currentUser?.id else { return }
         let friendUserId = friend.requesterId == currentUserId ? friend.addresseeId : friend.requesterId
@@ -351,6 +378,9 @@ struct MessagesScreen: View {
                     }
                 }
             }
+            .refreshable {
+                await refreshData()
+            }
         }
         .onAppear {
             // Default to friends if dating is not enabled
@@ -358,12 +388,27 @@ struct MessagesScreen: View {
                 selectedMode = .friends
                 segmentIndex = 1
             } else {
-                // Load likes when dating is enabled
+                // Load likes and matches when dating is enabled
                 loadLikesYou()
+                loadMatches()
             }
             loadConversations()
             loadFriendRequests()
             loadFriends()
+
+            // Subscribe to real-time updates
+            Task {
+                await MessagingManager.shared.subscribeToConversations()
+                await FriendsManager.shared.subscribeToFriendRequests()
+                await FriendsManager.shared.subscribeToSwipes()
+                await FriendsManager.shared.subscribeToMatches()
+            }
+        }
+        .onDisappear {
+            Task {
+                await MessagingManager.shared.unsubscribe()
+                await FriendsManager.shared.unsubscribe()
+            }
         }
         .sheet(isPresented: $showLikesYouScreen) {
             LikesYouScreen()
@@ -536,11 +581,21 @@ struct ConversationRow: View {
                             .foregroundColor(charcoalColor.opacity(0.6))
                     }
 
-                    Text(conversation.lastMessage?.content ?? "Start a conversation")
-                        .font(.system(size: 14))
-                        .foregroundColor(hasUnread ? charcoalColor : charcoalColor.opacity(0.6))
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if let lastMessage = conversation.lastMessage {
+                        Text(lastMessage.content)
+                            .font(.system(size: 14))
+                            .foregroundColor(hasUnread ? charcoalColor : charcoalColor.opacity(0.6))
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Text("Send the first message")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(burntOrange)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(burntOrange.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
                 }
 
                 if hasUnread {

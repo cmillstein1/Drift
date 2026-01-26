@@ -257,35 +257,18 @@ struct MessageDetailScreen: View {
                 
                 // Input Area
                 HStack(spacing: 12) {
-                    Button(action: {}) {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(charcoalColor.opacity(0.6))
-                            .frame(width: 40, height: 40)
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(Circle())
-                    }
-                    
-                    HStack(spacing: 8) {
-                        TextField("Message...", text: $messageText, axis: .vertical)
-                            .font(.system(size: 15))
-                            .foregroundColor(charcoalColor)
-                            .focused($isInputFocused)
-                            .lineLimit(1...5)
-                        
-                        Button(action: {}) {
-                            Image(systemName: "face.smiling")
-                                .font(.system(size: 18))
-                                .foregroundColor(charcoalColor.opacity(0.6))
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(softGray)
-                    )
-                    
+                    TextField("Message...", text: $messageText, axis: .vertical)
+                        .font(.system(size: 15))
+                        .foregroundColor(charcoalColor)
+                        .focused($isInputFocused)
+                        .lineLimit(1...5)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(softGray)
+                        )
+
                     Button(action: handleSend) {
                         Image(systemName: "arrow.up")
                             .font(.system(size: 16, weight: .semibold))

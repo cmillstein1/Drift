@@ -3,9 +3,11 @@
 //  Drift
 //
 //  Detail sheet for Build Help posts in the community
+//  NOTE: This file is deprecated - use CommunityPostDetailSheet instead
 //
 
 import SwiftUI
+import DriftBackend
 
 struct HelpReply: Identifiable {
     let id: UUID
@@ -104,9 +106,9 @@ struct BuilderHelpDetailSheet: View {
     
     private var categoryBadge: some View {
         HStack(spacing: 6) {
-            Image(systemName: "wrench.and.screwdriver")
+            Image(systemName: post.helpCategory?.icon ?? "wrench.and.screwdriver")
                 .font(.system(size: 12))
-            Text(post.category ?? "Build Help")
+            Text(post.helpCategory?.displayName ?? "Build Help")
                 .font(.system(size: 12, weight: .semibold))
         }
         .foregroundColor(burntOrange)
@@ -163,10 +165,10 @@ struct BuilderHelpDetailSheet: View {
     
     private var userDetails: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(post.authorName)
+            Text(post.author?.name ?? "Anonymous")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(charcoal)
-            
+
             HStack(spacing: 4) {
                 Image(systemName: "clock")
                     .font(.system(size: 10))
@@ -226,7 +228,7 @@ struct BuilderHelpDetailSheet: View {
             HStack(spacing: 8) {
                 Image(systemName: isHelpful ? "hand.thumbsup.fill" : "hand.thumbsup")
                     .font(.system(size: 14))
-                Text("\((post.likes ?? 0) + (isHelpful ? 1 : 0))")
+                Text("\(post.likeCount + (isHelpful ? 1 : 0))")
                     .font(.system(size: 14, weight: .medium))
             }
             .foregroundColor(isHelpful ? forestGreen : charcoal.opacity(0.6))
@@ -236,12 +238,12 @@ struct BuilderHelpDetailSheet: View {
             .clipShape(Capsule())
         }
     }
-    
+
     private var repliesCount: some View {
         HStack(spacing: 8) {
             Image(systemName: "bubble.left")
                 .font(.system(size: 14))
-            Text("\(post.replies ?? 0) replies")
+            Text("\(post.replyCount) replies")
                 .font(.system(size: 14, weight: .medium))
         }
         .foregroundColor(charcoal.opacity(0.6))
@@ -459,17 +461,12 @@ struct ReplyCard: View {
     BuilderHelpDetailSheet(
         post: CommunityPost(
             id: UUID(),
+            authorId: UUID(),
             type: .help,
-            authorName: "Dave Builder",
-            authorAvatar: nil,
-            timeAgo: "1h ago",
-            location: nil,
-            category: "Electrical",
             title: "Inverter keeps tripping?",
             content: "I have a 2000W Renogy inverter that trips every time I turn on my blender. Battery bank is full. Anyone seen this?",
-            likes: nil,
-            replies: 5,
-            price: nil
+            replyCount: 5,
+            helpCategory: .electrical
         )
     )
 }

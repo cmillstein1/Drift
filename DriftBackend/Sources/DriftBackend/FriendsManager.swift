@@ -27,6 +27,7 @@ public class FriendsManager: ObservableObject {
 
     private var friendsChannel: RealtimeChannelV2?
     private var matchesChannel: RealtimeChannelV2?
+    private var swipesChannel: RealtimeChannelV2?
 
     private var client: SupabaseClient {
         SupabaseManager.shared.client
@@ -258,39 +259,120 @@ public class FriendsManager: ObservableObject {
     @discardableResult
     public func swipe(on userId: UUID, direction: SwipeDirection) async throws -> Match? {
         guard let currentUserId = SupabaseManager.shared.currentUser?.id else {
+            print("❌ [SWIPE] Not authenticated")
             throw FriendsError.notAuthenticated
         }
 
+        print("🔄 [SWIPE] Starting swipe...")
+        print("🔄 [SWIPE] Current user: \(currentUserId)")
+        print("🔄 [SWIPE] Target user: \(userId)")
+        print("🔄 [SWIPE] Direction: \(direction)")
+
         let request = SwipeRequest(swiperId: currentUserId, swipedId: userId, direction: direction)
 
-        try await client
-            .from("swipes")
-            .insert(request)
-            .execute()
-
-        // If right swipe, check for match
-        if direction == .right || direction == .up {
-            // The database trigger will create the match if mutual
-            // Fetch to see if there's a new match
-            let matches: [Match] = try await client
-                .from("matches")
-                .select()
-                .or("and(user1_id.eq.\(min(currentUserId, userId)),user2_id.eq.\(max(currentUserId, userId)))")
-                .eq("is_match", value: true)
+        do {
+            try await client
+                .from("swipes")
+                .insert(request)
                 .execute()
-                .value
-
-            if let match = matches.first {
-                // It's a match! Fetch the other user's profile
-                let otherUserId = match.otherUserId(currentUserId: currentUserId)
-                let profile = try await ProfileManager.shared.fetchProfile(by: otherUserId)
-
-                var matchWithProfile = match
-                matchWithProfile.otherUserProfile = profile
-                return matchWithProfile
-            }
+            print("✅ [SWIPE] Swipe recorded successfully")
+        } catch {
+            print("❌ [SWIPE] Failed to record swipe: \(error)")
+            throw error
         }
 
+        // If right swipe or super like, check for mutual interest
+        if direction == .right || direction == .up {
+            print("💕 [SWIPE] Checking for mutual interest...")
+
+            // Check if the other user has already swiped right on us
+            do {
+                let theirSwipes: [SwipeRecord] = try await client
+                    .from("swipes")
+                    .select()
+                    .eq("swiper_id", value: userId)
+                    .eq("swiped_id", value: currentUserId)
+                    .in("direction", values: ["right", "up"])
+                    .execute()
+                    .value
+
+                print("🔍 [SWIPE] Their swipes on me: \(theirSwipes.count)")
+                for swipe in theirSwipes {
+                    print("   - Swipe ID: \(swipe.id), direction: \(swipe.direction)")
+                }
+
+                // If they've already liked us, it's a match!
+                if !theirSwipes.isEmpty {
+                    print("🎉 [SWIPE] MUTUAL INTEREST DETECTED! Creating match...")
+
+                    // Check if match already exists
+                    let existingMatches: [Match] = try await client
+                        .from("matches")
+                        .select()
+                        .or("and(user1_id.eq.\(currentUserId),user2_id.eq.\(userId)),and(user1_id.eq.\(userId),user2_id.eq.\(currentUserId))")
+                        .execute()
+                        .value
+
+                    print("🔍 [SWIPE] Existing matches found: \(existingMatches.count)")
+
+                    var match: Match
+
+                    if let existingMatch = existingMatches.first {
+                        print("✅ [SWIPE] Using existing match: \(existingMatch.id)")
+                        match = existingMatch
+                    } else {
+                        print("🆕 [SWIPE] Creating new match record...")
+                        // Create the match record
+                        let newMatch = MatchRequest(
+                            user1Id: min(currentUserId, userId),
+                            user2Id: max(currentUserId, userId),
+                            isMatch: true
+                        )
+
+                        let createdMatches: [Match] = try await client
+                            .from("matches")
+                            .insert(newMatch)
+                            .select()
+                            .execute()
+                            .value
+
+                        guard let createdMatch = createdMatches.first else {
+                            print("❌ [SWIPE] Failed to create match - no match returned")
+                            return nil
+                        }
+                        print("✅ [SWIPE] Match created: \(createdMatch.id)")
+                        match = createdMatch
+                    }
+
+                    // Fetch the other user's profile
+                    print("👤 [SWIPE] Fetching matched user's profile...")
+                    let profile = try await ProfileManager.shared.fetchProfile(by: userId)
+                    print("✅ [SWIPE] Profile fetched: \(profile.displayName)")
+
+                    // Create a dating conversation so they can message each other
+                    print("💬 [SWIPE] Creating conversation...")
+                    _ = try await MessagingManager.shared.fetchOrCreateConversation(
+                        with: userId,
+                        type: .dating
+                    )
+                    print("✅ [SWIPE] Conversation created")
+
+                    var matchWithProfile = match
+                    matchWithProfile.otherUserProfile = profile
+                    print("🎊 [SWIPE] RETURNING MATCH! User should see match animation")
+                    return matchWithProfile
+                } else {
+                    print("💔 [SWIPE] No mutual interest - they haven't liked me yet")
+                }
+            } catch {
+                print("❌ [SWIPE] Error checking for mutual interest: \(error)")
+                throw error
+            }
+        } else {
+            print("👎 [SWIPE] Left swipe - no match check needed")
+        }
+
+        print("🔄 [SWIPE] Returning nil (no match)")
         return nil
     }
 
@@ -313,11 +395,18 @@ public class FriendsManager: ObservableObject {
                 .execute()
                 .value
 
-            // Fetch profiles for each match
+            // Fetch profiles for each match and ensure conversations exist
             var matchesWithProfiles: [Match] = []
             for match in matches {
                 let otherUserId = match.otherUserId(currentUserId: userId)
                 let profile = try await ProfileManager.shared.fetchProfile(by: otherUserId)
+
+                // Ensure a dating conversation exists for this match
+                _ = try? await MessagingManager.shared.fetchOrCreateConversation(
+                    with: otherUserId,
+                    type: .dating
+                )
+
                 var matchWithProfile = match
                 matchWithProfile.otherUserProfile = profile
                 matchesWithProfiles.append(matchWithProfile)
@@ -459,12 +548,42 @@ public class FriendsManager: ObservableObject {
         await matchesChannel?.subscribe()
     }
 
+    /// Subscribes to realtime updates for incoming swipes (likes).
+    public func subscribeToSwipes() async {
+        guard let userId = SupabaseManager.shared.currentUser?.id else { return }
+
+        swipesChannel = client.realtimeV2.channel("swipes:\(userId)")
+
+        let insertions = swipesChannel?.postgresChange(
+            InsertAction.self,
+            schema: "public",
+            table: "swipes",
+            filter: "swiped_id=eq.\(userId)"
+        )
+
+        Task {
+            if let insertions = insertions {
+                for await insertion in insertions {
+                    // Only refresh if it was a right swipe (like)
+                    if let directionValue = insertion.record["direction"]?.stringValue,
+                       directionValue == "right" || directionValue == "up" {
+                        try? await self.fetchPeopleLikedMe()
+                    }
+                }
+            }
+        }
+
+        await swipesChannel?.subscribe()
+    }
+
     /// Unsubscribes from all realtime channels.
     public func unsubscribe() async {
         await friendsChannel?.unsubscribe()
         await matchesChannel?.unsubscribe()
+        await swipesChannel?.unsubscribe()
         friendsChannel = nil
         matchesChannel = nil
+        swipesChannel = nil
     }
 }
 
