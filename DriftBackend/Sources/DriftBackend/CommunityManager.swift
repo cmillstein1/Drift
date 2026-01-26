@@ -1,0 +1,971 @@
+import Foundation
+import Supabase
+import Realtime
+
+/// Manager for community posts (Events and Help requests).
+///
+/// Handles fetching, creating, and managing community posts, replies, likes, and event attendance.
+@MainActor
+public class CommunityManager: ObservableObject {
+    /// Shared singleton instance.
+    public static let shared = CommunityManager()
+
+    /// All community posts (combined feed).
+    @Published public var posts: [CommunityPost] = []
+    /// Current post's replies.
+    @Published public var currentReplies: [PostReply] = []
+    /// User's own posts.
+    @Published public var myPosts: [CommunityPost] = []
+    /// Whether data is currently loading.
+    @Published public var isLoading = false
+    /// The last error message, if any.
+    @Published public var errorMessage: String?
+
+    private var postsChannel: RealtimeChannelV2?
+    private var repliesChannel: RealtimeChannelV2?
+    private var eventMessagesChannel: RealtimeChannelV2?
+
+    /// Callback for new event messages (used by UI to append messages)
+    public var onNewEventMessage: ((EventMessage) -> Void)?
+
+    private var client: SupabaseClient {
+        SupabaseManager.shared.client
+    }
+
+    private init() {}
+
+    // MARK: - Fetch Posts
+
+    /// Fetches community posts with optional filtering.
+    ///
+    /// - Parameters:
+    ///   - type: Optional filter by post type (event/help).
+    ///   - category: Optional filter by help category.
+    ///   - limit: Maximum number of posts to fetch.
+    public func fetchPosts(
+        type: CommunityPostType? = nil,
+        category: HelpCategory? = nil,
+        limit: Int = 50
+    ) async throws {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            // Build base query
+            var filterQuery = client
+                .from("community_posts")
+                .select("""
+                    *,
+                    author:profiles!author_id(*)
+                """)
+                .is("deleted_at", value: nil)
+
+            // Apply filters before transforms
+            if let type = type {
+                filterQuery = filterQuery.eq("type", value: type.rawValue)
+            }
+
+            if let category = category {
+                filterQuery = filterQuery.eq("help_category", value: category.rawValue)
+            }
+
+            // Apply transforms after filters
+            var posts: [CommunityPost] = try await filterQuery
+                .order("created_at", ascending: false)
+                .limit(limit)
+                .execute()
+                .value
+
+            // Check if current user has liked each post
+            if let userId = SupabaseManager.shared.currentUser?.id {
+                let postIds = posts.map { $0.id }
+                let likes: [PostLike] = try await client
+                    .from("post_likes")
+                    .select()
+                    .eq("user_id", value: userId)
+                    .in("post_id", values: postIds.map { $0.uuidString })
+                    .execute()
+                    .value
+
+                let likedPostIds = Set(likes.compactMap { $0.postId })
+
+                for i in posts.indices {
+                    posts[i].isLikedByCurrentUser = likedPostIds.contains(posts[i].id)
+                }
+
+                // Check event attendance for event posts
+                let eventPostIds = posts.filter { $0.type == .event }.map { $0.id }
+                if !eventPostIds.isEmpty {
+                    let attendances: [EventAttendee] = try await client
+                        .from("event_attendees")
+                        .select()
+                        .eq("user_id", value: userId)
+                        .eq("status", value: "confirmed")
+                        .in("post_id", values: eventPostIds.map { $0.uuidString })
+                        .execute()
+                        .value
+
+                    let attendingPostIds = Set(attendances.map { $0.postId })
+
+                    for i in posts.indices {
+                        if posts[i].type == .event {
+                            posts[i].isAttendingEvent = attendingPostIds.contains(posts[i].id)
+                        }
+                    }
+                }
+            }
+
+            self.posts = posts
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    /// Fetches posts created by the current user.
+    public func fetchMyPosts() async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        let posts: [CommunityPost] = try await client
+            .from("community_posts")
+            .select("""
+                *,
+                author:profiles!author_id(*)
+            """)
+            .eq("author_id", value: userId)
+            .is("deleted_at", value: nil)
+            .order("created_at", ascending: false)
+            .execute()
+            .value
+
+        self.myPosts = posts
+    }
+
+    /// Fetches a single post by ID with full details.
+    ///
+    /// - Parameter id: The post's UUID.
+    /// - Returns: The complete post with author and attendees.
+    public func fetchPost(by id: UUID) async throws -> CommunityPost {
+        var post: CommunityPost = try await client
+            .from("community_posts")
+            .select("""
+                *,
+                author:profiles!author_id(*),
+                attendees:event_attendees(*, profile:profiles!user_id(*))
+            """)
+            .eq("id", value: id)
+            .single()
+            .execute()
+            .value
+
+        // Check if current user liked this post
+        if let userId = SupabaseManager.shared.currentUser?.id {
+            let likes: [PostLike] = try await client
+                .from("post_likes")
+                .select()
+                .eq("user_id", value: userId)
+                .eq("post_id", value: id)
+                .execute()
+                .value
+
+            post.isLikedByCurrentUser = !likes.isEmpty
+
+            // Check attendance for events
+            if post.type == .event {
+                let attendance: [EventAttendee] = try await client
+                    .from("event_attendees")
+                    .select()
+                    .eq("user_id", value: userId)
+                    .eq("post_id", value: id)
+                    .eq("status", value: "confirmed")
+                    .execute()
+                    .value
+
+                post.isAttendingEvent = !attendance.isEmpty
+            }
+        }
+
+        return post
+    }
+
+    // MARK: - Create Posts
+
+    /// Creates a new event post.
+    ///
+    /// - Parameters:
+    ///   - title: Event title.
+    ///   - content: Event description.
+    ///   - datetime: Event date and time.
+    ///   - location: General location.
+    ///   - exactLocation: Exact location (revealed after joining).
+    ///   - maxAttendees: Maximum number of attendees.
+    ///   - images: Array of image URLs.
+    /// - Returns: The created post.
+    @discardableResult
+    public func createEventPost(
+        title: String,
+        content: String,
+        datetime: Date,
+        location: String? = nil,
+        exactLocation: String? = nil,
+        maxAttendees: Int? = nil,
+        privacy: EventPrivacy = .public,
+        images: [String] = []
+    ) async throws -> CommunityPost {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        let request = CommunityPostCreateRequest(
+            authorId: userId,
+            type: .event,
+            title: title,
+            content: content,
+            images: images,
+            eventDatetime: datetime,
+            eventLocation: location,
+            eventExactLocation: exactLocation,
+            maxAttendees: maxAttendees,
+            eventPrivacy: privacy
+        )
+
+        let post: CommunityPost = try await client
+            .from("community_posts")
+            .insert(request)
+            .select("""
+                *,
+                author:profiles!author_id(*)
+            """)
+            .single()
+            .execute()
+            .value
+
+        // Refresh posts list
+        try await fetchPosts()
+
+        return post
+    }
+
+    /// Creates a new help post.
+    ///
+    /// - Parameters:
+    ///   - title: Help request title.
+    ///   - content: Help request description.
+    ///   - category: Help category.
+    ///   - images: Array of image URLs.
+    /// - Returns: The created post.
+    @discardableResult
+    public func createHelpPost(
+        title: String,
+        content: String,
+        category: HelpCategory,
+        images: [String] = []
+    ) async throws -> CommunityPost {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        let request = CommunityPostCreateRequest(
+            authorId: userId,
+            type: .help,
+            title: title,
+            content: content,
+            images: images,
+            helpCategory: category
+        )
+
+        let post: CommunityPost = try await client
+            .from("community_posts")
+            .insert(request)
+            .select("""
+                *,
+                author:profiles!author_id(*)
+            """)
+            .single()
+            .execute()
+            .value
+
+        // Refresh posts list
+        try await fetchPosts()
+
+        return post
+    }
+
+    /// Soft deletes a post.
+    ///
+    /// - Parameter postId: The post's UUID.
+    public func deletePost(_ postId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        try await client
+            .from("community_posts")
+            .update(["deleted_at": ISO8601DateFormatter().string(from: Date())])
+            .eq("id", value: postId)
+            .eq("author_id", value: userId)
+            .execute()
+
+        // Remove from local state
+        posts.removeAll { $0.id == postId }
+        myPosts.removeAll { $0.id == postId }
+    }
+
+    // MARK: - Replies
+
+    /// Fetches replies for a post.
+    ///
+    /// - Parameter postId: The post's UUID.
+    public func fetchReplies(for postId: UUID) async throws {
+        var replies: [PostReply] = try await client
+            .from("post_replies")
+            .select("""
+                *,
+                author:profiles!author_id(*)
+            """)
+            .eq("post_id", value: postId)
+            .is("deleted_at", value: nil)
+            .is("parent_reply_id", value: nil)  // Top-level replies only
+            .order("created_at", ascending: true)
+            .execute()
+            .value
+
+        // Check if current user liked each reply
+        if let userId = SupabaseManager.shared.currentUser?.id {
+            let replyIds = replies.map { $0.id }
+            let likes: [PostLike] = try await client
+                .from("post_likes")
+                .select()
+                .eq("user_id", value: userId)
+                .in("reply_id", values: replyIds.map { $0.uuidString })
+                .execute()
+                .value
+
+            let likedReplyIds = Set(likes.compactMap { $0.replyId })
+
+            for i in replies.indices {
+                replies[i].isLikedByCurrentUser = likedReplyIds.contains(replies[i].id)
+            }
+        }
+
+        self.currentReplies = replies
+    }
+
+    /// Creates a new reply on a post.
+    ///
+    /// - Parameters:
+    ///   - postId: The post's UUID.
+    ///   - content: Reply content.
+    ///   - images: Array of image URLs.
+    ///   - parentReplyId: Optional parent reply for threading.
+    /// - Returns: The created reply.
+    @discardableResult
+    public func createReply(
+        postId: UUID,
+        content: String,
+        images: [String] = [],
+        parentReplyId: UUID? = nil
+    ) async throws -> PostReply {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        let request = PostReplyCreateRequest(
+            postId: postId,
+            authorId: userId,
+            content: content,
+            images: images,
+            parentReplyId: parentReplyId
+        )
+
+        let reply: PostReply = try await client
+            .from("post_replies")
+            .insert(request)
+            .select("""
+                *,
+                author:profiles!author_id(*)
+            """)
+            .single()
+            .execute()
+            .value
+
+        // Add to local state
+        currentReplies.append(reply)
+
+        // Update reply count in posts list
+        if let index = posts.firstIndex(where: { $0.id == postId }) {
+            posts[index].replyCount += 1
+        }
+
+        return reply
+    }
+
+    /// Soft deletes a reply.
+    ///
+    /// - Parameter replyId: The reply's UUID.
+    public func deleteReply(_ replyId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        try await client
+            .from("post_replies")
+            .update(["deleted_at": ISO8601DateFormatter().string(from: Date())])
+            .eq("id", value: replyId)
+            .eq("author_id", value: userId)
+            .execute()
+
+        // Remove from local state
+        currentReplies.removeAll { $0.id == replyId }
+    }
+
+    // MARK: - Engagement (Likes)
+
+    /// Toggles like on a post.
+    ///
+    /// - Parameter postId: The post's UUID.
+    public func togglePostLike(_ postId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        // Check if already liked
+        let existingLikes: [PostLike] = try await client
+            .from("post_likes")
+            .select()
+            .eq("user_id", value: userId)
+            .eq("post_id", value: postId)
+            .execute()
+            .value
+
+        if existingLikes.isEmpty {
+            // Add like
+            let request = PostLikeCreateRequest(userId: userId, postId: postId)
+            try await client
+                .from("post_likes")
+                .insert(request)
+                .execute()
+
+            // Update local state
+            if let index = posts.firstIndex(where: { $0.id == postId }) {
+                posts[index].likeCount += 1
+                posts[index].isLikedByCurrentUser = true
+            }
+        } else {
+            // Remove like
+            try await client
+                .from("post_likes")
+                .delete()
+                .eq("user_id", value: userId)
+                .eq("post_id", value: postId)
+                .execute()
+
+            // Update local state
+            if let index = posts.firstIndex(where: { $0.id == postId }) {
+                posts[index].likeCount = max(0, posts[index].likeCount - 1)
+                posts[index].isLikedByCurrentUser = false
+            }
+        }
+    }
+
+    /// Toggles like on a reply.
+    ///
+    /// - Parameter replyId: The reply's UUID.
+    public func toggleReplyLike(_ replyId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        // Check if already liked
+        let existingLikes: [PostLike] = try await client
+            .from("post_likes")
+            .select()
+            .eq("user_id", value: userId)
+            .eq("reply_id", value: replyId)
+            .execute()
+            .value
+
+        if existingLikes.isEmpty {
+            // Add like
+            let request = PostLikeCreateRequest(userId: userId, replyId: replyId)
+            try await client
+                .from("post_likes")
+                .insert(request)
+                .execute()
+
+            // Update local state
+            if let index = currentReplies.firstIndex(where: { $0.id == replyId }) {
+                currentReplies[index].likeCount += 1
+                currentReplies[index].isLikedByCurrentUser = true
+            }
+        } else {
+            // Remove like
+            try await client
+                .from("post_likes")
+                .delete()
+                .eq("user_id", value: userId)
+                .eq("reply_id", value: replyId)
+                .execute()
+
+            // Update local state
+            if let index = currentReplies.firstIndex(where: { $0.id == replyId }) {
+                currentReplies[index].likeCount = max(0, currentReplies[index].likeCount - 1)
+                currentReplies[index].isLikedByCurrentUser = false
+            }
+        }
+    }
+
+    // MARK: - Event Attendance
+
+    /// Joins an event.
+    ///
+    /// - Parameter postId: The event post's UUID.
+    public func joinEvent(_ postId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        let request = EventAttendeeCreateRequest(postId: postId, userId: userId)
+
+        try await client
+            .from("event_attendees")
+            .insert(request)
+            .execute()
+
+        // Update local state
+        if let index = posts.firstIndex(where: { $0.id == postId }) {
+            posts[index].currentAttendees = (posts[index].currentAttendees ?? 0) + 1
+            posts[index].isAttendingEvent = true
+        }
+    }
+
+    /// Leaves an event.
+    ///
+    /// - Parameter postId: The event post's UUID.
+    public func leaveEvent(_ postId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        try await client
+            .from("event_attendees")
+            .delete()
+            .eq("post_id", value: postId)
+            .eq("user_id", value: userId)
+            .execute()
+
+        // Update local state
+        if let index = posts.firstIndex(where: { $0.id == postId }) {
+            posts[index].currentAttendees = max(0, (posts[index].currentAttendees ?? 1) - 1)
+            posts[index].isAttendingEvent = false
+        }
+    }
+
+    /// Fetches attendees for an event with their profiles.
+    ///
+    /// - Parameter postId: The event post's UUID.
+    /// - Returns: Array of user profiles who are attending.
+    public func fetchEventAttendees(_ postId: UUID) async throws -> [UserProfile] {
+        struct AttendeeRecord: Decodable {
+            let userId: UUID
+            let status: String
+            let profile: UserProfile
+
+            enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
+                case status
+                case profile = "profiles"
+            }
+        }
+
+        let attendees: [AttendeeRecord] = try await client
+            .from("event_attendees")
+            .select("user_id, status, profiles(*)")
+            .eq("post_id", value: postId)
+            .eq("status", value: "confirmed")
+            .execute()
+            .value
+
+        return attendees.map { $0.profile }
+    }
+
+    // MARK: - Help Post Actions
+
+    /// Marks a help post as solved.
+    ///
+    /// - Parameters:
+    ///   - postId: The help post's UUID.
+    ///   - bestAnswerId: The reply UUID to mark as best answer.
+    public func markAsSolved(postId: UUID, bestAnswerId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        struct SolvedUpdate: Encodable {
+            let is_solved: Bool
+            let best_answer_id: String
+            let updated_at: String
+        }
+
+        try await client
+            .from("community_posts")
+            .update(SolvedUpdate(
+                is_solved: true,
+                best_answer_id: bestAnswerId.uuidString,
+                updated_at: ISO8601DateFormatter().string(from: Date())
+            ))
+            .eq("id", value: postId)
+            .eq("author_id", value: userId)  // Only author can mark as solved
+            .execute()
+
+        // Update local state
+        if let index = posts.firstIndex(where: { $0.id == postId }) {
+            posts[index].isSolved = true
+            posts[index].bestAnswerId = bestAnswerId
+        }
+    }
+
+    // MARK: - Image Upload
+
+    /// Uploads an image for a post.
+    ///
+    /// - Parameter imageData: The image data.
+    /// - Returns: The public URL of the uploaded image.
+    public func uploadPostImage(_ imageData: Data) async throws -> String {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        let imageId = UUID().uuidString
+        let fileName = "\(userId.uuidString)/\(imageId).jpg"
+
+        try await client.storage
+            .from("post-images")
+            .upload(
+                fileName,
+                data: imageData,
+                options: FileOptions(contentType: "image/jpeg")
+            )
+
+        let publicURL = try client.storage
+            .from("post-images")
+            .getPublicURL(path: fileName)
+
+        return publicURL.absoluteString
+    }
+
+    // MARK: - Realtime Subscriptions
+
+    /// Subscribes to real-time post updates.
+    public func subscribeToPosts() async {
+        let channel = client.realtimeV2.channel("community_posts")
+
+        let insertions = channel.postgresChange(
+            InsertAction.self,
+            schema: "public",
+            table: "community_posts"
+        )
+
+        await channel.subscribe()
+        postsChannel = channel
+
+        Task {
+            for await _ in insertions {
+                // Refresh posts on new insert
+                try? await self.fetchPosts()
+            }
+        }
+    }
+
+    /// Subscribes to real-time reply updates for a specific post.
+    ///
+    /// - Parameter postId: The post's UUID.
+    public func subscribeToReplies(postId: UUID) async {
+        let channel = client.realtimeV2.channel("post_replies:\(postId)")
+
+        let insertions = channel.postgresChange(
+            InsertAction.self,
+            schema: "public",
+            table: "post_replies",
+            filter: "post_id=eq.\(postId)"
+        )
+
+        await channel.subscribe()
+        repliesChannel = channel
+
+        Task {
+            for await insertion in insertions {
+                let record = insertion.record
+                if let idString = record["id"]?.stringValue,
+                   let id = UUID(uuidString: idString) {
+                    // Fetch the new reply with author info
+                    do {
+                        let reply: PostReply = try await self.client
+                            .from("post_replies")
+                            .select("""
+                                *,
+                                author:profiles!author_id(*)
+                            """)
+                            .eq("id", value: id)
+                            .single()
+                            .execute()
+                            .value
+
+                        await MainActor.run {
+                            if !self.currentReplies.contains(where: { $0.id == reply.id }) {
+                                self.currentReplies.append(reply)
+                            }
+                        }
+                    } catch {
+                        print("Failed to fetch new reply: \(error)")
+                    }
+                }
+            }
+        }
+    }
+
+    /// Unsubscribes from all channels.
+    public func unsubscribe() async {
+        await postsChannel?.unsubscribe()
+        await repliesChannel?.unsubscribe()
+        postsChannel = nil
+        repliesChannel = nil
+    }
+
+    /// Unsubscribes from replies channel only.
+    public func unsubscribeFromReplies() async {
+        await repliesChannel?.unsubscribe()
+        repliesChannel = nil
+        currentReplies = []
+    }
+
+    // MARK: - Event Group Messages
+
+    /// Fetches messages for an event's group chat.
+    ///
+    /// - Parameter eventId: The event post's UUID.
+    /// - Returns: Array of event messages.
+    public func fetchEventMessages(for eventId: UUID) async throws -> [EventMessage] {
+        // Fetch messages
+        var messages: [EventMessage] = try await client
+            .from("event_messages")
+            .select("*")
+            .eq("event_id", value: eventId)
+            .order("created_at", ascending: true)
+            .execute()
+            .value
+
+        // Fetch author profiles for each unique user
+        let userIds = Array(Set(messages.map { $0.userId }))
+        if !userIds.isEmpty {
+            let profiles: [UserProfile] = try await client
+                .from("profiles")
+                .select("*")
+                .in("id", values: userIds)
+                .execute()
+                .value
+
+            let profileMap = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+
+            // Attach authors to messages
+            for i in messages.indices {
+                messages[i].author = profileMap[messages[i].userId]
+            }
+        }
+
+        return messages
+    }
+
+    /// Sends a message to an event's group chat.
+    ///
+    /// - Parameters:
+    ///   - eventId: The event post's UUID.
+    ///   - content: The message content.
+    /// - Returns: The created message.
+    public func sendEventMessage(eventId: UUID, content: String) async throws -> EventMessage {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        struct MessageCreate: Encodable {
+            let event_id: UUID
+            let user_id: UUID
+            let content: String
+        }
+
+        let request = MessageCreate(event_id: eventId, user_id: userId, content: content)
+
+        // Insert without author join - current user's info not needed from DB
+        let message: EventMessage = try await client
+            .from("event_messages")
+            .insert(request)
+            .select("*")
+            .single()
+            .execute()
+            .value
+
+        return message
+    }
+
+    /// Subscribes to real-time event messages for a specific event.
+    ///
+    /// - Parameter eventId: The event's UUID.
+    public func subscribeToEventMessages(eventId: UUID) async {
+        // Unsubscribe from any existing channel first
+        await eventMessagesChannel?.unsubscribe()
+
+        let channel = client.realtimeV2.channel("event_messages_\(eventId.uuidString.prefix(8))")
+
+        let insertions = channel.postgresChange(
+            InsertAction.self,
+            schema: "public",
+            table: "event_messages"
+        )
+
+        await channel.subscribe()
+        eventMessagesChannel = channel
+
+        print("[EventMessages] Subscribed to realtime channel")
+
+        Task { [weak self] in
+            for await insertion in insertions {
+                guard let self = self else { return }
+
+                print("[EventMessages] Received insertion: \(insertion.record)")
+
+                // Extract values from record
+                guard let idString = insertion.record["id"]?.stringValue,
+                      let id = UUID(uuidString: idString),
+                      let eventIdString = insertion.record["event_id"]?.stringValue,
+                      let msgEventId = UUID(uuidString: eventIdString),
+                      let userIdString = insertion.record["user_id"]?.stringValue,
+                      let userId = UUID(uuidString: userIdString),
+                      let content = insertion.record["content"]?.stringValue else {
+                    print("[EventMessages] Failed to parse message record")
+                    continue
+                }
+
+                // Only handle messages for this event
+                guard msgEventId == eventId else {
+                    print("[EventMessages] Message for different event, ignoring")
+                    continue
+                }
+
+                // Don't notify for our own messages (already added locally)
+                if userId == SupabaseManager.shared.currentUser?.id {
+                    print("[EventMessages] Own message, skipping")
+                    continue
+                }
+
+                print("[EventMessages] Processing message from user: \(userId)")
+
+                // Fetch the author profile
+                var author: UserProfile? = nil
+                do {
+                    author = try await self.client
+                        .from("profiles")
+                        .select("*")
+                        .eq("id", value: userId)
+                        .single()
+                        .execute()
+                        .value
+                } catch {
+                    print("[EventMessages] Failed to fetch author: \(error)")
+                }
+
+                let createdAt = insertion.record["created_at"]?.stringValue.flatMap { str -> Date? in
+                    let formatter = ISO8601DateFormatter()
+                    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                    return formatter.date(from: str)
+                }
+
+                let newMessage = EventMessage(
+                    id: id,
+                    eventId: msgEventId,
+                    userId: userId,
+                    content: content,
+                    createdAt: createdAt,
+                    author: author
+                )
+
+                await MainActor.run {
+                    print("[EventMessages] Calling onNewEventMessage callback")
+                    self.onNewEventMessage?(newMessage)
+                }
+            }
+        }
+    }
+
+    /// Unsubscribes from event messages channel.
+    public func unsubscribeFromEventMessages() async {
+        await eventMessagesChannel?.unsubscribe()
+        eventMessagesChannel = nil
+        onNewEventMessage = nil
+    }
+}
+
+// MARK: - Event Message Model
+
+public struct EventMessage: Identifiable, Codable, Sendable {
+    public let id: UUID
+    public let eventId: UUID
+    public let userId: UUID
+    public let content: String
+    public let createdAt: Date?
+    public var author: UserProfile?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case eventId = "event_id"
+        case userId = "user_id"
+        case content
+        case createdAt = "created_at"
+        case author
+    }
+
+    public init(
+        id: UUID,
+        eventId: UUID,
+        userId: UUID,
+        content: String,
+        createdAt: Date?,
+        author: UserProfile? = nil
+    ) {
+        self.id = id
+        self.eventId = eventId
+        self.userId = userId
+        self.content = content
+        self.createdAt = createdAt
+        self.author = author
+    }
+
+    public var formattedTime: String {
+        guard let date = createdAt else { return "" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Errors
+
+public enum CommunityError: LocalizedError {
+    case notAuthenticated
+    case postNotFound
+    case notAuthorized
+
+    public var errorDescription: String? {
+        switch self {
+        case .notAuthenticated:
+            return "You must be signed in to perform this action."
+        case .postNotFound:
+            return "Post not found."
+        case .notAuthorized:
+            return "You are not authorized to perform this action."
+        }
+    }
+}

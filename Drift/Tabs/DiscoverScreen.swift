@@ -17,13 +17,13 @@ struct DiscoverScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var friendsManager = FriendsManager.shared
+    @StateObject private var messagingManager = MessagingManager.shared
     @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
 
     @State private var swipedIds: [UUID] = []
     @State private var currentIndex: Int = 0
     @State private var mode: DiscoverMode = .dating
     @State private var selectedProfile: UserProfile? = nil
-    @State private var showMatchAlert: Bool = false
     @State private var matchedProfile: UserProfile? = nil
     @State private var showLikePrompt: Bool = false
     @State private var likeMessage: String = ""
@@ -176,6 +176,10 @@ struct DiscoverScreen: View {
     private func handleSwipe(direction: SwipeDirection) {
         guard let profile = currentCard else { return }
 
+        print("🃏 [DISCOVER] handleSwipe called")
+        print("🃏 [DISCOVER] Profile: \(profile.displayName) (\(profile.id))")
+        print("🃏 [DISCOVER] Direction: \(direction)")
+
         Task {
             do {
                 let swipeDirection: DriftBackend.SwipeDirection
@@ -188,18 +192,26 @@ struct DiscoverScreen: View {
                     swipeDirection = .up
                 }
 
+                print("🃏 [DISCOVER] Calling friendsManager.swipe...")
                 let match = try await friendsManager.swipe(on: profile.id, direction: swipeDirection)
 
+                print("🃏 [DISCOVER] Swipe returned, match: \(match != nil ? "YES" : "NO")")
+
                 if let match = match {
+                    print("🎊 [DISCOVER] MATCH DETECTED!")
+                    print("🎊 [DISCOVER] Match ID: \(match.id)")
+                    print("🎊 [DISCOVER] Other user profile: \(match.otherUserProfile?.displayName ?? "nil")")
+
                     await MainActor.run {
+                        print("🎊 [DISCOVER] Setting matchedProfile to trigger fullScreenCover...")
                         matchedProfile = match.otherUserProfile
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            showMatchAlert = true
-                        }
+                        print("🎊 [DISCOVER] matchedProfile is now: \(matchedProfile?.displayName ?? "nil")")
                     }
+                } else {
+                    print("🃏 [DISCOVER] No match returned")
                 }
             } catch {
-                print("Failed to record swipe: \(error)")
+                print("❌ [DISCOVER] Failed to record swipe: \(error)")
             }
         }
 
@@ -248,35 +260,52 @@ struct DiscoverScreen: View {
             // Initialize tab bar as visible and reset scroll offset tracking
             tabBarVisibility.isVisible = true
             lastScrollOffset = 0
+
+            // Subscribe to real-time updates
+            Task {
+                await FriendsManager.shared.subscribeToMatches()
+                await FriendsManager.shared.subscribeToFriendRequests()
+            }
         }
         .onDisappear {
             tabBarVisibility.isVisible = true
+            Task {
+                await FriendsManager.shared.unsubscribe()
+            }
         }
         .onChange(of: mode) { newMode in
             if newMode == .dating {
                 loadProfiles()
             }
         }
-        .overlay {
-            if showMatchAlert, let profile = matchedProfile {
-                MatchAnimationView(
-                    matchedProfile: profile,
-                    currentUserAvatarUrl: profileManager.currentProfile?.avatarUrl,
-                    onSendMessage: {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            showMatchAlert = false
-                        }
-                        // TODO: Navigate to conversation with match
-                    },
-                    onKeepSwiping: {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            showMatchAlert = false
+        .fullScreenCover(item: $matchedProfile) { profile in
+            MatchAnimationView(
+                matchedProfile: profile,
+                currentUserAvatarUrl: profileManager.currentProfile?.avatarUrl,
+                onSendMessage: { messageText in
+                    matchedProfile = nil
+                    // Send the message if not empty
+                    if !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Task {
+                            do {
+                                let conversation = try await MessagingManager.shared.fetchOrCreateConversation(
+                                    with: profile.id,
+                                    type: .dating
+                                )
+                                try await MessagingManager.shared.sendMessage(
+                                    to: conversation.id,
+                                    content: messageText
+                                )
+                            } catch {
+                                print("Failed to send match message: \(error)")
+                            }
                         }
                     }
-                )
-                .transition(.opacity)
-                .zIndex(1000)
-            }
+                },
+                onKeepSwiping: {
+                    matchedProfile = nil
+                }
+            )
         }
         .fullScreenCover(item: $selectedProfile) { profile in
             ProfileDetailView(
@@ -1029,24 +1058,36 @@ struct DiscoverScreen: View {
     @ViewBuilder
     private var emptyState: some View {
         let forestGreen = Color("ForestGreen")
-        
+        let discoveryMode = supabaseManager.getDiscoveryMode()
+
         VStack(spacing: 0) {
+            // Mode switcher at top
+            if discoveryMode == .both {
+                HStack {
+                    modeSwitcher(style: .light)
+                    Spacer()
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
+                .padding(.bottom, 20)
+            }
+
             Spacer()
-            
+
             VStack(spacing: 24) {
                 // Illustration
                 Image("Dating_Empty_State")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(maxWidth: 280, maxHeight: 280)
-                
+
                 // Main title
                 Text("You've seen everyone for now")
                     .font(.system(size: 24, weight: .bold))
                     .foregroundColor(inkMain)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
-                
+
                 // Subtitle
                 Text("Try changing your filters so more people match your criteria—or check back later!")
                     .font(.system(size: 16))
@@ -1054,7 +1095,7 @@ struct DiscoverScreen: View {
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
                     .padding(.horizontal, 32)
-                
+
                 // Buttons
                 VStack(spacing: 12) {
                     // Change filters button (primary)
@@ -1070,7 +1111,7 @@ struct DiscoverScreen: View {
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                     .padding(.horizontal, 32)
-                    
+
                     // Review skipped profiles button (secondary)
                     Button {
                         recycleProfiles()
@@ -1091,7 +1132,7 @@ struct DiscoverScreen: View {
                 }
                 .padding(.top, 8)
             }
-            
+
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1308,6 +1349,9 @@ struct FriendsListContent: View {
         }
         .onAppear {
             loadProfiles()
+            Task {
+                await FriendsManager.shared.subscribeToFriendRequests()
+            }
         }
     }
 }

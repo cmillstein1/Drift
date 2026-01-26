@@ -25,6 +25,11 @@ func initializeDriftBackend() {
     configureDriftBackend(config)
 }
 
+enum VerifyFaceIDConfig {
+    static let apiKey = "c5c27414b7ac33beaa80ecec917d5b907163377cf6bf08710ec30c0f40d77cc2"
+    static let baseURL = "https://api.verifyfaceid.com"
+}
+
 // Note: SupabaseConfig and CampflareConfig are defined in gitignored files:
 // - Drift/Network/SupabaseConfig.swift (gitignored)
 // - Drift/Network/CampflareConfig.swift (gitignored)

@@ -312,7 +312,7 @@ struct VanBuilderChannelView: View {
         // TODO: Implement image picker
         // For now, simulate with mock images
         let mockImages = [
-            "https://images.unsplash.com/photo-1464207687429-7505649dae38?w=600",
+            "https://images.unsplash.com/photo-146420768742 9-7505649dae38?w=600",
             "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600",
             "https://images.unsplash.com/photo-1533587851505-d119e13fa0d7?w=600"
         ]

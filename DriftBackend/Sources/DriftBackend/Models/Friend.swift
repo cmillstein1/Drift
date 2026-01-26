@@ -199,3 +199,41 @@ public struct SwipeRequest: Encodable {
         self.direction = direction
     }
 }
+
+// MARK: - Swipe Record (for decoding)
+
+public struct SwipeRecord: Decodable {
+    public let id: UUID
+    public let swiperId: UUID
+    public let swipedId: UUID
+    public let direction: String
+    public let createdAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case swiperId = "swiper_id"
+        case swipedId = "swiped_id"
+        case direction
+        case createdAt = "created_at"
+    }
+}
+
+// MARK: - Match Request (for creating)
+
+public struct MatchRequest: Encodable {
+    public let user1Id: UUID
+    public let user2Id: UUID
+    public let isMatch: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case user1Id = "user1_id"
+        case user2Id = "user2_id"
+        case isMatch = "is_match"
+    }
+
+    public init(user1Id: UUID, user2Id: UUID, isMatch: Bool) {
+        self.user1Id = user1Id
+        self.user2Id = user2Id
+        self.isMatch = isMatch
+    }
+}

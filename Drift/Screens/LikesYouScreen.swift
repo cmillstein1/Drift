@@ -12,9 +12,9 @@ struct LikesYouScreen: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var friendsManager = FriendsManager.shared
     @StateObject private var profileManager = ProfileManager.shared
+    @StateObject private var messagingManager = MessagingManager.shared
 
     @State private var selectedProfile: UserProfile? = nil
-    @State private var showMatchAnimation = false
     @State private var matchedProfile: UserProfile? = nil
 
     private let burntOrange = Color("BurntOrange")
@@ -77,26 +77,35 @@ struct LikesYouScreen: View {
                 }
             )
         }
-        .overlay {
-            if showMatchAnimation, let matched = matchedProfile {
-                MatchAnimationView(
-                    matchedProfile: matched,
-                    currentUserAvatarUrl: profileManager.currentProfile?.avatarUrl,
-                    onSendMessage: {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            showMatchAnimation = false
-                        }
-                        dismiss()
-                    },
-                    onKeepSwiping: {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            showMatchAnimation = false
+        .fullScreenCover(item: $matchedProfile) { matched in
+            MatchAnimationView(
+                matchedProfile: matched,
+                currentUserAvatarUrl: profileManager.currentProfile?.avatarUrl,
+                onSendMessage: { messageText in
+                    matchedProfile = nil
+                    // Send the message if not empty
+                    if !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Task {
+                            do {
+                                let conversation = try await MessagingManager.shared.fetchOrCreateConversation(
+                                    with: matched.id,
+                                    type: .dating
+                                )
+                                try await MessagingManager.shared.sendMessage(
+                                    to: conversation.id,
+                                    content: messageText
+                                )
+                            } catch {
+                                print("Failed to send match message: \(error)")
+                            }
                         }
                     }
-                )
-                .transition(.opacity)
-                .zIndex(1000)
-            }
+                    dismiss()
+                },
+                onKeepSwiping: {
+                    matchedProfile = nil
+                }
+            )
         }
     }
 
@@ -130,11 +139,8 @@ struct LikesYouScreen: View {
                     selectedProfile = nil
 
                     if match != nil {
-                        // It's a match!
+                        // It's a match! Setting matchedProfile triggers fullScreenCover
                         matchedProfile = profile
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            showMatchAnimation = true
-                        }
                     }
                 }
             } catch {
