@@ -15,6 +15,8 @@ struct CreateActivitySheet: View {
     @State private var description: String = ""
     @State private var category: String = ""
     @State private var location: String = ""
+    @State private var latitude: Double? = nil
+    @State private var longitude: Double? = nil
     @State private var date: Date = Date()
     @State private var time: Date = Date()
     @State private var maxAttendees: String = ""
@@ -22,6 +24,7 @@ struct CreateActivitySheet: View {
     @State private var privacy: PrivacySetting = .public
     @State private var requireApproval: Bool = false
     @State private var showPrivacyDetails: Bool = false
+    @State private var showLocationPicker: Bool = false
     
     private let categories = ["Outdoor", "Work", "Social", "Food & Drink", "Creative", "Wellness"]
     
@@ -59,6 +62,13 @@ struct CreateActivitySheet: View {
                     }
                     .foregroundColor(charcoalColor)
                 }
+            }
+            .sheet(isPresented: $showLocationPicker) {
+                LocationPickerSheet(
+                    locationName: $location,
+                    latitude: $latitude,
+                    longitude: $longitude
+                )
             }
         }
     }
@@ -162,10 +172,26 @@ struct CreateActivitySheet: View {
                                             .font(.system(size: 14, weight: .medium))
                                             .foregroundColor(charcoalColor)
                                     }
-                                    
-                                    TextField("Where will this happen?", text: $location)
-                                        .font(.system(size: 16))
-                                        .foregroundColor(charcoalColor)
+
+                                    Button {
+                                        showLocationPicker = true
+                                    } label: {
+                                        HStack {
+                                            if location.isEmpty {
+                                                Text("Select location on map")
+                                                    .font(.system(size: 16))
+                                                    .foregroundColor(charcoalColor.opacity(0.4))
+                                            } else {
+                                                Text(location)
+                                                    .font(.system(size: 16))
+                                                    .foregroundColor(charcoalColor)
+                                                    .lineLimit(1)
+                                            }
+                                            Spacer()
+                                            Image(systemName: "map")
+                                                .font(.system(size: 16))
+                                                .foregroundColor(burntOrange)
+                                        }
                                         .padding(.horizontal, 16)
                                         .padding(.vertical, 12)
                                         .background(
@@ -173,9 +199,10 @@ struct CreateActivitySheet: View {
                                                 .fill(Color.white)
                                                 .overlay(
                                                     RoundedRectangle(cornerRadius: 12)
-                                                        .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                                                        .stroke(latitude != nil ? burntOrange : Color.gray.opacity(0.3), lineWidth: 2)
                                                 )
                                         )
+                                    }
                                 }
                                 .padding(.horizontal, 24)
                                 
@@ -402,12 +429,14 @@ struct CreateActivitySheet: View {
             dateFormatter.dateFormat = "yyyy-MM-dd"
             let timeFormatter = DateFormatter()
             timeFormatter.dateFormat = "HH:mm"
-            
+
             let activityData = ActivityData(
                 title: title,
                 description: description,
                 category: category,
                 location: location,
+                latitude: latitude,
+                longitude: longitude,
                 date: dateFormatter.string(from: date),
                 time: timeFormatter.string(from: time),
                 maxAttendees: Int(maxAttendees) ?? 0,
@@ -415,7 +444,7 @@ struct CreateActivitySheet: View {
                 privacy: privacy,
                 requireApproval: requireApproval
             )
-            
+
             onSubmit(activityData)
             dismiss()
         }
@@ -433,6 +462,8 @@ struct ActivityData {
     let description: String
     let category: String
     let location: String
+    let latitude: Double?
+    let longitude: Double?
     let date: String
     let time: String
     let maxAttendees: Int

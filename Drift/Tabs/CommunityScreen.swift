@@ -515,6 +515,9 @@ struct CreateCommunityPostSheet: View {
     @State private var showPrivacyDetails: Bool = false
     @State private var selectedCategory: HelpCategory? = nil
     @State private var location: String = ""
+    @State private var eventLatitude: Double? = nil
+    @State private var eventLongitude: Double? = nil
+    @State private var showLocationPicker: Bool = false
     @State private var maxAttendees: String = ""
     @State private var eventDate: Date = Date()
     @State private var eventTime: Date = Date()
@@ -670,6 +673,13 @@ struct CreateCommunityPostSheet: View {
         .onTapGesture {
             hideKeyboard()
         }
+        .sheet(isPresented: $showLocationPicker) {
+            LocationPickerSheet(
+                locationName: $location,
+                latitude: $eventLatitude,
+                longitude: $eventLongitude
+            )
+        }
     }
 
     private func hideKeyboard() {
@@ -700,6 +710,8 @@ struct CreateCommunityPostSheet: View {
                         content: details.trimmingCharacters(in: .whitespaces),
                         datetime: eventDatetime,
                         location: location.isEmpty ? nil : location,
+                        latitude: eventLatitude,
+                        longitude: eventLongitude,
                         maxAttendees: Int(maxAttendees),
                         privacy: eventPrivacy,
                         images: []
@@ -784,15 +796,33 @@ struct CreateCommunityPostSheet: View {
                 }
                 .foregroundColor(charcoal)
 
-                TextField("Where will this happen?", text: $location)
-                    .font(.system(size: 16))
+                Button {
+                    showLocationPicker = true
+                } label: {
+                    HStack {
+                        if location.isEmpty {
+                            Text("Select location on map")
+                                .font(.system(size: 16))
+                                .foregroundColor(charcoal.opacity(0.4))
+                        } else {
+                            Text(location)
+                                .font(.system(size: 16))
+                                .foregroundColor(charcoal)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Image(systemName: "map")
+                            .font(.system(size: 16))
+                            .foregroundColor(burntOrange)
+                    }
                     .padding(16)
                     .background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                            .stroke(eventLatitude != nil ? burntOrange : Color.gray.opacity(0.3), lineWidth: 2)
                     )
+                }
             }
 
             // Max Attendees

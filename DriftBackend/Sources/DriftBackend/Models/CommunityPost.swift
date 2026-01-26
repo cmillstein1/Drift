@@ -108,6 +108,8 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
     public var eventDatetime: Date?
     public var eventLocation: String?
     public var eventExactLocation: String?
+    public var eventLatitude: Double?
+    public var eventLongitude: Double?
     public var maxAttendees: Int?
     public var currentAttendees: Int?
     public var eventPrivacy: EventPrivacy?
@@ -143,6 +145,8 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
         case eventDatetime = "event_datetime"
         case eventLocation = "event_location"
         case eventExactLocation = "event_exact_location"
+        case eventLatitude = "event_latitude"
+        case eventLongitude = "event_longitude"
         case maxAttendees = "max_attendees"
         case currentAttendees = "current_attendees"
         case eventPrivacy = "event_privacy"
@@ -169,6 +173,8 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
         eventDatetime: Date? = nil,
         eventLocation: String? = nil,
         eventExactLocation: String? = nil,
+        eventLatitude: Double? = nil,
+        eventLongitude: Double? = nil,
         maxAttendees: Int? = nil,
         currentAttendees: Int? = nil,
         eventPrivacy: EventPrivacy? = nil,
@@ -193,6 +199,8 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
         self.eventDatetime = eventDatetime
         self.eventLocation = eventLocation
         self.eventExactLocation = eventExactLocation
+        self.eventLatitude = eventLatitude
+        self.eventLongitude = eventLongitude
         self.maxAttendees = maxAttendees
         self.currentAttendees = currentAttendees
         self.eventPrivacy = eventPrivacy
@@ -223,6 +231,8 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
         eventDatetime = try container.decodeIfPresent(Date.self, forKey: .eventDatetime)
         eventLocation = try container.decodeIfPresent(String.self, forKey: .eventLocation)
         eventExactLocation = try container.decodeIfPresent(String.self, forKey: .eventExactLocation)
+        eventLatitude = try container.decodeIfPresent(Double.self, forKey: .eventLatitude)
+        eventLongitude = try container.decodeIfPresent(Double.self, forKey: .eventLongitude)
         maxAttendees = try container.decodeIfPresent(Int.self, forKey: .maxAttendees)
         currentAttendees = try container.decodeIfPresent(Int.self, forKey: .currentAttendees)
         eventPrivacy = try container.decodeIfPresent(EventPrivacy.self, forKey: .eventPrivacy)
@@ -446,6 +456,8 @@ public struct CommunityPostCreateRequest: Encodable {
     public let eventDatetime: Date?
     public let eventLocation: String?
     public let eventExactLocation: String?
+    public let eventLatitude: Double?
+    public let eventLongitude: Double?
     public let maxAttendees: Int?
     public let eventPrivacy: EventPrivacy?
 
@@ -461,6 +473,8 @@ public struct CommunityPostCreateRequest: Encodable {
         case eventDatetime = "event_datetime"
         case eventLocation = "event_location"
         case eventExactLocation = "event_exact_location"
+        case eventLatitude = "event_latitude"
+        case eventLongitude = "event_longitude"
         case maxAttendees = "max_attendees"
         case eventPrivacy = "event_privacy"
         case helpCategory = "help_category"
@@ -475,6 +489,8 @@ public struct CommunityPostCreateRequest: Encodable {
         eventDatetime: Date? = nil,
         eventLocation: String? = nil,
         eventExactLocation: String? = nil,
+        eventLatitude: Double? = nil,
+        eventLongitude: Double? = nil,
         maxAttendees: Int? = nil,
         eventPrivacy: EventPrivacy? = nil,
         helpCategory: HelpCategory? = nil
@@ -487,6 +503,8 @@ public struct CommunityPostCreateRequest: Encodable {
         self.eventDatetime = eventDatetime
         self.eventLocation = eventLocation
         self.eventExactLocation = eventExactLocation
+        self.eventLatitude = eventLatitude
+        self.eventLongitude = eventLongitude
         self.maxAttendees = maxAttendees
         self.eventPrivacy = eventPrivacy
         self.helpCategory = helpCategory
