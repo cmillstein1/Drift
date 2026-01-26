@@ -1061,14 +1061,14 @@ struct DiscoverScreen: View {
         let discoveryMode = supabaseManager.getDiscoveryMode()
 
         VStack(spacing: 0) {
-            // Mode switcher at top
+            // Mode switcher at top - same vertical position as when cards are showing (padding.top 60 for status bar)
             if discoveryMode == .both {
                 HStack {
                     modeSwitcher(style: .light)
                     Spacer()
                 }
                 .padding(.horizontal, 24)
-                .padding(.top, 12)
+                .padding(.top, 72) // 60 status bar + 12, matches datingView header
                 .padding(.bottom, 20)
             }
 
