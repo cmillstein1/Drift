@@ -62,11 +62,15 @@ struct DiscoverScreen: View {
     private func loadProfiles() {
         Task {
             do {
-                swipedIds = try await friendsManager.fetchSwipedUserIds()
+                let (swiped, blocked) = try await (
+                    friendsManager.fetchSwipedUserIds(),
+                    friendsManager.fetchBlockedExclusionUserIds()
+                )
+                swipedIds = swiped
                 let lookingFor: LookingFor = mode == .dating ? .dating : .friends
                 try await profileManager.fetchDiscoverProfiles(
                     lookingFor: lookingFor,
-                    excludeIds: swipedIds
+                    excludeIds: swipedIds + blocked
                 )
                 currentIndex = 0
             } catch {
@@ -342,16 +346,21 @@ struct DiscoverScreen: View {
                         // HEADER SECTION - Mode switcher, name, location (fades on scroll)
                         // ==========================================
                         VStack(spacing: 0) {
-                            // Mode switcher row - matches friends view positioning
-                            if supabaseManager.getDiscoveryMode() == .both {
-                                HStack {
+                            // Mode switcher row + 3-dot (Report/Block)
+                            HStack {
+                                if supabaseManager.getDiscoveryMode() == .both {
                                     modeSwitcher(style: .light)
-                                    Spacer()
                                 }
-                                .padding(.horizontal, 24)
-                                .padding(.top, 12)
-                                .padding(.bottom, 20)
+                                Spacer()
+                                ReportBlockMenuButton(
+                                    userId: currentCard?.id,
+                                    displayName: currentCard?.displayName,
+                                    onBlockComplete: { loadProfiles() }
+                                )
                             }
+                            .padding(.horizontal, 24)
+                            .padding(.top, 12)
+                            .padding(.bottom, 20)
                             
                             // Name and location section
                             VStack(alignment: .leading, spacing: 4) {
@@ -911,16 +920,11 @@ struct DiscoverScreen: View {
                             modeSwitcher(style: .light)
                         }
                         Spacer()
-                        Button { } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 20))
-                                .foregroundColor(inkMain)
-                                .frame(width: 40, height: 40)
-                                .background(Color.white)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.gray.opacity(0.2), lineWidth: 1))
-                                .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-                        }
+                        ReportBlockMenuButton(
+                            userId: currentCard?.id,
+                            displayName: currentCard?.displayName,
+                            onBlockComplete: { loadProfiles() }
+                        )
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 60) // Account for status bar / safe area
@@ -1282,7 +1286,8 @@ struct FriendsListContent: View {
                 let friendIds = friendsManager.friends.map { friend in
                     friend.requesterId == currentUserId ? friend.addresseeId : friend.requesterId
                 }
-                let excludeIds = swipedIds + friendIds
+                let blockedIds = (try? await friendsManager.fetchBlockedExclusionUserIds()) ?? []
+                let excludeIds = swipedIds + friendIds + blockedIds
                 try await profileManager.fetchDiscoverProfiles(
                     lookingFor: .friends,
                     excludeIds: excludeIds

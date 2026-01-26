@@ -24,6 +24,12 @@ struct MessageDetailScreen: View {
     private var currentUserId: UUID? {
         supabaseManager.currentUser?.id
     }
+
+    /// The other participant's user ID (for block/report).
+    private var otherUserId: UUID? {
+        conversation.otherUser?.id
+            ?? conversation.participants?.first(where: { $0.userId != currentUserId })?.userId
+    }
     
     private let softGray = Color("SoftGray")
     private let charcoalColor = Color("Charcoal")
@@ -193,14 +199,11 @@ struct MessageDetailScreen: View {
                     
                     Spacer()
                     
-                    Button(action: {}) {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 18))
-                            .foregroundColor(charcoalColor)
-                            .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(Circle())
-                    }
+                    ReportBlockMenu(
+                        userId: otherUserId,
+                        displayName: conversation.displayName,
+                        onBlockComplete: onClose
+                    )
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)

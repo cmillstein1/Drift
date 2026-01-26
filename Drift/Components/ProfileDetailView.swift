@@ -39,8 +39,9 @@ struct ProfileDetailView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
                     GeometryReader { geo in
-                        ZStack(alignment: .bottom) {
-                            // Hero image
+                        ZStack(alignment: .topTrailing) {
+                            ZStack(alignment: .bottom) {
+                                // Hero image
                             if let heroUrl = images.first,
                                let url = URL(string: heroUrl) {
                                 AsyncImage(url: url) { phase in
@@ -111,6 +112,17 @@ struct ProfileDetailView: View {
                                 }
                             }
                             .padding(24)
+                            }
+
+                            // Report/Block menu - top right
+                            ReportBlockMenuButton(
+                                userId: profile.id,
+                                displayName: profile.displayName,
+                                onBlockComplete: { isOpen = false },
+                                darkStyle: true
+                            )
+                            .padding(.top, 12)
+                            .padding(.trailing, 24)
                         }
                     }
                     .frame(height: 500)

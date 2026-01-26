@@ -107,6 +107,8 @@ struct ProfileScreen: View {
                     EditProfileScreen(onBack: {
                         navigationPath.removeLast()
                     })
+                } else if destination == "privacySafetySupport" {
+                    PrivacySafetySupportScreen()
                 }
             }
             .sheet(isPresented: $showPaywall) {
@@ -360,32 +362,16 @@ struct ProfileScreen: View {
             
             menuDivider
             
-            // Privacy & Safety
-            Button(action: {
-                // Privacy action
-            }) {
+            // Privacy, Safety & Support (Blocked users, etc.) — navigation push
+            NavigationLink(value: "privacySafetySupport") {
                 ProfileMenuRow(
                     icon: "shield.fill",
                     iconBackground: forestGreen,
-                    title: "Privacy & Safety",
-                    subtitle: nil
+                    title: "Privacy, Safety & Support",
+                    subtitle: "Blocked users, help and more"
                 )
             }
-            
-            menuDivider
-            
-            // Help & Support
-            Button(action: {
-                // Help action
-            }) {
-                ProfileMenuRow(
-                    icon: "questionmark.circle.fill",
-                    iconBackground: Color.purple.opacity(0.1),
-                    iconColor: Color.purple,
-                    title: "Help & Support",
-                    subtitle: nil
-                )
-            }
+            .buttonStyle(PlainButtonStyle())
             
             menuDivider
             

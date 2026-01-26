@@ -250,6 +250,58 @@ public class FriendsManager: ObservableObject {
         }
     }
 
+    /// Fetches users that the current user has blocked.
+    /// Returns friend rows (status blocked) where current user is requester, with addressee profile.
+    public func fetchBlockedUsers() async throws -> [Friend] {
+        guard let currentUserId = SupabaseManager.shared.currentUser?.id else {
+            throw FriendsError.notAuthenticated
+        }
+
+        let rows: [Friend] = try await client
+            .from("friends")
+            .select("*, requester:profiles!requester_id(*), addressee:profiles!addressee_id(*)")
+            .eq("requester_id", value: currentUserId)
+            .eq("status", value: FriendStatus.blocked.rawValue)
+            .execute()
+            .value
+
+        return rows
+    }
+
+    /// Removes a block (deletes the blocked friend row so the user is no longer blocked).
+    public func unblockUser(_ userId: UUID) async throws {
+        guard let currentUserId = SupabaseManager.shared.currentUser?.id else {
+            throw FriendsError.notAuthenticated
+        }
+
+        try await client
+            .from("friends")
+            .delete()
+            .or("and(requester_id.eq.\(currentUserId),addressee_id.eq.\(userId)),and(requester_id.eq.\(userId),addressee_id.eq.\(currentUserId))")
+            .eq("status", value: FriendStatus.blocked.rawValue)
+            .execute()
+    }
+
+    /// Returns user IDs that should be excluded from discover and messages: users the current user has blocked, plus users who have blocked the current user.
+    public func fetchBlockedExclusionUserIds() async throws -> [UUID] {
+        guard let currentUserId = SupabaseManager.shared.currentUser?.id else {
+            throw FriendsError.notAuthenticated
+        }
+
+        let rows: [Friend] = try await client
+            .from("friends")
+            .select()
+            .or("requester_id.eq.\(currentUserId),addressee_id.eq.\(currentUserId)")
+            .eq("status", value: FriendStatus.blocked.rawValue)
+            .execute()
+            .value
+
+        let excluded: [UUID] = rows.map { row in
+            row.requesterId == currentUserId ? row.addresseeId : row.requesterId
+        }
+        return Array(Set(excluded))
+    }
+
     // MARK: - Swipes & Matches
 
     /// Records a swipe on a profile.
