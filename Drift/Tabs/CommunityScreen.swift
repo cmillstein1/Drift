@@ -529,11 +529,13 @@ struct CommunityPostCard: View {
 struct CreateCommunityPostSheet: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var communityManager = CommunityManager.shared
+    @StateObject private var profileManager = ProfileManager.shared
     @State private var selectedType: CommunityPostType? = .event
     @State private var title: String = ""
     @State private var details: String = ""
     @State private var eventPrivacy: EventPrivacy = .public
     @State private var showPrivacyDetails: Bool = false
+    @State private var isDatingActivity: Bool = false
     @State private var selectedCategory: HelpCategory? = nil
     @State private var location: String = ""
     @State private var eventLatitude: Double? = nil
@@ -543,6 +545,12 @@ struct CreateCommunityPostSheet: View {
     @State private var eventDate: Date = Date()
     @State private var eventTime: Date = Date()
     @State private var isSubmitting: Bool = false
+
+    /// Only show "Dating activity" option when user has dating (or both) enabled; friends-only users do not see it.
+    private var hasDatingEnabled: Bool {
+        guard let lookingFor = profileManager.currentProfile?.lookingFor else { return false }
+        return lookingFor == .dating || lookingFor == .both
+    }
 
     private let charcoal = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
@@ -735,7 +743,8 @@ struct CreateCommunityPostSheet: View {
                         longitude: eventLongitude,
                         maxAttendees: Int(maxAttendees),
                         privacy: eventPrivacy,
-                        images: []
+                        images: [],
+                        isDatingEvent: isDatingActivity
                     )
                 } else {
                     _ = try await communityManager.createHelpPost(
@@ -941,6 +950,28 @@ struct CreateCommunityPostSheet: View {
                 RoundedRectangle(cornerRadius: 16)
                     .stroke(Color.gray.opacity(0.2), lineWidth: 2)
             )
+
+            // Dating activity (only for users with dating or both; friends-only never see this)
+            if hasDatingEnabled {
+                HStack(spacing: 12) {
+                    Image(systemName: "heart.circle")
+                        .font(.system(size: 16))
+                        .foregroundColor(burntOrange)
+                    Text("Dating activity?")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(charcoal)
+                    Spacer()
+                    Toggle("", isOn: $isDatingActivity)
+                        .toggleStyle(SwitchToggleStyle(tint: burntOrange))
+                }
+                .padding(16)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 2)
+                )
+            }
         }
     }
 

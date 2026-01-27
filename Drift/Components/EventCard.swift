@@ -119,6 +119,19 @@ struct EventCard: View {
                     endPoint: .bottom
                 )
                 .frame(height: 160)
+
+                // Dating tag (top right) when event is dating-only
+                if post.isDatingEvent == true {
+                    Text("Dating")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(charcoal)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.white.opacity(0.9))
+                        .clipShape(Capsule())
+                        .padding(12)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                }
             }
             .frame(height: 160)
             .clipped()
