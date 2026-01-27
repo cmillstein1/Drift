@@ -81,6 +81,11 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
     public var friendsOnly: Bool
     public var orientation: String?
 
+    // Dating discovery preferences
+    public var preferredMinAge: Int?
+    public var preferredMaxAge: Int?
+    public var preferredMaxDistanceMiles: Int?
+
     // Dating profile prompts
     public var simplePleasure: String?
     public var rigInfo: String?
@@ -103,6 +108,9 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         case lookingFor = "looking_for"
         case friendsOnly = "friends_only"
         case orientation
+        case preferredMinAge = "preferred_min_age"
+        case preferredMaxAge = "preferred_max_age"
+        case preferredMaxDistanceMiles = "preferred_max_distance_miles"
         case simplePleasure = "simple_pleasure"
         case rigInfo = "rig_info"
         case datingLooksLike = "dating_looks_like"
@@ -131,6 +139,9 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         lookingFor: LookingFor = .both,
         friendsOnly: Bool = false,
         orientation: String? = nil,
+        preferredMinAge: Int? = nil,
+        preferredMaxAge: Int? = nil,
+        preferredMaxDistanceMiles: Int? = nil,
         simplePleasure: String? = nil,
         rigInfo: String? = nil,
         datingLooksLike: String? = nil,
@@ -157,6 +168,9 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         self.lookingFor = lookingFor
         self.friendsOnly = friendsOnly
         self.orientation = orientation
+        self.preferredMinAge = preferredMinAge
+        self.preferredMaxAge = preferredMaxAge
+        self.preferredMaxDistanceMiles = preferredMaxDistanceMiles
         self.simplePleasure = simplePleasure
         self.rigInfo = rigInfo
         self.datingLooksLike = datingLooksLike
@@ -203,6 +217,9 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         lookingFor = try container.decodeIfPresent(LookingFor.self, forKey: .lookingFor) ?? .both
         friendsOnly = try container.decodeIfPresent(Bool.self, forKey: .friendsOnly) ?? false
         orientation = try container.decodeIfPresent(String.self, forKey: .orientation)
+        preferredMinAge = try container.decodeIfPresent(Int.self, forKey: .preferredMinAge)
+        preferredMaxAge = try container.decodeIfPresent(Int.self, forKey: .preferredMaxAge)
+        preferredMaxDistanceMiles = try container.decodeIfPresent(Int.self, forKey: .preferredMaxDistanceMiles)
         simplePleasure = try container.decodeIfPresent(String.self, forKey: .simplePleasure)
         rigInfo = try container.decodeIfPresent(String.self, forKey: .rigInfo)
         datingLooksLike = try container.decodeIfPresent(String.self, forKey: .datingLooksLike)
@@ -227,6 +244,15 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
     // Computed properties for UI
     public var displayName: String {
         name ?? "Unknown"
+    }
+
+    /// Age to display in the UI. Uses stored `age` when valid (> 0), otherwise computes from `birthday`.
+    public var displayAge: Int {
+        if let a = age, a > 0 { return a }
+        guard let b = birthday else { return 0 }
+        let calendar = Calendar.current
+        let ageComponents = calendar.dateComponents([.year], from: b, to: Date())
+        return max(0, ageComponents.year ?? 0)
     }
 
     public var initials: String {
@@ -304,6 +330,9 @@ public struct ProfileUpdateRequest: Encodable {
     public var lookingFor: LookingFor?
     public var friendsOnly: Bool?
     public var orientation: String?
+    public var preferredMinAge: Int?
+    public var preferredMaxAge: Int?
+    public var preferredMaxDistanceMiles: Int?
     public var simplePleasure: String?
     public var rigInfo: String?
     public var datingLooksLike: String?
@@ -321,6 +350,9 @@ public struct ProfileUpdateRequest: Encodable {
         case lookingFor = "looking_for"
         case friendsOnly = "friends_only"
         case orientation
+        case preferredMinAge = "preferred_min_age"
+        case preferredMaxAge = "preferred_max_age"
+        case preferredMaxDistanceMiles = "preferred_max_distance_miles"
         case simplePleasure = "simple_pleasure"
         case rigInfo = "rig_info"
         case datingLooksLike = "dating_looks_like"
@@ -344,6 +376,9 @@ public struct ProfileUpdateRequest: Encodable {
         lookingFor: LookingFor? = nil,
         friendsOnly: Bool? = nil,
         orientation: String? = nil,
+        preferredMinAge: Int? = nil,
+        preferredMaxAge: Int? = nil,
+        preferredMaxDistanceMiles: Int? = nil,
         simplePleasure: String? = nil,
         rigInfo: String? = nil,
         datingLooksLike: String? = nil,
@@ -365,6 +400,9 @@ public struct ProfileUpdateRequest: Encodable {
         self.lookingFor = lookingFor
         self.friendsOnly = friendsOnly
         self.orientation = orientation
+        self.preferredMinAge = preferredMinAge
+        self.preferredMaxAge = preferredMaxAge
+        self.preferredMaxDistanceMiles = preferredMaxDistanceMiles
         self.simplePleasure = simplePleasure
         self.rigInfo = rigInfo
         self.datingLooksLike = datingLooksLike
@@ -390,6 +428,9 @@ public struct ProfileUpdateRequest: Encodable {
         try container.encodeIfPresent(lookingFor, forKey: .lookingFor)
         try container.encodeIfPresent(friendsOnly, forKey: .friendsOnly)
         try container.encodeIfPresent(orientation, forKey: .orientation)
+        try container.encodeIfPresent(preferredMinAge, forKey: .preferredMinAge)
+        try container.encodeIfPresent(preferredMaxAge, forKey: .preferredMaxAge)
+        try container.encodeIfPresent(preferredMaxDistanceMiles, forKey: .preferredMaxDistanceMiles)
         try container.encodeIfPresent(simplePleasure, forKey: .simplePleasure)
         try container.encodeIfPresent(rigInfo, forKey: .rigInfo)
         try container.encodeIfPresent(datingLooksLike, forKey: .datingLooksLike)

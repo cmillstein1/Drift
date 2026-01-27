@@ -59,6 +59,9 @@ public class ProfileManager: ObservableObject {
             lookingFor: profile.lookingFor,
             friendsOnly: profile.friendsOnly,
             orientation: profile.orientation,
+            preferredMinAge: profile.preferredMinAge,
+            preferredMaxAge: profile.preferredMaxAge,
+            preferredMaxDistanceMiles: profile.preferredMaxDistanceMiles,
             simplePleasure: profile.simplePleasure,
             rigInfo: profile.rigInfo,
             datingLooksLike: profile.datingLooksLike,
@@ -180,6 +183,11 @@ public class ProfileManager: ObservableObject {
         errorMessage = nil
 
         do {
+            // When in dating mode, ensure we have current profile for preference filtering
+            if lookingFor == .dating, currentProfile == nil {
+                try? await fetchCurrentProfile()
+            }
+
             var query = client
                 .from("profiles")
                 .select()
@@ -197,12 +205,25 @@ public class ProfileManager: ObservableObject {
             }
 
             var profiles: [UserProfile] = try await query
-                .limit(limit)
+                .limit(limit * 2) // Fetch extra to allow for age/distance filtering
                 .execute()
                 .value
 
             // Filter out excluded IDs
             profiles = profiles.filter { !excludeIds.contains($0.id) }
+
+            // Apply dating preferences (age range) when in dating mode
+            if lookingFor == .dating, let current = currentProfile {
+                let minAge = current.preferredMinAge ?? 18
+                let maxAge = current.preferredMaxAge ?? 80
+                profiles = profiles.filter { p in
+                    let age = p.displayAge
+                    return age >= minAge && age <= maxAge
+                }
+            }
+
+            // Trim to requested limit after filtering
+            profiles = Array(profiles.prefix(limit))
             
             // Temporary: Add mock prompts if missing (for testing)
             // TODO: Remove this once database is properly seeded

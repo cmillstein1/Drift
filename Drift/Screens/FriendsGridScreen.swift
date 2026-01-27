@@ -435,8 +435,8 @@ struct FriendGridCard: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                         
-                        if let age = profile.age {
-                            Text(", \(age)")
+                        if profile.displayAge > 0 {
+                            Text(", \(profile.displayAge)")
                                 .font(.system(size: 18, weight: .bold))
                                 .foregroundColor(.white)
                                 .lineLimit(1)

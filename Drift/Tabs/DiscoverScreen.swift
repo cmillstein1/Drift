@@ -365,7 +365,7 @@ struct DiscoverScreen: View {
                             // Name and location section
                             VStack(alignment: .leading, spacing: 4) {
                                 // Name and age
-                                Text("\(profile.displayName), \(profile.age ?? 0)")
+                                Text("\(profile.displayName), \(profile.displayAge)")
                                     .font(.system(size: 28, weight: .heavy))
                                     .tracking(-0.5)
                                     .foregroundColor(inkMain)

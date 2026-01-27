@@ -210,8 +210,8 @@ struct FriendDetailView: View {
                                     .font(.system(size: 28, weight: .bold))
                                     .foregroundColor(charcoalColor)
                                 
-                                if let age = profile.age {
-                                    Text(", \(age)")
+                                if profile.displayAge > 0 {
+                                    Text(", \(profile.displayAge)")
                                         .font(.system(size: 28, weight: .bold))
                                         .foregroundColor(charcoalColor)
                                 }
