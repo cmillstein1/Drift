@@ -38,6 +38,10 @@ struct DiscoverScreen: View {
     @State private var isScrolledDown: Bool = false // Track if user has scrolled down
     @State private var maxScrollOffset: CGFloat = 0 // Track the maximum scroll offset reached
     @State private var lastScrollDirection: CGFloat = 0 // Track last scroll direction (negative = down, positive = up)
+    @State private var zoomedPhotoURL: String? = nil
+
+    /// Height of top nav bar (status padding + content) for scroll‑away offset
+    private let topNavBarHeight: CGFloat = 132
 
     // Colors from HTML
     private let softGray = Color("SoftGray")
@@ -49,6 +53,10 @@ struct DiscoverScreen: View {
     private let gray700 = Color(red: 0.37, green: 0.37, blue: 0.42) // text-gray-700
     private let burntOrange = Color("BurntOrange")
     private let pink500 = Color(red: 0.93, green: 0.36, blue: 0.51)
+    private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
+    private let charcoal = Color("Charcoal")
+    private let forestGreen = Color("ForestGreen")
+    private let desertSand = Color("DesertSand")
 
     private var profiles: [UserProfile] {
         profileManager.discoverProfiles
@@ -163,7 +171,7 @@ struct DiscoverScreen: View {
         // Clear local swipedIds so we can see all profiles again
         swipedIds = []
         currentIndex = 0
-        
+
         // Reload profiles without excluding any
         Task {
             do {
@@ -176,6 +184,41 @@ struct DiscoverScreen: View {
                 print("Failed to recycle profiles: \(error)")
             }
         }
+    }
+
+    /// Relative time string for last active (e.g. "2h ago", "1d ago").
+    private func lastActiveString(for date: Date?) -> String? {
+        guard let date = date else { return nil }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        formatter.locale = Locale.current
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    /// Mutual interests between current user and profile (for dating card).
+    private func datingMutualInterests(for profile: UserProfile) -> [String] {
+        let current = profileManager.currentProfile?.interests ?? []
+        return Array(Set(current).intersection(Set(profile.interests)))
+    }
+
+    @ViewBuilder
+    private func datingPromptSection(question: String, answer: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(question)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(burntOrange)
+            Text(answer)
+                .font(.system(size: 16))
+                .foregroundColor(charcoal)
+                .lineSpacing(6)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .background(Color.white)
+        .overlay(
+            Rectangle().frame(height: 1).foregroundColor(gray100),
+            alignment: .bottom
+        )
     }
 
     private func handleSwipe(direction: SwipeDirection) {
@@ -339,495 +382,401 @@ struct DiscoverScreen: View {
             softGray.ignoresSafeArea()
 
             if let profile = currentCard {
-                // Main scrollable content
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        // ==========================================
-                        // HEADER SECTION - Mode switcher, name, location (fades on scroll)
-                        // ==========================================
-                        VStack(spacing: 0) {
-                            // Mode switcher row + 3-dot (Report/Block)
-                            HStack {
-                                if supabaseManager.getDiscoveryMode() == .both {
-                                    modeSwitcher(style: .light)
-                                }
-                                Spacer()
-                                ReportBlockMenuButton(
-                                    userId: currentCard?.id,
-                                    displayName: currentCard?.displayName,
-                                    onBlockComplete: { loadProfiles() }
-                                )
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.top, 12)
-                            .padding(.bottom, 20)
-                            
-                            // Name and location section
-                            VStack(alignment: .leading, spacing: 4) {
-                                // Name and age
-                                Text("\(profile.displayName), \(profile.displayAge)")
-                                    .font(.system(size: 28, weight: .heavy))
-                                    .tracking(-0.5)
-                                    .foregroundColor(inkMain)
-                                
-                                // Location
-                                if let location = profile.location {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "mappin")
-                                            .font(.system(size: 14))
-                                        Text(location)
-                                    }
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(inkSub)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 24)
-                            .padding(.bottom, 24)
+                VStack(spacing: 0) {
+                    // Top nav bar - fixed in layout so card starts directly below it (header at top)
+                    HStack {
+                        if supabaseManager.getDiscoveryMode() == .both {
+                            modeSwitcher(style: .light)
                         }
-                        .padding(.top, 60) // Account for status bar
-                        .background(softGray)
-                        .opacity(headerOpacity)
-                        .background(
-                            GeometryReader { geo in
-                                let namedOffset = geo.frame(in: .named("discoverScroll")).minY
-                                Color.clear
-                                    .preference(
-                                        key: ScrollOffsetPreferenceKey.self,
-                                        value: namedOffset
-                                    )
-                                    .onAppear {
-                                        currentScrollOffset = namedOffset
-                                    }
-                                    .onChange(of: namedOffset) { oldValue, newValue in
-                                        // Directly update state when offset changes
-                                        currentScrollOffset = newValue
-                                        handleScrollOffset(newValue)
-                                    }
-                            }
+                        Spacer()
+                        ReportBlockMenuButton(
+                            userId: currentCard?.id,
+                            displayName: currentCard?.displayName,
+                            onBlockComplete: { loadProfiles() }
                         )
-                        
-                        // ==========================================
-                        // FIRST PHOTO - Below header
-                        // ==========================================
-                        if let firstPhotoUrl = profile.photos.first ?? profile.avatarUrl,
-                           let url = URL(string: firstPhotoUrl) {
-                            GeometryReader { geo in
-                                ZStack(alignment: .bottom) {
-                                    AsyncImage(url: url) { phase in
-                                        if let image = phase.image {
-                                            image
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                                .frame(width: geo.size.width, height: 500)
-                                        } else if phase.error != nil {
-                                            placeholderGradient
-                                        } else {
-                                            placeholderGradient
-                                                .overlay(ProgressView().tint(.white))
-                                        }
-                                    }
-                                    .frame(width: geo.size.width, height: 500)
-                                    .clipped()
-                                    
-                                    // Gradient overlay
-                                    LinearGradient(
-                                        stops: [
-                                            .init(color: .black.opacity(0.8), location: 0.0),
-                                            .init(color: .clear, location: 0.4)
-                                        ],
-                                        startPoint: .bottom,
-                                        endPoint: .top
-                                    )
-                                    .frame(width: geo.size.width, height: 500)
-                                    
-                                    // Like button - bottom right
-                                    VStack {
-                                        Spacer()
-                                        HStack {
-                                            Spacer()
-                                            Button {
-                                                handleSwipe(direction: .right)
-                                            } label: {
-                                                Image(systemName: "heart.fill")
-                                                    .font(.system(size: 24))
-                                                    .foregroundColor(.white)
-                                                    .frame(width: 56, height: 56)
-                                                    .background(Color.white.opacity(0.2))
-                                                    .clipShape(Circle())
-                                                    .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
-                                                    .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 12)
+                    .padding(.bottom, 16)
+                    .frame(maxWidth: .infinity)
+                    .background(softGray.ignoresSafeArea(edges: .top))
+                    .padding(.top, 60)
+
+                    // Scroll view - card only, no top spacer; header sits right below nav
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(spacing: 0) {
+                            Color.clear
+                                .frame(height: 1)
+                                .background(
+                                    GeometryReader { geo in
+                                        let namedOffset = geo.frame(in: .named("discoverScroll")).minY
+                                        Color.clear
+                                            .preference(key: ScrollOffsetPreferenceKey.self, value: namedOffset)
+                                            .onAppear { handleScrollOffset(namedOffset) }
+                                            .onChange(of: namedOffset) { _, newValue in
+                                                currentScrollOffset = newValue
+                                                handleScrollOffset(newValue)
                                             }
-                                            .padding(.trailing, 24)
-                                            .padding(.bottom, 24)
-                                        }
                                     }
-                                }
-                            }
-                            .frame(height: 500)
-                        } else {
-                            // Placeholder if no photo
-                            placeholderGradient
-                                .frame(height: 500)
-                        }
+                                )
 
-                        // ==========================================
-                        // ABOUT SECTION - After first photo
-                        // ==========================================
-                        if let bio = profile.bio, !bio.isEmpty {
-                            VStack(alignment: .leading, spacing: 16) {
-                                // About heading with accent line
-                                HStack(spacing: 12) {
-                                    // Accent line with gradient
-                                    LinearGradient(
-                                        colors: [coralPrimary, coralPrimary.opacity(0.6)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                    .frame(width: 4, height: 20)
-                                    .clipShape(RoundedRectangle(cornerRadius: 2))
-                                    
-                                    Text("ABOUT")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .tracking(1)
-                                        .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
-                                }
-                                
-                                // About text
-                                Text(bio)
-                                    .font(.system(size: 16))
-                                    .foregroundColor(inkMain)
-                                    .lineSpacing(6)
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 24)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(softGray)
-                        }
-
-                        // ==========================================
-                        // PROMPT SECTION 1 - First prompt answer (after About)
-                        // ==========================================
-                        if let promptAnswers = profile.promptAnswers, !promptAnswers.isEmpty, promptAnswers.count > 0 {
-                            VStack(spacing: 16) {
-                                // Prompt title - centered, uppercase
-                                Text(promptAnswers[0].prompt.uppercased())
-                                    .font(.system(size: 14, weight: .bold))
-                                    .tracking(1)
-                                    .foregroundColor(Color.gray)
-                                
-                                // Answer card - centered, white background
-                                Text(promptAnswers[0].answer)
-                                    .font(.system(size: 18))
-                                    .foregroundColor(inkMain)
-                                    .multilineTextAlignment(.center)
-                                    .padding(20)
-                                    .frame(maxWidth: .infinity)
-                                    .background(Color.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-                                    )
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 32)
-                            .frame(maxWidth: .infinity)
-                            .background(softGray)
-                        } else if let simplePleasure = profile.simplePleasure, !simplePleasure.isEmpty {
-                            // Fallback to old prompt for backward compatibility
-                            VStack(spacing: 16) {
-                                Text("MY SIMPLE PLEASURE")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .tracking(1)
-                                    .foregroundColor(Color.gray)
-                                
-                                Text(simplePleasure)
-                                    .font(.system(size: 18))
-                                    .foregroundColor(inkMain)
-                                    .multilineTextAlignment(.center)
-                                    .padding(20)
-                                    .frame(maxWidth: .infinity)
-                                    .background(Color.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-                                    )
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 32)
-                            .frame(maxWidth: .infinity)
-                            .background(softGray)
-                        }
-
-                        // ==========================================
-                        // SECOND PHOTO SECTION
-                        // ==========================================
-                        if profile.photos.count > 1 {
-                            GeometryReader { geo in
-                                ZStack {
-                                    AsyncImage(url: URL(string: profile.photos[1])) { phase in
-                                        if let image = phase.image {
-                                            image
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                                .frame(width: geo.size.width, height: 400)
-                                        } else {
-                                            placeholderGradient
-                                        }
-                                    }
-                                    .frame(width: geo.size.width, height: 400)
-                                    .clipped()
-
-                                    // Like button - bottom right
-                                    VStack {
-                                        Spacer()
-                                        HStack {
-                                            Spacer()
-                                            Button {
-                                                handleSwipe(direction: .right)
-                                            } label: {
-                                                Image(systemName: "heart.fill")
+                            // White card
+                            VStack(spacing: 0) {
+                            // ----- Header: name, age, verified, location, distance, tags -----
+                            VStack(alignment: .leading, spacing: 0) {
+                                HStack(alignment: .top, spacing: 8) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        HStack(spacing: 8) {
+                                            Text("\(profile.displayName), \(profile.displayAge)")
+                                                .font(.system(size: 24, weight: .bold))
+                                                .foregroundColor(charcoal)
+                                            if profile.verified {
+                                                Image(systemName: "checkmark.circle.fill")
                                                     .font(.system(size: 20))
-                                                    .foregroundColor(.white)
-                                                    .frame(width: 48, height: 48)
-                                                    .background(Color.white.opacity(0.2))
-                                                    .clipShape(Circle())
-                                                    .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
-                                                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                                                    .foregroundColor(forestGreen)
                                             }
-                                            .padding(.trailing, 24)
-                                            .padding(.bottom, 24)
                                         }
-                                    }
-
-                                    // Rig info card bottom-left (only if rigInfo exists)
-                                    if let rigInfo = profile.rigInfo, !rigInfo.isEmpty {
-                                        VStack {
-                                            Spacer()
-                                            HStack {
-                                                VStack(alignment: .leading, spacing: 4) {
-                                                    HStack(spacing: 8) {
-                                                        Image(systemName: "box.truck.fill")
-                                                            .font(.system(size: 14))
-                                                            .foregroundColor(coralPrimary)
-                                                        Text("The Rig")
-                                                            .font(.system(size: 14, weight: .bold))
-                                                            .foregroundColor(inkMain)
-                                                    }
-                                                    Text(rigInfo)
-                                                        .font(.system(size: 12))
-                                                        .foregroundColor(inkSub)
-                                                }
-                                                .padding(12)
-                                                .frame(maxWidth: 200, alignment: .leading)
-                                                .background(Color.white.opacity(0.95))
-                                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                                .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-
-                                                Spacer()
-                                            }
-                                            .padding(.leading, 24)
-                                            .padding(.bottom, 24)
-                                        }
-                                    }
-                                }
-                            }
-                            .frame(height: 400)
-                        } else if profile.photos.isEmpty && profile.avatarUrl == nil {
-                            // If no photos at all, show placeholder
-                            placeholderGradient
-                                .frame(height: 400)
-                        }
-
-                        // ==========================================
-                        // INTERESTS SECTION - After second photo (or first if only one photo)
-                        // ==========================================
-                        if !profile.interests.isEmpty {
-                            VStack(alignment: .leading, spacing: 16) {
-                                // Interests heading with accent line
-                                HStack(spacing: 12) {
-                                    // Accent line with gradient
-                                    LinearGradient(
-                                        colors: [coralPrimary, coralPrimary.opacity(0.6)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                    .frame(width: 4, height: 20)
-                                    .clipShape(RoundedRectangle(cornerRadius: 2))
-                                    
-                                    Text("INTERESTS")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .tracking(1)
-                                        .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
-                                }
-                                
-                                // Interest tags with emojis
-                                WrappingHStack(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
-                                    ForEach(profile.interests, id: \.self) { interest in
                                         HStack(spacing: 6) {
-                                            if let emoji = DriftUI.emoji(for: interest) {
-                                                Text(emoji)
-                                                    .font(.system(size: 14))
+                                            Image(systemName: "mappin")
+                                                .font(.system(size: 14))
+                                            if let loc = profile.location {
+                                                Text(loc)
+                                                    .font(.system(size: 15, weight: .medium))
                                             }
-                                            Text(interest)
-                                                .font(.system(size: 14, weight: .medium))
+                                            Text("•")
+                                            Image(systemName: "location")
+                                                .font(.system(size: 14))
+                                            Text("Nearby")
+                                                .font(.system(size: 15, weight: .medium))
                                         }
-                                        .foregroundColor(gray700)
+                                        .foregroundColor(charcoal.opacity(0.6))
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.bottom, 12)
+
+                                // Quick info tags
+                                HStack(spacing: 8) {
+                                    if let lifestyle = profile.lifestyle {
+                                        Text(lifestyle.displayName)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundColor(charcoal)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(desertSand)
+                                            .clipShape(Capsule())
+                                    }
+                                    if let pace = profile.travelPace {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "van.side")
+                                                .font(.system(size: 10))
+                                            Text(pace.displayName)
+                                                .font(.system(size: 12, weight: .medium))
+                                        }
+                                        .foregroundColor(charcoal)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 6)
-                                        .background(burntOrange.opacity(0.15))
+                                        .background(desertSand)
                                         .clipShape(Capsule())
                                     }
+                                    if let lastActive = lastActiveString(for: profile.lastActiveAt) {
+                                        Text(lastActive)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundColor(burntOrange)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(burntOrange.opacity(0.1))
+                                            .clipShape(Capsule())
+                                    }
                                 }
                             }
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 24)
+                            .padding(20)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(softGray)
-                        }
+                            .background(Color.white)
+                            .overlay(
+                                Rectangle()
+                                    .frame(height: 1)
+                                    .foregroundColor(gray100),
+                                alignment: .bottom
+                            )
 
-                        // ==========================================
-                        // PROMPT SECTION 2 - Second prompt answer (after Interests)
-                        // ==========================================
-                        if let promptAnswers = profile.promptAnswers, promptAnswers.count > 1 {
-                            VStack(spacing: 16) {
-                                Text(promptAnswers[1].prompt.uppercased())
-                                    .font(.system(size: 14, weight: .bold))
-                                    .tracking(1)
-                                    .foregroundColor(Color.gray)
-
-                                Text(promptAnswers[1].answer)
-                                    .font(.system(size: 18))
-                                    .foregroundColor(inkMain)
-                                    .multilineTextAlignment(.center)
-                                    .padding(20)
-                                    .frame(maxWidth: .infinity)
-                                    .background(Color.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-                                    )
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 32)
-                            .frame(maxWidth: .infinity)
-                            .background(softGray)
-                        } else if let datingLooksLike = profile.datingLooksLike, !datingLooksLike.isEmpty {
-                            // Fallback to old prompt for backward compatibility
-                            VStack(spacing: 16) {
-                                Text("DATING ME LOOKS LIKE")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .tracking(1)
-                                    .foregroundColor(Color.gray)
-
-                                Text(datingLooksLike)
-                                    .font(.system(size: 18))
-                                    .foregroundColor(inkMain)
-                                    .multilineTextAlignment(.center)
-                                    .padding(20)
-                                    .frame(maxWidth: .infinity)
-                                    .background(Color.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-                                    )
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 32)
-                            .frame(maxWidth: .infinity)
-                            .background(softGray)
-                        }
-
-                        // ==========================================
-                        // ADDITIONAL PHOTOS with prompt answers (photos 3+)
-                        // ==========================================
-                        // Only show if there are more than 2 photos
-                        if profile.photos.count > 2 {
-                            ForEach(Array(profile.photos.dropFirst(2).enumerated()), id: \.offset) { index, photoUrl in
-                            GeometryReader { geo in
-                                ZStack {
-                                    AsyncImage(url: URL(string: photoUrl)) { phase in
-                                        if let image = phase.image {
-                                            image
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                                .frame(width: geo.size.width, height: 400)
-                                        } else {
-                                            placeholderGradient
-                                        }
-                                    }
-                                    .frame(width: geo.size.width, height: 400)
-                                    .clipped()
-
-                                    // Like button - bottom right
-                                    VStack {
-                                        Spacer()
-                                        HStack {
-                                            Spacer()
-                                            Button {
-                                                handleSwipe(direction: .right)
-                                            } label: {
-                                                Image(systemName: "heart.fill")
-                                                    .font(.system(size: 20))
-                                                    .foregroundColor(.white)
-                                                    .frame(width: 48, height: 48)
-                                                    .background(Color.white.opacity(0.2))
-                                                    .clipShape(Circle())
-                                                    .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
-                                                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                            // ----- First image 3:4 (fixed frame so photo fills container, no gaps) -----
+                            ZStack(alignment: .bottomTrailing) {
+                                GeometryReader { geo in
+                                    let w = geo.size.width
+                                    let h = w * 4 / 3
+                                    if let firstUrl = profile.photos.first ?? profile.avatarUrl, let url = URL(string: firstUrl) {
+                                        AsyncImage(url: url) { phase in
+                                            if let image = phase.image {
+                                                image
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fill)
+                                                    .frame(width: w, height: h)
+                                                    .clipped()
+                                            } else {
+                                                placeholderGradient
+                                                    .frame(width: w, height: h)
                                             }
-                                            .padding(.trailing, 24)
-                                            .padding(.bottom, 24)
+                                        }
+                                        .frame(width: w, height: h)
+                                        .clipped()
+                                        .contentShape(Rectangle())
+                                        .onTapGesture { zoomedPhotoURL = firstUrl }
+                                    } else {
+                                        placeholderGradient
+                                            .frame(width: w, height: h)
+                                    }
+                                }
+                                .aspectRatio(3/4, contentMode: .fit)
+                                Button {
+                                    handleSwipe(direction: .right)
+                                } label: {
+                                    Image(systemName: "heart.fill")
+                                        .font(.system(size: 22))
+                                        .foregroundColor(.white)
+                                        .frame(width: 48, height: 48)
+                                        .background(Color.white.opacity(0.2))
+                                        .clipShape(Circle())
+                                        .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
+                                }
+                                .padding(20)
+                            }
+                            .aspectRatio(3/4, contentMode: .fit)
+
+                            // ----- Bio -----
+                            if let bio = profile.bio, !bio.isEmpty {
+                                Text(bio)
+                                    .font(.system(size: 16))
+                                    .foregroundColor(charcoal)
+                                    .lineSpacing(6)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(20)
+                                    .background(Color.white)
+                                    .overlay(
+                                        Rectangle()
+                                            .frame(height: 1)
+                                            .foregroundColor(gray100),
+                                        alignment: .bottom
+                                    )
+                            }
+
+                            // ----- Prompt 1 -----
+                            if let answers = profile.promptAnswers, !answers.isEmpty {
+                                datingPromptSection(question: answers[0].prompt, answer: answers[0].answer)
+                            } else if let simple = profile.simplePleasure, !simple.isEmpty {
+                                datingPromptSection(question: "My simple pleasure", answer: simple)
+                            }
+
+                            // ----- Second image 4:3 -----
+                            if profile.photos.count > 1 {
+                                let photo2URL = profile.photos[1]
+                                ZStack(alignment: .bottomTrailing) {
+                                    GeometryReader { geo in
+                                        let w = geo.size.width
+                                        let h = w * 3 / 4
+                                        if let url = URL(string: photo2URL) {
+                                            AsyncImage(url: url) { phase in
+                                                if let image = phase.image {
+                                                    image
+                                                        .resizable()
+                                                        .aspectRatio(contentMode: .fill)
+                                                        .frame(width: w, height: h)
+                                                        .clipped()
+                                                } else {
+                                                    placeholderGradient.frame(width: w, height: h)
+                                                }
+                                            }
+                                            .frame(width: w, height: h)
+                                            .clipped()
+                                            .contentShape(Rectangle())
+                                            .onTapGesture { zoomedPhotoURL = photo2URL }
+                                        }
+                                    }
+                                    .aspectRatio(4/3, contentMode: .fit)
+                                    Button {
+                                        handleSwipe(direction: .right)
+                                    } label: {
+                                        Image(systemName: "heart.fill")
+                                            .font(.system(size: 20))
+                                            .foregroundColor(.white)
+                                            .frame(width: 44, height: 44)
+                                            .background(Color.white.opacity(0.2))
+                                            .clipShape(Circle())
+                                            .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
+                                    }
+                                    .padding(16)
+                                }
+                            }
+
+                            // ----- Mutual interests -----
+                            let mutuals = datingMutualInterests(for: profile)
+                            if !mutuals.isEmpty {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "sparkles")
+                                            .font(.system(size: 18))
+                                            .foregroundColor(burntOrange)
+                                        Text("\(mutuals.count) Shared Interest\(mutuals.count == 1 ? "" : "s")")
+                                            .font(.system(size: 16, weight: .semibold))
+                                            .foregroundColor(charcoal)
+                                    }
+                                    WrappingHStack(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                                        ForEach(mutuals, id: \.self) { interest in
+                                            Text(interest)
+                                                .font(.system(size: 14, weight: .medium))
+                                                .foregroundColor(burntOrange)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(burntOrange.opacity(0.1))
+                                                .overlay(Capsule().stroke(burntOrange, lineWidth: 2))
+                                                .clipShape(Capsule())
                                         }
                                     }
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(20)
+                                .background(Color.white)
+                                .overlay(
+                                    Rectangle().frame(height: 1).foregroundColor(gray100),
+                                    alignment: .bottom
+                                )
                             }
-                            .frame(height: 400)
-                            
-                            // Show prompt answer after each additional photo (starting with 3rd prompt)
-                            if let promptAnswers = profile.promptAnswers, promptAnswers.count > index + 2 {
-                                VStack(spacing: 16) {
-                                    Text(promptAnswers[index + 2].prompt.uppercased())
-                                        .font(.system(size: 14, weight: .bold))
-                                        .tracking(1)
-                                        .foregroundColor(Color.gray)
 
-                                    Text(promptAnswers[index + 2].answer)
-                                        .font(.system(size: 18))
-                                        .foregroundColor(inkMain)
-                                        .multilineTextAlignment(.center)
-                                        .padding(20)
-                                        .frame(maxWidth: .infinity)
-                                        .background(Color.white)
-                                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                                        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 16)
-                                                .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-                                        )
+                            // ----- Prompt 2 -----
+                            if let answers = profile.promptAnswers, answers.count > 1 {
+                                datingPromptSection(question: answers[1].prompt, answer: answers[1].answer)
+                            } else if let datingLooks = profile.datingLooksLike, !datingLooks.isEmpty {
+                                datingPromptSection(question: "Dating me looks like", answer: datingLooks)
+                            }
+
+                            // ----- Third image square -----
+                            if profile.photos.count > 2 {
+                                let photo3URL = profile.photos[2]
+                                ZStack(alignment: .bottomTrailing) {
+                                    GeometryReader { geo in
+                                        let s = geo.size.width
+                                        if let url = URL(string: photo3URL) {
+                                            AsyncImage(url: url) { phase in
+                                                if let image = phase.image {
+                                                    image
+                                                        .resizable()
+                                                        .aspectRatio(contentMode: .fill)
+                                                        .frame(width: s, height: s)
+                                                        .clipped()
+                                                } else {
+                                                    placeholderGradient.frame(width: s, height: s)
+                                                }
+                                            }
+                                            .frame(width: s, height: s)
+                                            .clipped()
+                                            .contentShape(Rectangle())
+                                            .onTapGesture { zoomedPhotoURL = photo3URL }
+                                        }
+                                    }
+                                    .aspectRatio(1, contentMode: .fit)
+                                    Button {
+                                        handleSwipe(direction: .right)
+                                    } label: {
+                                        Image(systemName: "heart.fill")
+                                            .font(.system(size: 20))
+                                            .foregroundColor(.white)
+                                            .frame(width: 44, height: 44)
+                                            .background(Color.white.opacity(0.2))
+                                            .clipShape(Circle())
+                                            .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
+                                    }
+                                    .padding(16)
                                 }
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 32)
-                                .frame(maxWidth: .infinity)
-                                .background(softGray)
                             }
-                        }
-                        }
 
-                        // Bottom padding for tab bar
+                            // ----- Interests -----
+                            if !profile.interests.isEmpty {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Interests")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(charcoal.opacity(0.6))
+                                    WrappingHStack(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                                        ForEach(profile.interests, id: \.self) { tag in
+                                            Text(tag)
+                                                .font(.system(size: 14, weight: .medium))
+                                                .foregroundColor(charcoal)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(desertSand)
+                                                .clipShape(Capsule())
+                                        }
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(20)
+                                .background(Color.white)
+                                .overlay(
+                                    Rectangle().frame(height: 1).foregroundColor(gray100),
+                                    alignment: .bottom
+                                )
+                            }
+
+                            // ----- Travel plans -----
+                            if profile.nextDestination != nil || profile.travelDates != nil {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Travel Plans")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(charcoal.opacity(0.6))
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        if let dest = profile.nextDestination {
+                                            HStack(alignment: .top, spacing: 12) {
+                                                Image(systemName: "mappin")
+                                                    .font(.system(size: 18))
+                                                    .foregroundColor(burntOrange)
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text("Next Destination")
+                                                        .font(.system(size: 12))
+                                                        .foregroundColor(charcoal.opacity(0.6))
+                                                    Text(dest)
+                                                        .font(.system(size: 16, weight: .semibold))
+                                                        .foregroundColor(charcoal)
+                                                }
+                                                Spacer()
+                                            }
+                                        }
+                                        if let dates = profile.travelDates {
+                                            HStack(alignment: .top, spacing: 12) {
+                                                Image(systemName: "calendar")
+                                                    .font(.system(size: 18))
+                                                    .foregroundColor(burntOrange)
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text("Travel Dates")
+                                                        .font(.system(size: 12))
+                                                        .foregroundColor(charcoal.opacity(0.6))
+                                                    Text(dates)
+                                                        .font(.system(size: 16, weight: .semibold))
+                                                        .foregroundColor(charcoal)
+                                                }
+                                                Spacer()
+                                            }
+                                        }
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(20)
+                                .background(Color.white)
+                                .overlay(
+                                    Rectangle().frame(height: 1).foregroundColor(gray100),
+                                    alignment: .bottom
+                                )
+                            }
+
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 24))
+                        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
+                        .padding(.horizontal, 16)
+
                         Spacer().frame(height: LayoutConstants.tabBarBottomPadding)
+                        }
+                        .background(softGray)
                     }
-                }
-                .coordinateSpace(name: "discoverScroll")
-                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newOffset in
+                    .coordinateSpace(name: "discoverScroll")
+                    .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newOffset in
                     // Update scroll position
                     scrollPosition = newOffset
                     
@@ -910,35 +859,9 @@ struct DiscoverScreen: View {
                     lastScrollOffset = newOffset
                 }
 
-                // ==========================================
-                // FLOATING HEADER - Appears when scrolled (fades in when header fades out)
-                // ==========================================
-                VStack {
-                    HStack {
-                        // Show mode switcher only in "both" mode
-                        if supabaseManager.getDiscoveryMode() == .both {
-                            modeSwitcher(style: .light)
-                        }
-                        Spacer()
-                        ReportBlockMenuButton(
-                            userId: currentCard?.id,
-                            displayName: currentCard?.displayName,
-                            onBlockComplete: { loadProfiles() }
-                        )
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 60) // Account for status bar / safe area
-                    .padding(.bottom, 16)
-                    .background(softGray)
+                } // end VStack (nav + scroll)
 
-                    Spacer()
-                }
-                .opacity(1.0 - headerOpacity) // Inverse of header opacity - shows when header is hidden
-                .allowsHitTesting(headerOpacity < 0.5) // Only allow interaction when visible
-
-                // ==========================================
-                // PASS BUTTON - bottom left, slides with tab bar
-                // ==========================================
+                // Persistent Pass (X) button - bottom left, more pronounced
                 VStack {
                     Spacer()
                     HStack {
@@ -946,28 +869,36 @@ struct DiscoverScreen: View {
                             handleSwipe(direction: .left)
                         } label: {
                             Image(systemName: "xmark")
-                                .font(.system(size: 28, weight: .medium))
-                                .foregroundColor(Color.gray)
-                                .frame(width: 64, height: 64)
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundColor(charcoal)
+                                .frame(width: 58, height: 58)
                                 .background(Color.white)
                                 .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.gray.opacity(0.15), lineWidth: 1))
-                                .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 4)
+                                .overlay(Circle().stroke(charcoal.opacity(0.25), lineWidth: 1.5))
+                                .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 5)
                         }
-                        .padding(.leading, 24)
-                        .padding(.bottom, LayoutConstants.tabBarHeight + 16) // Position above tab bar
-                        .offset(y: tabBarVisibility.isVisible ? 0 : LayoutConstants.tabBarHeight + 20) // Higher when tab bar is hidden
+                        .padding(.leading, 20)
+                        .padding(.bottom, LayoutConstants.tabBarHeight + 12)
+                        .offset(y: tabBarVisibility.isVisible ? 0 : LayoutConstants.tabBarHeight + 16)
                         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: tabBarVisibility.isVisible)
-
                         Spacer()
                     }
                 }
+                .allowsHitTesting(true)
             } else {
                 // Empty state when no profiles - always show tab bar
                 emptyState
                     .onAppear {
                         tabBarVisibility.isVisible = true
                     }
+            }
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { zoomedPhotoURL != nil },
+            set: { if !$0 { zoomedPhotoURL = nil } }
+        )) {
+            if let urlString = zoomedPhotoURL, let url = URL(string: urlString) {
+                DiscoverZoomablePhotoView(imageURL: url, onDismiss: { zoomedPhotoURL = nil })
             }
         }
         .ignoresSafeArea(edges: .top)
@@ -1546,6 +1477,99 @@ struct DiscoverModeSwitcher: View {
         switch style {
         case .dark: return 4
         case .light: return 2
+        }
+    }
+}
+
+// MARK: - Discover Zoomable Photo (full-screen pinch-to-zoom)
+struct DiscoverZoomablePhotoView: View {
+    let imageURL: URL
+    let onDismiss: () -> Void
+
+    @State private var scale: CGFloat = 1.0
+    @State private var lastScale: CGFloat = 1.0
+    @State private var offset: CGSize = .zero
+    @State private var lastOffset: CGSize = .zero
+
+    private let minScale: CGFloat = 1.0
+    private let maxScale: CGFloat = 4.0
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+                .onTapGesture { onDismiss() }
+
+            AsyncImage(url: imageURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .scaleEffect(scale)
+                        .offset(offset)
+                        .gesture(
+                            MagnificationGesture()
+                                .onChanged { value in
+                                    scale = min(max(lastScale * value, minScale), maxScale)
+                                }
+                                .onEnded { _ in
+                                    lastScale = scale
+                                }
+                        )
+                        .simultaneousGesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    if scale > 1 {
+                                        offset = CGSize(
+                                            width: lastOffset.width + value.translation.width,
+                                            height: lastOffset.height + value.translation.height
+                                        )
+                                    }
+                                }
+                                .onEnded { _ in
+                                    lastOffset = offset
+                                }
+                        )
+                case .failure:
+                    Image(systemName: "photo")
+                        .font(.system(size: 60))
+                        .foregroundColor(.white)
+                default:
+                    ProgressView()
+                        .tint(.white)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        onDismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.white.opacity(0.9))
+                            .shadow(color: .black.opacity(0.4), radius: 4)
+                    }
+                    .padding(24)
+                }
+                Spacer()
+            }
+        }
+        .statusBar(hidden: true)
+        .onTapGesture(count: 2) {
+            withAnimation(.spring(response: 0.3)) {
+                if scale > 1 {
+                    scale = 1
+                    offset = .zero
+                    lastOffset = .zero
+                    lastScale = 1
+                } else {
+                    scale = 2
+                    lastScale = 1
+                }
+            }
         }
     }
 }
