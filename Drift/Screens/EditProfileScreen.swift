@@ -294,21 +294,31 @@ struct EditProfileScreen: View {
     }
     
     private func photoSlot(at index: Int, width: CGFloat, height: CGFloat) -> some View {
-        EditPhotoSlotWithStroke(
-            index: index,
-            photoUrl: index < photos.count ? photos[index] : nil,
-            previewImage: photoImages[index],
-            isUploading: isUploadingPhoto == index,
-            isMainPhoto: index == 0,
-            onSelect: {
-                selectedPhotoIndex = index
-            },
-            onRemove: {
-                removePhoto(at: index)
+        ZStack(alignment: .topLeading) {
+            EditPhotoSlotWithStroke(
+                index: index,
+                photoUrl: index < photos.count ? photos[index] : nil,
+                previewImage: photoImages[index],
+                isUploading: isUploadingPhoto == index,
+                isMainPhoto: index == 0,
+                showMainBadge: false,
+                onSelect: {
+                    selectedPhotoIndex = index
+                },
+                onRemove: {
+                    removePhoto(at: index)
+                }
+            )
+            .frame(width: width, height: height)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+
+            if index == 0 {
+                EditProfileMainBadgeView()
+                    .padding(.top, 18)
+                    .padding(.leading, 18)
             }
-        )
+        }
         .frame(width: width, height: height)
-        .clipped()
         .opacity(draggedPhoto == index ? 0.6 : 1.0)
         .scaleEffect(draggedPhoto == index ? 0.92 : 1.0)
         .animation(.spring(response: 0.2, dampingFraction: 0.8), value: draggedPhoto)
@@ -941,6 +951,20 @@ private struct EditProfilePhotoDropDelegate: DropDelegate {
     }
 }
 
+// MARK: - Main Photo Badge (drawn outside clipped area so it's never cut off)
+
+struct EditProfileMainBadgeView: View {
+    var body: some View {
+        Text("MAIN")
+            .font(.system(size: 8, weight: .bold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Color("BurntOrange"))
+            .clipShape(Capsule())
+    }
+}
+
 // MARK: - Edit Photo Slot With Stroke
 
 struct EditPhotoSlotWithStroke: View {
@@ -949,6 +973,7 @@ struct EditPhotoSlotWithStroke: View {
     let previewImage: Image?
     let isUploading: Bool
     let isMainPhoto: Bool
+    var showMainBadge: Bool = true
     let onSelect: () -> Void
     let onRemove: () -> Void
 
@@ -956,17 +981,19 @@ struct EditPhotoSlotWithStroke: View {
     private let burntOrange = Color("BurntOrange")
     private let softGray = Color("SoftGray")
 
+    private static let cornerRadius: CGFloat = 16
+
     var body: some View {
         ZStack {
             if isUploading {
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: Self.cornerRadius)
                     .fill(softGray)
                     .overlay(
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: burntOrange))
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: Self.cornerRadius)
                             .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                     )
             } else if let previewImage = previewImage {
@@ -974,10 +1001,9 @@ struct EditPhotoSlotWithStroke: View {
                     .resizable()
                     .scaledToFill()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: Self.cornerRadius)
                             .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                     )
                     .overlay(photoOverlay)
@@ -989,33 +1015,32 @@ struct EditPhotoSlotWithStroke: View {
                             .resizable()
                             .scaledToFill()
                     case .failure, .empty:
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: Self.cornerRadius)
                             .fill(softGray)
                             .overlay(
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: charcoalColor.opacity(0.4)))
                             )
                     @unknown default:
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: Self.cornerRadius)
                             .fill(softGray)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: Self.cornerRadius)
                         .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                 )
                 .overlay(photoOverlay)
             } else {
                 Button(action: onSelect) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: Self.cornerRadius)
                             .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [6]))
                             .foregroundColor(Color.gray.opacity(0.3))
                             .background(
-                                RoundedRectangle(cornerRadius: 16)
+                                RoundedRectangle(cornerRadius: Self.cornerRadius)
                                     .fill(softGray)
                             )
 
@@ -1041,28 +1066,30 @@ struct EditPhotoSlotWithStroke: View {
                 .buttonStyle(PlainButtonStyle())
             }
         }
+        .overlay(alignment: .topLeading) {
+            if isMainPhoto, showMainBadge {
+                mainBadge
+            }
+        }
+    }
+
+    /// Inset so the badge sits fully inside the rounded corner (radius 16).
+    private static let mainBadgeInset: CGFloat = cornerRadius + 14
+
+    private var mainBadge: some View {
+        Text("MAIN")
+            .font(.system(size: 8, weight: .bold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(burntOrange)
+            .clipShape(Capsule())
+            .padding(.top, Self.mainBadgeInset)
+            .padding(.leading, Self.mainBadgeInset)
     }
 
     private var photoOverlay: some View {
         ZStack(alignment: .topTrailing) {
-            if isMainPhoto {
-                VStack {
-                    HStack {
-                        Text("MAIN")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(burntOrange)
-                            .clipShape(Capsule())
-                            .padding(6)
-
-                        Spacer()
-                    }
-                    Spacer()
-                }
-            }
-
             Button(action: onRemove) {
                 Image(systemName: "xmark")
                     .font(.system(size: 10, weight: .bold))

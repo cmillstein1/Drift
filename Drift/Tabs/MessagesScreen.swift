@@ -31,6 +31,67 @@ extension MessageMode {
     }
 }
 
+// MARK: - Messages Empty State (no messages / only hidden — full-bleed like dating Discover empty)
+
+struct MessagesEmptyStateView: View {
+    let mode: MessageMode
+    let onFindFriends: () -> Void
+
+    private let charcoalColor = Color("Charcoal")
+    private let burntOrange = Color("BurntOrange")
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 24) {
+                Image("Message_Empty_State")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: 280, maxHeight: 280)
+
+                VStack(spacing: 10) {
+                    Text("No messages right now")
+                        //.font(.system(size: 24, weight: .bold))
+                        .font(.campfire(.regular, size: 24))
+                        .foregroundColor(charcoalColor)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+
+                    Text(mode == .dating
+                         ? "Matches are more intentional on Drift. Discover someone new to get the conversation started."
+                         : "Start a conversation with a friend, or discover other travelers nearby.")
+                        //.font(.system(size: 16))
+                        .font(.campfire(.regular, size: 16))
+                        .foregroundColor(charcoalColor.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+                        .padding(.horizontal, 32)
+
+                    Button(action: onFindFriends) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "person.2.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Find friends")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(burntOrange)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .padding(.horizontal, 32)
+                    .padding(.top, 8)
+                }
+            }
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
 struct MessagesScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var messagingManager = MessagingManager.shared
@@ -273,23 +334,26 @@ struct MessagesScreen: View {
                         .padding(.bottom, 20)
                     }
                     
-                    HStack(spacing: 12) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 18))
-                            .foregroundColor(charcoalColor.opacity(0.4))
+                    // Search bar — hidden in empty state to match dating Discover empty layout
+                    if !visibleConversations.isEmpty {
+                        HStack(spacing: 12) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 18))
+                                .foregroundColor(charcoalColor.opacity(0.4))
 
-                        TextField("Search messages", text: $searchText)
-                            .font(.system(size: 16))
-                            .foregroundColor(charcoalColor)
+                            TextField("Search messages", text: $searchText)
+                                .font(.system(size: 16))
+                                .foregroundColor(charcoalColor)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.white)
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 16)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.white)
-                    )
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
 
                     // "X people like you" banner (only show in dating mode)
                     if selectedMode == .dating && !friendsManager.peopleLikedMe.isEmpty {
@@ -345,8 +409,8 @@ struct MessagesScreen: View {
                         .padding(.bottom, 24)
                     }
 
-                    // Friends without conversation (only in friends mode)
-                    if selectedMode == .friends && !friendsWithoutConversation.isEmpty {
+                    // Friends without conversation — only show when there are visible messages (otherwise we show empty state)
+                    if !visibleConversations.isEmpty && selectedMode == .friends && !friendsWithoutConversation.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Friends")
                                 .font(.system(size: 14, weight: .semibold))
@@ -417,7 +481,22 @@ struct MessagesScreen: View {
                         .padding(.bottom, 24)
                     }
 
-                    // Hidden section (collapsible dropdown) — same 16pt corner radius as conversation cards
+                    // Empty state: no visible messages (or only hidden) — full-bleed like dating Discover empty
+                    if visibleConversations.isEmpty {
+                        MessagesEmptyStateView(
+                            mode: selectedMode,
+                            onFindFriends: {
+                                tabBarVisibility.switchToDiscoverInFriendsMode = true
+                                if !supabaseManager.isFriendsOnly() {
+                                    tabBarVisibility.discoverStartInFriendsMode = true
+                                }
+                            }
+                        )
+                        .frame(minHeight: UIScreen.main.bounds.height - 320)
+                        .padding(.bottom, hiddenConversations.isEmpty ? 100 : 16)
+                    }
+
+                    // Hidden section (collapsible dropdown) — below empty state when no visible messages
                     if !hiddenConversations.isEmpty {
                         VStack(alignment: .leading, spacing: 0) {
                             Button {
@@ -480,7 +559,7 @@ struct MessagesScreen: View {
                                 .scrollContentBackground(.hidden)
                                 .scrollDisabled(true)
                                 .frame(minHeight: CGFloat(hiddenConversations.count) * 96)
-                                .padding(.bottom, 16)
+                                .padding(.bottom, 24)
                             }
                         }
                         .background(
@@ -489,31 +568,12 @@ struct MessagesScreen: View {
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 24)
+                        .padding(.bottom, LayoutConstants.tabBarBottomPadding + 24)
                     }
 
-                    // Empty State
-                    if visibleConversations.isEmpty && hiddenConversations.isEmpty && friendsWithoutConversation.isEmpty && (selectedMode == .dating || pendingFriendRequests.isEmpty) {
-                        VStack(spacing: 8) {
-                            Text("No \(selectedMode == .dating ? "dating" : "friends") messages yet")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(charcoalColor)
-
-                            Text(selectedMode == .dating
-                                 ? "Match with someone to start a conversation"
-                                 : "Connect with friends to start chatting")
-                                .font(.system(size: 14))
-                                .foregroundColor(charcoalColor.opacity(0.6))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(24)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.white)
-                        )
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 100)
-                    }
+                    // Bottom spacer so last content (hidden list, etc.) scrolls clear of the tab bar
+                    Color.clear
+                        .frame(height: LayoutConstants.tabBarBottomPadding + 32)
                 }
             }
             .refreshable {

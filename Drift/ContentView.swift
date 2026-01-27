@@ -9,10 +9,14 @@ import SwiftUI
 import DriftBackend
 import Combine
 
-// Observable object for tab bar visibility
+// Observable object for tab bar visibility and cross-tab navigation
 class TabBarVisibility: ObservableObject {
     static let shared = TabBarVisibility()
     @Published var isVisible: Bool = true
+    /// When true, Messages "Find friends" requested switch to Discover tab.
+    @Published var switchToDiscoverInFriendsMode: Bool = false
+    /// When true, Discover should open in Friends mode (cleared after consumed).
+    @Published var discoverStartInFriendsMode: Bool = false
 }
 
 enum AppTab: String, CaseIterable {
@@ -76,6 +80,12 @@ struct ContentView: View {
                 .allowsHitTesting(tabBarVisibility.isVisible)
         }
         .ignoresSafeArea(.keyboard)
+        .onChange(of: tabBarVisibility.switchToDiscoverInFriendsMode) { _, requested in
+            if requested {
+                selectedTab = .discover
+                tabBarVisibility.switchToDiscoverInFriendsMode = false
+            }
+        }
     }
 
     private var floatingTabBar: some View {

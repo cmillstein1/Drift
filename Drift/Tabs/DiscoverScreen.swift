@@ -301,6 +301,11 @@ struct DiscoverScreen: View {
             }
         }
         .onAppear {
+            // When Messages "Find friends" requested Discover in friends mode, switch to it
+            if tabBarVisibility.discoverStartInFriendsMode {
+                mode = .friends
+                tabBarVisibility.discoverStartInFriendsMode = false
+            }
             let discoveryMode = supabaseManager.getDiscoveryMode()
             if discoveryMode == .dating || (discoveryMode == .both && mode == .dating) {
                 loadProfiles()
