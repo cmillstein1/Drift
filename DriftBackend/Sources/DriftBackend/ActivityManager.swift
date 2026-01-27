@@ -218,22 +218,32 @@ public class ActivityManager: ObservableObject {
         return activity
     }
 
-    /// Updates an activity.
+    /// Updates an activity. Only the host can update. Pass optional parameters for fields to change.
     ///
     /// - Parameters:
     ///   - activityId: The activity's ID.
     ///   - title: Optional new title.
     ///   - description: Optional new description.
+    ///   - category: Optional new category.
     ///   - location: Optional new location.
+    ///   - exactLocation: Optional new exact location.
     ///   - startsAt: Optional new start time.
+    ///   - durationMinutes: Optional new duration in minutes.
     ///   - maxAttendees: Optional new max attendees.
+    ///   - imageUrl: Optional new image URL.
+    ///   - isPrivate: Optional new privacy (only host can share when true).
     public func updateActivity(
         _ activityId: UUID,
         title: String? = nil,
         description: String? = nil,
+        category: ActivityCategory? = nil,
         location: String? = nil,
+        exactLocation: String? = nil,
         startsAt: Date? = nil,
-        maxAttendees: Int? = nil
+        durationMinutes: Int? = nil,
+        maxAttendees: Int? = nil,
+        imageUrl: String? = nil,
+        isPrivate: Bool? = nil
     ) async throws {
         var updates: [String: AnyEncodable] = [
             "updated_at": AnyEncodable(ISO8601DateFormatter().string(from: Date()))
@@ -241,9 +251,14 @@ public class ActivityManager: ObservableObject {
 
         if let title = title { updates["title"] = AnyEncodable(title) }
         if let description = description { updates["description"] = AnyEncodable(description) }
+        if let category = category { updates["category"] = AnyEncodable(category.rawValue) }
         if let location = location { updates["location"] = AnyEncodable(location) }
+        if let exactLocation = exactLocation { updates["exact_location"] = AnyEncodable(exactLocation) }
         if let startsAt = startsAt { updates["starts_at"] = AnyEncodable(ISO8601DateFormatter().string(from: startsAt)) }
+        if let durationMinutes = durationMinutes { updates["duration_minutes"] = AnyEncodable(durationMinutes) }
         if let maxAttendees = maxAttendees { updates["max_attendees"] = AnyEncodable(maxAttendees) }
+        if let imageUrl = imageUrl { updates["image_url"] = AnyEncodable(imageUrl) }
+        if let isPrivate = isPrivate { updates["is_private"] = AnyEncodable(isPrivate) }
 
         try await client
             .from("activities")

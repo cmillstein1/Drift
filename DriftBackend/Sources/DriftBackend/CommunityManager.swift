@@ -293,6 +293,57 @@ public class CommunityManager: ObservableObject {
         return post
     }
 
+    /// Updates an event post. Only the author can update.
+    ///
+    /// - Parameters:
+    ///   - postId: The post's UUID.
+    ///   - title: Optional new title.
+    ///   - content: Optional new content/description.
+    ///   - datetime: Optional new event datetime.
+    ///   - location: Optional new location.
+    ///   - exactLocation: Optional new exact location.
+    ///   - latitude: Optional new latitude.
+    ///   - longitude: Optional new longitude.
+    ///   - maxAttendees: Optional new max attendees.
+    ///   - privacy: Optional new privacy.
+    ///   - isDatingEvent: Optional new dating-event flag.
+    public func updateEventPost(
+        _ postId: UUID,
+        title: String? = nil,
+        content: String? = nil,
+        datetime: Date? = nil,
+        location: String? = nil,
+        exactLocation: String? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        maxAttendees: Int? = nil,
+        privacy: EventPrivacy? = nil,
+        isDatingEvent: Bool? = nil
+    ) async throws {
+        var updates: [String: AnyEncodable] = [
+            "updated_at": AnyEncodable(ISO8601DateFormatter().string(from: Date()))
+        ]
+        if let title = title { updates["title"] = AnyEncodable(title) }
+        if let content = content { updates["content"] = AnyEncodable(content) }
+        if let datetime = datetime { updates["event_datetime"] = AnyEncodable(ISO8601DateFormatter().string(from: datetime)) }
+        if let location = location { updates["event_location"] = AnyEncodable(location) }
+        if let exactLocation = exactLocation { updates["event_exact_location"] = AnyEncodable(exactLocation) }
+        if let latitude = latitude { updates["event_latitude"] = AnyEncodable(latitude) }
+        if let longitude = longitude { updates["event_longitude"] = AnyEncodable(longitude) }
+        if let maxAttendees = maxAttendees { updates["max_attendees"] = AnyEncodable(maxAttendees) }
+        if let privacy = privacy { updates["event_privacy"] = AnyEncodable(privacy.rawValue) }
+        if let isDatingEvent = isDatingEvent { updates["is_dating_event"] = AnyEncodable(isDatingEvent) }
+
+        try await client
+            .from("community_posts")
+            .update(updates)
+            .eq("id", value: postId)
+            .eq("type", value: CommunityPostType.event.rawValue)
+            .execute()
+
+        try await fetchPosts()
+    }
+
     /// Creates a new help post.
     ///
     /// - Parameters:

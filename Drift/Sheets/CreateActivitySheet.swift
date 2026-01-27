@@ -6,9 +6,12 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct CreateActivitySheet: View {
     @Environment(\.dismiss) var dismiss
+    /// When non-nil, the sheet is in edit mode: pre-filled and shows "Update" instead of "Create Activity".
+    var existingActivity: Activity? = nil
     let onSubmit: (ActivityData) -> Void
     
     @State private var title: String = ""
@@ -26,6 +29,7 @@ struct CreateActivitySheet: View {
     @State private var showPrivacyDetails: Bool = false
     @State private var showLocationPicker: Bool = false
     
+    private var isEditMode: Bool { existingActivity != nil }
     private let categories = ["Outdoor", "Work", "Social", "Food & Drink", "Creative", "Wellness"]
     
     private let warmWhite = Color(red: 0.98, green: 0.98, blue: 0.96)
@@ -53,8 +57,9 @@ struct CreateActivitySheet: View {
                     sheetFooter
                 }
             }
-            .navigationTitle("Create Activity")
+            .navigationTitle(isEditMode ? "Edit Activity" : "Create Activity")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear { prefillIfEditing() }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Cancel") {
@@ -281,7 +286,7 @@ struct CreateActivitySheet: View {
             Divider()
             
             Button(action: handleSubmit) {
-                Text("Create Activity")
+                Text(isEditMode ? "Update" : "Create Activity")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
@@ -423,6 +428,19 @@ struct CreateActivitySheet: View {
         .padding(.horizontal, 24)
     }
     
+    private func prefillIfEditing() {
+        guard let a = existingActivity else { return }
+        title = a.title
+        description = a.description ?? ""
+        category = a.category.displayName
+        location = a.location
+        let cal = Calendar.current
+        date = cal.startOfDay(for: a.startsAt)
+        time = a.startsAt
+        maxAttendees = String(a.maxAttendees)
+        privacy = a.isPrivate ? .private : .public
+    }
+
     private func handleSubmit() {
         if canSubmit {
             let dateFormatter = DateFormatter()
@@ -431,6 +449,7 @@ struct CreateActivitySheet: View {
             timeFormatter.dateFormat = "HH:mm"
 
             let activityData = ActivityData(
+                activityId: existingActivity?.id,
                 title: title,
                 description: description,
                 category: category,
@@ -458,6 +477,8 @@ enum PrivacySetting {
 }
 
 struct ActivityData {
+    /// When non-nil, the submit is an update for this activity; otherwise create.
+    var activityId: UUID? = nil
     let title: String
     let description: String
     let category: String

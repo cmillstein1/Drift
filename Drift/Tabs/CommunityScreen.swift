@@ -528,6 +528,8 @@ struct CommunityPostCard: View {
 
 struct CreateCommunityPostSheet: View {
     @Environment(\.dismiss) private var dismiss
+    /// When non-nil, the sheet is in edit mode for this event post: pre-filled and shows "Update" instead of "Post".
+    var existingPost: CommunityPost? = nil
     @StateObject private var communityManager = CommunityManager.shared
     @StateObject private var profileManager = ProfileManager.shared
     @State private var selectedType: CommunityPostType? = .event
@@ -545,6 +547,8 @@ struct CreateCommunityPostSheet: View {
     @State private var eventDate: Date = Date()
     @State private var eventTime: Date = Date()
     @State private var isSubmitting: Bool = false
+
+    private var isEditMode: Bool { existingPost != nil && existingPost?.type == .event }
 
     /// Only show "Dating activity" option when user has dating (or both) enabled; friends-only users do not see it.
     private var hasDatingEnabled: Bool {
@@ -574,7 +578,7 @@ struct CreateCommunityPostSheet: View {
             // Header
             VStack(spacing: 0) {
                 HStack {
-                    Text("Create Post")
+                    Text(isEditMode ? "Edit Event" : "Create Post")
                         .font(.system(size: 24, weight: .bold))
                         .foregroundColor(charcoal)
 
@@ -595,27 +599,30 @@ struct CreateCommunityPostSheet: View {
                 .padding(.top, 24)
                 .padding(.bottom, 24)
             }
+            .onAppear { prefillIfEditing() }
 
             // Scrollable Content
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    // Post Type Selection
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Post Type *")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(charcoal)
+                    // Post Type Selection - hide when editing
+                    if !isEditMode {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Post Type *")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(charcoal)
 
-                        HStack(spacing: 12) {
-                            PostTypeCard(
-                                type: .event,
-                                isSelected: selectedType == .event,
-                                onTap: { selectedType = .event }
-                            )
-                            PostTypeCard(
-                                type: .help,
-                                isSelected: selectedType == .help,
-                                onTap: { selectedType = .help }
-                            )
+                            HStack(spacing: 12) {
+                                PostTypeCard(
+                                    type: .event,
+                                    isSelected: selectedType == .event,
+                                    onTap: { selectedType = .event }
+                                )
+                                PostTypeCard(
+                                    type: .help,
+                                    isSelected: selectedType == .help,
+                                    onTap: { selectedType = .help }
+                                )
+                            }
                         }
                     }
 
@@ -683,7 +690,7 @@ struct CreateCommunityPostSheet: View {
                                 .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                 .scaleEffect(0.8)
                         }
-                        Text(isSubmitting ? "Posting..." : "Post")
+                        Text(isSubmitting ? (isEditMode ? "Updating..." : "Posting...") : (isEditMode ? "Update" : "Post"))
                             .font(.system(size: 16, weight: .semibold))
                     }
                     .foregroundColor(isFormValid && !isSubmitting ? .white : Color.gray.opacity(0.5))
@@ -715,6 +722,24 @@ struct CreateCommunityPostSheet: View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
+    private func prefillIfEditing() {
+        guard let p = existingPost, p.type == .event else { return }
+        selectedType = .event
+        title = p.title
+        details = p.content
+        eventPrivacy = p.eventPrivacy ?? .public
+        isDatingActivity = p.isDatingEvent ?? false
+        location = p.eventLocation ?? ""
+        eventLatitude = p.eventLatitude
+        eventLongitude = p.eventLongitude
+        maxAttendees = p.maxAttendees.map { String($0) } ?? ""
+        if let dt = p.eventDatetime {
+            let cal = Calendar.current
+            eventDate = cal.startOfDay(for: dt)
+            eventTime = dt
+        }
+    }
+
     private func submitPost() {
         guard let type = selectedType, isFormValid else { return }
         isSubmitting = true
@@ -734,18 +759,33 @@ struct CreateCommunityPostSheet: View {
                     combined.minute = timeComponents.minute
                     let eventDatetime = calendar.date(from: combined) ?? eventDate
 
-                    _ = try await communityManager.createEventPost(
-                        title: title.trimmingCharacters(in: .whitespaces),
-                        content: details.trimmingCharacters(in: .whitespaces),
-                        datetime: eventDatetime,
-                        location: location.isEmpty ? nil : location,
-                        latitude: eventLatitude,
-                        longitude: eventLongitude,
-                        maxAttendees: Int(maxAttendees),
-                        privacy: eventPrivacy,
-                        images: [],
-                        isDatingEvent: isDatingActivity
-                    )
+                    if let postId = existingPost?.id, existingPost?.type == .event {
+                        try await communityManager.updateEventPost(
+                            postId,
+                            title: title.trimmingCharacters(in: .whitespaces),
+                            content: details.trimmingCharacters(in: .whitespaces),
+                            datetime: eventDatetime,
+                            location: location.isEmpty ? nil : location,
+                            latitude: eventLatitude,
+                            longitude: eventLongitude,
+                            maxAttendees: Int(maxAttendees),
+                            privacy: eventPrivacy,
+                            isDatingEvent: isDatingActivity
+                        )
+                    } else {
+                        _ = try await communityManager.createEventPost(
+                            title: title.trimmingCharacters(in: .whitespaces),
+                            content: details.trimmingCharacters(in: .whitespaces),
+                            datetime: eventDatetime,
+                            location: location.isEmpty ? nil : location,
+                            latitude: eventLatitude,
+                            longitude: eventLongitude,
+                            maxAttendees: Int(maxAttendees),
+                            privacy: eventPrivacy,
+                            images: [],
+                            isDatingEvent: isDatingActivity
+                        )
+                    }
                 } else {
                     _ = try await communityManager.createHelpPost(
                         title: title.trimmingCharacters(in: .whitespaces),
