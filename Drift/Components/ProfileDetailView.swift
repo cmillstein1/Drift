@@ -78,7 +78,7 @@ struct ProfileDetailView: View {
                             // Hero overlay content
                             HStack(alignment: .bottom, spacing: 16) {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("\(profile.displayName), \(profile.age ?? 0)")
+                                    Text("\(profile.displayName), \(profile.displayAge)")
                                         .font(.system(size: 36, weight: .heavy))
                                         .tracking(-0.5)
                                         .foregroundColor(.white)

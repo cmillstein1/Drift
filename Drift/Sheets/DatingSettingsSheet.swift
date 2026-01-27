@@ -259,6 +259,9 @@ struct DatingSettingsSheet: View {
         .onAppear {
             loadPreferences()
         }
+        .onDisappear {
+            savePreferences()
+        }
         .sheet(isPresented: $showInterestedInModal) {
             InterestedInSheet(
                 isPresented: $showInterestedInModal,
@@ -273,9 +276,41 @@ struct DatingSettingsSheet: View {
     }
     
     private func loadPreferences() {
-        // Load from profile if available
-        if let orientation = profileManager.currentProfile?.orientation {
+        guard let profile = profileManager.currentProfile else { return }
+        if let orientation = profile.orientation {
             interestedIn = InterestedIn(rawValue: orientation) ?? .women
+        }
+        if let min = profile.preferredMinAge {
+            minAge = Double(min)
+        }
+        if let max = profile.preferredMaxAge {
+            maxAge = Double(max)
+        }
+        if let dist = profile.preferredMaxDistanceMiles {
+            distance = Double(dist)
+        }
+    }
+
+    private func savePreferences() {
+        let profile = profileManager.currentProfile
+        let currentMin = profile?.preferredMinAge.map(Double.init) ?? 24
+        let currentMax = profile?.preferredMaxAge.map(Double.init) ?? 34
+        let currentDist = profile?.preferredMaxDistanceMiles.map(Double.init) ?? 36
+        let currentOrientation = profile?.orientation
+        let orientationChanged = interestedIn.rawValue != (currentOrientation ?? "")
+        let prefsChanged = Int(minAge) != Int(currentMin) || Int(maxAge) != Int(currentMax) || Int(distance) != Int(currentDist)
+        guard prefsChanged || orientationChanged else { return }
+        Task {
+            do {
+                try await profileManager.updateProfile(ProfileUpdateRequest(
+                    orientation: orientationChanged ? interestedIn.rawValue : nil,
+                    preferredMinAge: Int(minAge),
+                    preferredMaxAge: Int(maxAge),
+                    preferredMaxDistanceMiles: Int(distance)
+                ))
+            } catch {
+                print("Failed to save dating preferences: \(error)")
+            }
         }
     }
 }

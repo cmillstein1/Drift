@@ -131,8 +131,8 @@ struct FriendCard: View {
                     HStack(spacing: 6) {
                         Text(profile.displayName)
                             .font(.system(size: 18, weight: .bold))
-                        if let age = profile.age {
-                            Text(", \(age)")
+                        if profile.displayAge > 0 {
+                            Text(", \(profile.displayAge)")
                                 .font(.system(size: 18, weight: .bold))
                         }
                         if profile.verified {

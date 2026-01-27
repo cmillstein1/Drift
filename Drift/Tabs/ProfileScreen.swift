@@ -245,8 +245,8 @@ struct ProfileScreen: View {
                                     .font(.system(size: 28, weight: .bold))
                                     .foregroundColor(.white)
                                 
-                                if let age = profile?.age {
-                                    Text(", \(age)")
+                                if let p = profile, p.displayAge > 0 {
+                                    Text(", \(p.displayAge)")
                                         .font(.system(size: 28, weight: .bold))
                                         .foregroundColor(.white)
                                 }

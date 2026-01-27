@@ -220,8 +220,8 @@ struct LikeYouCard: View {
                             Text(profile.displayName)
                                 .font(.system(size: 16, weight: .bold))
 
-                            if let age = profile.age {
-                                Text(", \(age)")
+                            if profile.displayAge > 0 {
+                                Text(", \(profile.displayAge)")
                                     .font(.system(size: 16, weight: .semibold))
                             }
                         }

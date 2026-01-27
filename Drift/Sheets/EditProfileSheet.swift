@@ -931,7 +931,15 @@ struct EditProfileSheet: View {
                 if let orientation = profile.orientation {
                     interestedIn = InterestedIn(rawValue: orientation) ?? .everyone
                 }
-                // Note: maxDistance, minAge, maxAge could be loaded from profile if stored
+                if let min = profile.preferredMinAge {
+                    minAge = Double(min)
+                }
+                if let max = profile.preferredMaxAge {
+                    maxAge = Double(max)
+                }
+                if let dist = profile.preferredMaxDistanceMiles {
+                    maxDistance = Double(dist)
+                }
             }
         }
     }
@@ -1027,6 +1035,10 @@ struct EditProfileSheet: View {
                     photos: photos.isEmpty ? nil : photos,
                     location: currentLocation.isEmpty ? nil : currentLocation,
                     travelPace: travelPace.toBackendType,
+                    orientation: interestedIn.rawValue,
+                    preferredMinAge: Int(minAge),
+                    preferredMaxAge: Int(maxAge),
+                    preferredMaxDistanceMiles: Int(maxDistance),
                     simplePleasure: simplePleasure.isEmpty ? nil : simplePleasure,
                     rigInfo: rigInfo.isEmpty ? nil : rigInfo,
                     datingLooksLike: datingLooksLike.isEmpty ? nil : datingLooksLike,
