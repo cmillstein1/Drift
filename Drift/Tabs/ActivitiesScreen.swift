@@ -228,7 +228,8 @@ struct ActivitiesScreen: View {
                                 location: activityData.location,
                                 startsAt: startsAt,
                                 maxAttendees: activityData.maxAttendees,
-                                imageUrl: nil
+                                imageUrl: nil,
+                                isPrivate: activityData.privacy == .private
                             )
                         } catch {
                             print("Failed to create activity: \(error)")

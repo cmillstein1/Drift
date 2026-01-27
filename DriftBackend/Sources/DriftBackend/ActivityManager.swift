@@ -163,6 +163,7 @@ public class ActivityManager: ObservableObject {
     ///   - durationMinutes: Optional duration in minutes.
     ///   - maxAttendees: Maximum number of attendees.
     ///   - imageUrl: Optional image URL.
+    ///   - isPrivate: When true, only the host can share the activity.
     /// - Returns: The created activity.
     @discardableResult
     public func createActivity(
@@ -174,12 +175,20 @@ public class ActivityManager: ObservableObject {
         startsAt: Date,
         durationMinutes: Int? = nil,
         maxAttendees: Int = 10,
-        imageUrl: String? = nil
+        imageUrl: String? = nil,
+        isPrivate: Bool = false
     ) async throws -> Activity {
         guard let userId = SupabaseManager.shared.currentUser?.id else {
             throw ActivityError.notAuthenticated
         }
 
+        var headerImageUrl = imageUrl
+        if headerImageUrl == nil, !title.trimmingCharacters(in: .whitespaces).isEmpty {
+            let key = _BackendConfiguration.shared.unsplashAccessKey
+            if let url = await UnsplashManager.fetchFirstImageURL(query: title, accessKey: key) {
+                headerImageUrl = url
+            }
+        }
         let request = ActivityCreateRequest(
             hostId: userId,
             title: title,
@@ -187,10 +196,11 @@ public class ActivityManager: ObservableObject {
             category: category,
             location: location,
             exactLocation: exactLocation,
-            imageUrl: imageUrl,
+            imageUrl: headerImageUrl,
             startsAt: startsAt,
             durationMinutes: durationMinutes,
-            maxAttendees: maxAttendees
+            maxAttendees: maxAttendees,
+            isPrivate: isPrivate
         )
 
         let activity: Activity = try await client

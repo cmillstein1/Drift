@@ -242,12 +242,19 @@ public class CommunityManager: ObservableObject {
             throw CommunityError.notAuthenticated
         }
 
+        var headerImages = images
+        if headerImages.isEmpty, !title.trimmingCharacters(in: .whitespaces).isEmpty {
+            let key = _BackendConfiguration.shared.unsplashAccessKey
+            if let url = await UnsplashManager.fetchFirstImageURL(query: title, accessKey: key) {
+                headerImages = [url]
+            }
+        }
         let request = CommunityPostCreateRequest(
             authorId: userId,
             type: .event,
             title: title,
             content: content,
-            images: images,
+            images: headerImages,
             eventDatetime: datetime,
             eventLocation: location,
             eventExactLocation: exactLocation,

@@ -20,7 +20,8 @@ func initializeDriftBackend() {
         revenueCatEntitlementID: "Drift Pro",
         revenueCatMonthlyProductID: "monthly",
         revenueCatYearlyProductID: "DriftYearly",
-        verifyFaceIDAPIKey: VerifyFaceIDConfig.apiKey
+        verifyFaceIDAPIKey: VerifyFaceIDConfig.apiKey,
+        unsplashAccessKey: ProcessInfo.processInfo.environment["UNSPLASH_ACCESS_KEY"] ?? UnsplashConfig.accessKey
     )
     configureDriftBackend(config)
 }
@@ -30,21 +31,6 @@ enum VerifyFaceIDConfig {
     static let baseURL = "https://api.verifyfaceid.com"
 }
 
-// Note: SupabaseConfig and CampflareConfig are defined in gitignored files:
-// - Drift/Network/SupabaseConfig.swift (gitignored)
-// - Drift/Network/CampflareConfig.swift (gitignored)
-//
-// These files should have the following structure:
-//
-// struct SupabaseConfig {
-//     static let supabaseURL = "https://your-project.supabase.co"
-//     static let anonKey = "your-anon-key"
-// }
-//
-// struct CampflareConfig {
-//     static let apiKey = "your-api-key"
-// }
-//
-// struct VerifyFaceIDConfig {
-//     static let apiKey = "your-api-key"
-// }
+// Note: SupabaseConfig and CampflareConfig are defined in gitignored files.
+// Unsplash: set UNSPLASH_ACCESS_KEY in your Xcode scheme env, or copy
+// UnsplashConfig.example.swift to UnsplashConfig.swift (gitignored) and set accessKey.

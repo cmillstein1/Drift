@@ -73,6 +73,9 @@ public struct Activity: Codable, Identifiable, Sendable {
     public var updatedAt: Date?
     public var cancelledAt: Date?
 
+    /// When true, only the host can share this activity. When false, anyone can share.
+    public var isPrivate: Bool
+
     // Joined data
     public var host: UserProfile?
     public var attendees: [ActivityAttendee]?
@@ -91,6 +94,7 @@ public struct Activity: Codable, Identifiable, Sendable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case cancelledAt = "cancelled_at"
+        case isPrivate = "is_private"
         case host, attendees
     }
 
@@ -111,6 +115,7 @@ public struct Activity: Codable, Identifiable, Sendable {
         createdAt: Date? = nil,
         updatedAt: Date? = nil,
         cancelledAt: Date? = nil,
+        isPrivate: Bool = false,
         host: UserProfile? = nil,
         attendees: [ActivityAttendee]? = nil
     ) {
@@ -130,6 +135,7 @@ public struct Activity: Codable, Identifiable, Sendable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.cancelledAt = cancelledAt
+        self.isPrivate = isPrivate
         self.host = host
         self.attendees = attendees
     }
@@ -153,6 +159,7 @@ public struct Activity: Codable, Identifiable, Sendable {
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         cancelledAt = try container.decodeIfPresent(Date.self, forKey: .cancelledAt)
+        isPrivate = try container.decodeIfPresent(Bool.self, forKey: .isPrivate) ?? false
         host = try container.decodeIfPresent(UserProfile.self, forKey: .host)
         attendees = try container.decodeIfPresent([ActivityAttendee].self, forKey: .attendees)
     }
@@ -266,6 +273,7 @@ public struct ActivityCreateRequest: Encodable {
     public let endsAt: Date?
     public let durationMinutes: Int?
     public let maxAttendees: Int
+    public let isPrivate: Bool
 
     enum CodingKeys: String, CodingKey {
         case hostId = "host_id"
@@ -276,6 +284,7 @@ public struct ActivityCreateRequest: Encodable {
         case endsAt = "ends_at"
         case durationMinutes = "duration_minutes"
         case maxAttendees = "max_attendees"
+        case isPrivate = "is_private"
     }
 
     public init(
@@ -289,7 +298,8 @@ public struct ActivityCreateRequest: Encodable {
         startsAt: Date,
         endsAt: Date? = nil,
         durationMinutes: Int? = nil,
-        maxAttendees: Int = 10
+        maxAttendees: Int = 10,
+        isPrivate: Bool = false
     ) {
         self.hostId = hostId
         self.title = title
@@ -302,6 +312,7 @@ public struct ActivityCreateRequest: Encodable {
         self.endsAt = endsAt
         self.durationMinutes = durationMinutes
         self.maxAttendees = maxAttendees
+        self.isPrivate = isPrivate
     }
 }
 

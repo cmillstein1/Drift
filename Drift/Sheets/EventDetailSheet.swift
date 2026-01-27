@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 import MapKit
 import CoreLocation
 import DriftBackend
@@ -51,6 +52,14 @@ struct EventDetailSheet: View {
     private var isCurrentUserAttending: Bool {
         guard let currentUserId = SupabaseManager.shared.currentUser?.id else { return false }
         return attendees.contains { $0.id == currentUserId }
+    }
+
+    /// Share button: show for public events, or when current user is the host (for private events).
+    private var canShowShareEventButton: Bool {
+        if post.eventPrivacy?.isPrivate == true {
+            return isCurrentUserHost
+        }
+        return true
     }
 
     // Check if user can see private details (is attending, has pending request, or is host)
@@ -228,39 +237,22 @@ struct EventDetailSheet: View {
 
                 Spacer()
 
-                // Share button
-                Button {
-                    shareEvent()
-                } label: {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(charcoal)
-                        .frame(width: 40, height: 40)
-                        .background(.white.opacity(0.9))
-                        .clipShape(Circle())
+                // Share button (only when event is public or current user is host)
+                if canShowShareEventButton {
+                    Button {
+                        shareEvent()
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(charcoal)
+                            .frame(width: 40, height: 40)
+                            .background(.white.opacity(0.9))
+                            .clipShape(Circle())
+                    }
                 }
             }
             .padding(.horizontal, 20)
             .padding(.top, 60)
-
-            // Category badge
-            VStack {
-                HStack {
-                    Spacer()
-                    Text("Event")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(charcoal)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(.white.opacity(0.9))
-                        .clipShape(Capsule())
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 110)
-
-                Spacer()
-            }
-            .frame(height: 280)
 
             // Title overlay at bottom
             VStack(alignment: .leading, spacing: 4) {
@@ -1041,9 +1033,18 @@ struct EventDetailSheet: View {
         let text = "\(post.title) - Join me on Drift!"
         let activityVC = UIActivityViewController(activityItems: [text], applicationActivities: nil)
 
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootVC = windowScene.windows.first?.rootViewController {
-            rootVC.present(activityVC, animated: true)
+        DispatchQueue.main.async {
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let window = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first,
+                  let rootVC = window.rootViewController else { return }
+            var top = rootVC
+            while let presented = top.presentedViewController { top = presented }
+            if let popover = activityVC.popoverPresentationController {
+                popover.sourceView = top.view
+                popover.sourceRect = CGRect(x: top.view.bounds.midX, y: top.view.bounds.midY, width: 0, height: 0)
+                popover.permittedArrowDirections = []
+            }
+            top.present(activityVC, animated: true)
         }
     }
 }

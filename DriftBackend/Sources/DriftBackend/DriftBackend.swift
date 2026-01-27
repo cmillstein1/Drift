@@ -33,6 +33,8 @@ public struct DriftBackendConfig {
     public let revenueCatYearlyProductID: String
     /// VerifyFaceID API key for face verification.
     public let verifyFaceIDAPIKey: String
+    /// Unsplash API Access Key for fetching event header images (optional; leave empty to skip).
+    public let unsplashAccessKey: String
 
     /// Creates a new backend configuration.
     ///
@@ -45,6 +47,7 @@ public struct DriftBackendConfig {
     ///   - revenueCatMonthlyProductID: Monthly product identifier.
     ///   - revenueCatYearlyProductID: Yearly product identifier.
     ///   - verifyFaceIDAPIKey: VerifyFaceID API key for face verification.
+    ///   - unsplashAccessKey: Unsplash API Access Key for event header photos (optional).
     public init(
         supabaseURL: String,
         supabaseAnonKey: String,
@@ -53,7 +56,8 @@ public struct DriftBackendConfig {
         revenueCatEntitlementID: String = "Drift Pro",
         revenueCatMonthlyProductID: String = "monthly",
         revenueCatYearlyProductID: String = "DriftYearly",
-        verifyFaceIDAPIKey: String = ""
+        verifyFaceIDAPIKey: String = "",
+        unsplashAccessKey: String = ""
     ) {
         self.supabaseURL = supabaseURL
         self.supabaseAnonKey = supabaseAnonKey
@@ -63,6 +67,7 @@ public struct DriftBackendConfig {
         self.revenueCatMonthlyProductID = revenueCatMonthlyProductID
         self.revenueCatYearlyProductID = revenueCatYearlyProductID
         self.verifyFaceIDAPIKey = verifyFaceIDAPIKey
+        self.unsplashAccessKey = unsplashAccessKey
     }
 }
 
@@ -141,5 +146,9 @@ internal class _BackendConfiguration {
             fatalError("DriftBackend not configured. Call configureDriftBackend() first.")
         }
         return config.verifyFaceIDAPIKey
+    }
+
+    var unsplashAccessKey: String {
+        config?.unsplashAccessKey ?? ""
     }
 }
