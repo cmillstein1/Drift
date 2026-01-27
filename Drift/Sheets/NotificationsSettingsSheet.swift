@@ -9,16 +9,46 @@ import SwiftUI
 import UserNotifications
 import UIKit
 import FirebaseMessaging
+import DriftBackend
+
+// MARK: - Notification category preference (stored in UserDefaults)
+private enum NotificationCategory: String, CaseIterable, Identifiable {
+    case newMessages
+    case newMatches
+    case nearbyTravelers
+    case eventUpdates
+
+    var id: String { rawValue }
+
+    var userDefaultsKey: String { "notification_pref_\(rawValue)" }
+
+    static func isEnabled(_ category: NotificationCategory) -> Bool {
+        UserDefaults.standard.object(forKey: category.userDefaultsKey) as? Bool ?? true
+    }
+
+    static func setEnabled(_ category: NotificationCategory, _ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: category.userDefaultsKey)
+    }
+}
 
 struct NotificationsSettingsSheet: View {
     @Binding var isPresented: Bool
     @Environment(\.dismiss) var dismiss
+    @ObservedObject private var supabaseManager = SupabaseManager.shared
 
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
     @State private var isRequesting = false
     @State private var showOpenSettingsHint = false
     @State private var fcmToken: String?
     @State private var tokenCopied = false
+    /// Local state for category toggles; keys are NotificationCategory.rawValue.
+    @State private var categoryEnabled: [String: Bool] = [:]
+    /// Snapshot when sheet appeared, to detect unsaved changes.
+    @State private var initialCategoryEnabled: [String: Bool] = [:]
+
+    private var isDatingEnabled: Bool {
+        supabaseManager.getDiscoveryMode() != .friends
+    }
 
     private let charcoalColor = Color("Charcoal")
     private let softGray = Color(red: 0.96, green: 0.96, blue: 0.96)
@@ -28,6 +58,25 @@ struct NotificationsSettingsSheet: View {
 
     private var isEnabled: Bool {
         notificationStatus == .authorized
+    }
+
+    private var notificationRows: [(category: NotificationCategory, icon: String, iconColor: Color, title: String)] {
+        var rows: [(NotificationCategory, String, Color, String)] = [
+            (.newMessages, "message.fill", skyBlue, "New messages"),
+            (.nearbyTravelers, "person.2.fill", forestGreen, "Nearby travelers"),
+            (.eventUpdates, "mappin.circle.fill", burntOrange, "Event updates"),
+        ]
+        if isDatingEnabled {
+            rows.insert((.newMatches, "heart.fill", Color(red: 0.93, green: 0.36, blue: 0.51), "New matches"), at: 1)
+        }
+        return rows
+    }
+
+    private var hasUnsavedChanges: Bool {
+        for (key, value) in categoryEnabled {
+            if initialCategoryEnabled[key] != value { return true }
+        }
+        return initialCategoryEnabled.count != categoryEnabled.count
     }
 
     var body: some View {
@@ -40,13 +89,23 @@ struct NotificationsSettingsSheet: View {
 
                 Spacer()
 
-                Button(action: { dismiss() }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(charcoalColor)
-                        .frame(width: 32, height: 32)
-                        .background(softGray)
-                        .clipShape(Circle())
+                if hasUnsavedChanges {
+                    Button(action: saveAndDismiss) {
+                        Text("Save")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(burntOrange)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                    }
+                } else {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(charcoalColor)
+                            .frame(width: 32, height: 32)
+                            .background(softGray)
+                            .clipShape(Circle())
+                    }
                 }
             }
             .padding(.horizontal, 24)
@@ -162,19 +221,47 @@ struct NotificationsSettingsSheet: View {
                     }
 
                     if isEnabled {
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 0) {
                             Text("You'll get notifications for:")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(charcoalColor)
                                 .padding(.horizontal, 24)
                                 .padding(.top, 24)
+                                .padding(.bottom, 12)
 
-                            NotificationSettingRow(icon: "message.fill", iconColor: skyBlue, title: "New messages")
-                            NotificationSettingRow(icon: "heart.fill", iconColor: Color(red: 0.93, green: 0.36, blue: 0.51), title: "New matches")
-                            NotificationSettingRow(icon: "person.2.fill", iconColor: forestGreen, title: "Nearby travelers")
-                            NotificationSettingRow(icon: "mappin.circle.fill", iconColor: burntOrange, title: "Event updates")
+                            VStack(spacing: 0) {
+                                ForEach(Array(notificationRows.enumerated()), id: \.element.category) { index, item in
+                                    Button {
+                                        let key = item.category.rawValue
+                                        let current = categoryEnabled[key] ?? NotificationCategory.isEnabled(item.category)
+                                        categoryEnabled[key] = !current
+                                    } label: {
+                                        NotificationSettingRow(
+                                            icon: item.icon,
+                                            iconColor: item.iconColor,
+                                            title: item.title,
+                                            isEnabled: categoryEnabled[item.category.rawValue] ?? NotificationCategory.isEnabled(item.category)
+                                        )
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+
+                                    if index < notificationRows.count - 1 {
+                                        Divider()
+                                            .padding(.leading, 20 + 36 + 14)
+                                            .padding(.vertical, 0)
+                                    }
+                                }
+                            }
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+                            )
                         }
+                        .padding(.horizontal, 24)
                         .padding(.bottom, 16)
+                    }
 
 //                        // FCM token for testing in Firebase Console
 //                        VStack(alignment: .leading, spacing: 8) {
@@ -215,7 +302,6 @@ struct NotificationsSettingsSheet: View {
 //                        .padding(.horizontal, 24)
 //                        .padding(.top, 8)
 //                        .padding(.bottom, 24)
-                    }
                 }
             }
             .background(softGray)
@@ -224,6 +310,7 @@ struct NotificationsSettingsSheet: View {
         .onAppear {
             fetchNotificationStatus()
             fetchFCMToken()
+            loadCategoryPreferences()
         }
         .onChange(of: notificationStatus) { _, newValue in
             if newValue == .authorized { fetchFCMToken() }
@@ -279,14 +366,38 @@ struct NotificationsSettingsSheet: View {
             UIApplication.shared.open(url)
         }
     }
+
+    private func loadCategoryPreferences() {
+        var current: [String: Bool] = [:]
+        var initial: [String: Bool] = [:]
+        for category in NotificationCategory.allCases {
+            let on = NotificationCategory.isEnabled(category)
+            current[category.rawValue] = on
+            initial[category.rawValue] = on
+        }
+        categoryEnabled = current
+        initialCategoryEnabled = initial
+    }
+
+    private func saveAndDismiss() {
+        for (key, value) in categoryEnabled {
+            if let category = NotificationCategory(rawValue: key) {
+                NotificationCategory.setEnabled(category, value)
+            }
+        }
+        initialCategoryEnabled = categoryEnabled
+        dismiss()
+    }
 }
 
 private struct NotificationSettingRow: View {
     let icon: String
     let iconColor: Color
     let title: String
+    var isEnabled: Bool = true
 
     private let charcoalColor = Color("Charcoal")
+    private let forestGreen = Color("ForestGreen")
 
     var body: some View {
         HStack(spacing: 14) {
@@ -305,14 +416,14 @@ private struct NotificationSettingRow: View {
 
             Spacer()
 
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 18))
-                .foregroundColor(Color("ForestGreen"))
+            if isEnabled {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(forestGreen)
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
-        .background(Color.white)
-        .padding(.horizontal, 24)
     }
 }
 
