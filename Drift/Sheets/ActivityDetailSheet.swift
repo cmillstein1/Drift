@@ -18,6 +18,13 @@ struct ActivityDetailSheet: View {
     @State private var isLoading: Bool = false
     @State private var errorMessage: String?
     @State private var showError: Bool = false
+    @State private var showEditSheet: Bool = false
+    var onActivityUpdated: (() -> Void)? = nil
+
+    private var isHost: Bool {
+        guard let userId = SupabaseManager.shared.currentUser?.id else { return false }
+        return activity.hostId == userId
+    }
 
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
@@ -362,38 +369,60 @@ struct ActivityDetailSheet: View {
                                 )
                         }
                         
-                        Button(action: {
-                            handleJoin()
-                        }) {
-                            if isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 48)
-                            } else {
-                                Text(isJoined ? "Leave Activity" : "Join Activity")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 48)
+                        if isHost {
+                            Button(action: { showEditSheet = true }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "pencil")
+                                    Text("Edit")
+                                        .font(.system(size: 16, weight: .semibold))
+                                }
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
                             }
-                        }
-                        .background(
-                            isJoined
-                                ? LinearGradient(
-                                    gradient: Gradient(colors: [charcoalColor, charcoalColor.opacity(0.8)]),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                                : LinearGradient(
+                            .background(
+                                LinearGradient(
                                     gradient: Gradient(colors: [burntOrange, sunsetRose]),
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
-                        )
-                        .clipShape(Capsule())
-                        .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-                        .disabled(isLoading)
+                            )
+                            .clipShape(Capsule())
+                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                        } else {
+                            Button(action: {
+                                handleJoin()
+                            }) {
+                                if isLoading {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 48)
+                                } else {
+                                    Text(isJoined ? "Leave Activity" : "Join Activity")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 48)
+                                }
+                            }
+                            .background(
+                                isJoined
+                                    ? LinearGradient(
+                                        gradient: Gradient(colors: [charcoalColor, charcoalColor.opacity(0.8)]),
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                    : LinearGradient(
+                                        gradient: Gradient(colors: [burntOrange, sunsetRose]),
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                            )
+                            .clipShape(Capsule())
+                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                            .disabled(isLoading)
+                        }
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 28)
@@ -413,6 +442,26 @@ struct ActivityDetailSheet: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "An error occurred")
+        }
+        .sheet(isPresented: $showEditSheet) {
+            CreateActivitySheet(existingActivity: activity) { activityData in
+                Task {
+                    do {
+                        try await handleUpdate(activityData)
+                        await MainActor.run {
+                            showEditSheet = false
+                            onActivityUpdated?()
+                        }
+                    } catch {
+                        await MainActor.run {
+                            errorMessage = error.localizedDescription
+                            showError = true
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -511,6 +560,52 @@ struct ActivityDetailSheet: View {
     private func handleMessage() {
         // TODO: Navigate to messaging with host
         print("Message host: \(activity.host?.displayName ?? "Unknown")")
+    }
+
+    private func handleUpdate(_ activityData: ActivityData) async throws {
+        guard let activityId = activityData.activityId else { return }
+        let category: ActivityCategory = {
+            switch activityData.category {
+            case "Outdoor": return .outdoor
+            case "Work": return .work
+            case "Social": return .social
+            case "Food & Drink": return .foodDrink
+            case "Wellness": return .wellness
+            case "Adventure": return .adventure
+            default: return activity.category
+            }
+        }()
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        let dateOnly = dateFormatter.date(from: activityData.date)
+        let timeOnly = timeFormatter.date(from: activityData.time)
+        var startsAt = activity.startsAt
+        if let d = dateOnly, let t = timeOnly {
+            let cal = Calendar.current
+            let dateComps = cal.dateComponents([.year, .month, .day], from: d)
+            let timeComps = cal.dateComponents([.hour, .minute], from: t)
+            var comps = DateComponents()
+            comps.year = dateComps.year
+            comps.month = dateComps.month
+            comps.day = dateComps.day
+            comps.hour = timeComps.hour
+            comps.minute = timeComps.minute
+            if let combined = cal.date(from: comps) {
+                startsAt = combined
+            }
+        }
+        try await activityManager.updateActivity(
+            activityId,
+            title: activityData.title,
+            description: activityData.description.isEmpty ? nil : activityData.description,
+            category: category,
+            location: activityData.location,
+            startsAt: startsAt,
+            maxAttendees: activityData.maxAttendees,
+            isPrivate: activityData.privacy == .private
+        )
     }
 }
 

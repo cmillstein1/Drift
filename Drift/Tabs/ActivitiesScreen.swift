@@ -203,7 +203,6 @@ struct ActivitiesScreen: View {
             // Create Activity Sheet
             .sheet(isPresented: $showCreateSheet) {
                 CreateActivitySheet { activityData in
-                    // Handle activity creation via backend
                     Task {
                         do {
                             let category: ActivityCategory = {
@@ -212,27 +211,53 @@ struct ActivitiesScreen: View {
                                 case "Work": return .work
                                 case "Social": return .social
                                 case "Food & Drink": return .foodDrink
+                                case "Wellness": return .wellness
+                                case "Adventure": return .adventure
                                 default: return .social
                                 }
                             }()
 
-                            // Parse date and time
                             let dateFormatter = DateFormatter()
-                            dateFormatter.dateFormat = "MMM d, yyyy h:mm a"
-                            let startsAt = dateFormatter.date(from: "\(activityData.date) \(activityData.time)") ?? Date()
+                            dateFormatter.dateFormat = "yyyy-MM-dd"
+                            let timeFormatter = DateFormatter()
+                            timeFormatter.dateFormat = "HH:mm"
+                            let dateOnly = dateFormatter.date(from: activityData.date)
+                            let timeOnly = timeFormatter.date(from: activityData.time)
+                            let startsAt: Date = {
+                                guard let d = dateOnly, let t = timeOnly else { return Date() }
+                                let cal = Calendar.current
+                                var comps = cal.dateComponents([.year, .month, .day], from: d)
+                                let tc = cal.dateComponents([.hour, .minute], from: t)
+                                comps.hour = tc.hour
+                                comps.minute = tc.minute
+                                return cal.date(from: comps) ?? Date()
+                            }()
 
-                            try await activityManager.createActivity(
-                                title: activityData.title,
-                                description: nil,
-                                category: category,
-                                location: activityData.location,
-                                startsAt: startsAt,
-                                maxAttendees: activityData.maxAttendees,
-                                imageUrl: nil,
-                                isPrivate: activityData.privacy == .private
-                            )
+                            if let activityId = activityData.activityId {
+                                try await activityManager.updateActivity(
+                                    activityId,
+                                    title: activityData.title,
+                                    description: activityData.description.isEmpty ? nil : activityData.description,
+                                    category: category,
+                                    location: activityData.location,
+                                    startsAt: startsAt,
+                                    maxAttendees: activityData.maxAttendees,
+                                    isPrivate: activityData.privacy == .private
+                                )
+                            } else {
+                                try await activityManager.createActivity(
+                                    title: activityData.title,
+                                    description: activityData.description.isEmpty ? nil : activityData.description,
+                                    category: category,
+                                    location: activityData.location,
+                                    startsAt: startsAt,
+                                    maxAttendees: activityData.maxAttendees,
+                                    imageUrl: nil,
+                                    isPrivate: activityData.privacy == .private
+                                )
+                            }
                         } catch {
-                            print("Failed to create activity: \(error)")
+                            print("Failed to save activity: \(error)")
                         }
                     }
                 }
@@ -243,9 +268,14 @@ struct ActivitiesScreen: View {
                 PaywallScreen(isOpen: $showPaywall, source: .createActivity)
             }
             .sheet(item: $selectedActivity) { activity in
-                ActivityDetailSheet(activity: activity)
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
+                ActivityDetailSheet(activity: activity) {
+                    Task {
+                        try? await activityManager.fetchActivities()
+                        try? await activityManager.fetchMyActivities()
+                    }
+                }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
             }
         }
     }

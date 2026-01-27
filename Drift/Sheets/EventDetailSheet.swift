@@ -19,6 +19,7 @@ struct EventDetailSheet: View {
     @StateObject private var communityManager = CommunityManager.shared
     @State private var showingCalendarAdded: Bool = false
     @State private var showingGroupChat: Bool = false
+    @State private var showingEditEventSheet: Bool = false
     @State private var attendees: [UserProfile] = []
     @State private var pendingRequests: [UserProfile] = []
     @State private var hasPendingRequest: Bool = false
@@ -111,6 +112,11 @@ struct EventDetailSheet: View {
         .background(warmWhite)
         .sheet(isPresented: $showingGroupChat) {
             EventGroupChatSheet(post: post)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showingEditEventSheet) {
+            CreateCommunityPostSheet(existingPost: post)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
@@ -252,7 +258,7 @@ struct EventDetailSheet: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 60)
+            .padding(.top, 12)
 
             // Title overlay at bottom
             VStack(alignment: .leading, spacing: 4) {
@@ -904,47 +910,66 @@ struct EventDetailSheet: View {
                         )
                 }
 
-                // Join Button
-                Button {
-                    Task {
-                        if post.isAttendingEvent == true || isCurrentUserAttending {
-                            // Leave event
-                            try? await communityManager.leaveEvent(post.id)
-                            EventHelper.shared.cancelEventReminder(eventId: post.id)
-                            loadAttendees() // Refresh attendees after leaving
-                        } else if hasPendingRequest {
-                            // Cancel pending request
-                            try? await communityManager.cancelJoinRequest(post.id)
-                            hasPendingRequest = false
-                        } else if post.eventPrivacy?.isPrivate == true {
-                            // Request to join private event
-                            try? await communityManager.requestToJoinEvent(post.id)
-                            hasPendingRequest = true
-                        } else {
-                            // Direct join for public events
-                            try? await communityManager.joinEvent(post.id)
-                            if let eventDate = post.eventDatetime {
-                                await EventHelper.shared.scheduleEventReminder(
-                                    eventId: post.id,
-                                    eventTitle: post.title,
-                                    eventDate: eventDate
-                                )
-                            }
+                // Edit Event (host) or Join / Leave button
+                if isCurrentUserHost {
+                    Button {
+                        showingEditEventSheet = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "pencil")
+                            Text("Edit Event")
+                                .font(.system(size: 17, weight: .semibold))
                         }
-                        // Reload attendees list
-                        loadAttendees()
-                    }
-                } label: {
-                    Text(joinButtonText)
-                        .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
-                        .background(joinButtonBackground)
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [burntOrange, sunsetRose]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                         .clipShape(Capsule())
-                        .shadow(color: joinButtonShadowColor.opacity(0.3), radius: 8, x: 0, y: 4)
+                        .shadow(color: burntOrange.opacity(0.3), radius: 8, x: 0, y: 4)
+                    }
+                } else {
+                    Button {
+                        Task {
+                            if post.isAttendingEvent == true || isCurrentUserAttending {
+                                try? await communityManager.leaveEvent(post.id)
+                                EventHelper.shared.cancelEventReminder(eventId: post.id)
+                                loadAttendees()
+                            } else if hasPendingRequest {
+                                try? await communityManager.cancelJoinRequest(post.id)
+                                hasPendingRequest = false
+                            } else if post.eventPrivacy?.isPrivate == true {
+                                try? await communityManager.requestToJoinEvent(post.id)
+                                hasPendingRequest = true
+                            } else {
+                                try? await communityManager.joinEvent(post.id)
+                                if let eventDate = post.eventDatetime {
+                                    await EventHelper.shared.scheduleEventReminder(
+                                        eventId: post.id,
+                                        eventTitle: post.title,
+                                        eventDate: eventDate
+                                    )
+                                }
+                            }
+                            loadAttendees()
+                        }
+                    } label: {
+                        Text(joinButtonText)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(joinButtonBackground)
+                            .clipShape(Capsule())
+                            .shadow(color: joinButtonShadowColor.opacity(0.3), radius: 8, x: 0, y: 4)
+                    }
+                    .disabled(isJoinDisabled)
                 }
-                .disabled(isJoinDisabled)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
