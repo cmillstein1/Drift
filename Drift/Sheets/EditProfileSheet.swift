@@ -357,6 +357,7 @@ struct EditProfileSheet: View {
                                 removePhoto(at: index)
                             }
                         )
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
                 }
             }
@@ -1278,11 +1279,13 @@ struct EditPhotoSlot: View {
     private let burntOrange = Color("BurntOrange")
     private let softGray = Color("SoftGray")
 
+    private static let cornerRadius: CGFloat = 16
+
     var body: some View {
         ZStack {
             if isUploading {
                 // Loading state
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: Self.cornerRadius)
                     .fill(softGray)
                     .aspectRatio(3/4, contentMode: .fit)
                     .overlay(
@@ -1296,8 +1299,7 @@ struct EditPhotoSlot: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(minWidth: 0, maxWidth: .infinity)
                     .aspectRatio(3/4, contentMode: .fit)
-                    .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
                     .overlay(photoOverlay)
             } else if let url = photoUrl, !url.isEmpty {
                 // Existing photo
@@ -1306,7 +1308,7 @@ struct EditPhotoSlot: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                 } placeholder: {
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: Self.cornerRadius)
                         .fill(softGray)
                         .overlay(
                             ProgressView()
@@ -1315,19 +1317,18 @@ struct EditPhotoSlot: View {
                 }
                 .frame(minWidth: 0, maxWidth: .infinity)
                 .aspectRatio(3/4, contentMode: .fit)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
                 .overlay(photoOverlay)
             } else {
                 // Empty slot
                 Button(action: onSelect) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: Self.cornerRadius)
                             .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [6]))
                             .foregroundColor(Color.gray.opacity(0.3))
                             .aspectRatio(3/4, contentMode: .fit)
                             .background(
-                                RoundedRectangle(cornerRadius: 16)
+                                RoundedRectangle(cornerRadius: Self.cornerRadius)
                                     .fill(softGray)
                             )
 
@@ -1353,29 +1354,30 @@ struct EditPhotoSlot: View {
                 .buttonStyle(PlainButtonStyle())
             }
         }
+        .overlay(alignment: .topLeading) {
+            if isMainPhoto {
+                mainBadge
+            }
+        }
+    }
+
+    /// Inset so the badge sits fully inside the rounded corner (radius 16).
+    private static let mainBadgeInset: CGFloat = Self.cornerRadius + 14
+
+    private var mainBadge: some View {
+        Text("MAIN")
+            .font(.system(size: 8, weight: .bold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(burntOrange)
+            .clipShape(Capsule())
+            .padding(.top, Self.mainBadgeInset)
+            .padding(.leading, Self.mainBadgeInset)
     }
 
     private var photoOverlay: some View {
         ZStack(alignment: .topTrailing) {
-            // Main photo badge
-            if isMainPhoto {
-                VStack {
-                    HStack {
-                        Text("MAIN")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(burntOrange)
-                            .clipShape(Capsule())
-                            .padding(6)
-
-                        Spacer()
-                    }
-                    Spacer()
-                }
-            }
-
             // Remove button
             Button(action: onRemove) {
                 Image(systemName: "xmark")
