@@ -90,8 +90,7 @@ struct ProfileScreen: View {
                         Task {
                             await updateDiscoveryMode(.friends)
                         }
-                    },
-                    hasCompletedDatingOnboarding: profileManager.hasCompletedDatingOnboarding()
+                    }
                 )
                 .presentationDetents([.height(480)])
                 .presentationDragIndicator(.visible)
