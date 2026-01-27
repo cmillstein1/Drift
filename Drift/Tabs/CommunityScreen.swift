@@ -532,6 +532,7 @@ struct CreateCommunityPostSheet: View {
     var existingPost: CommunityPost? = nil
     @StateObject private var communityManager = CommunityManager.shared
     @StateObject private var profileManager = ProfileManager.shared
+    @StateObject private var supabaseManager = SupabaseManager.shared
     @State private var selectedType: CommunityPostType? = .event
     @State private var title: String = ""
     @State private var details: String = ""
@@ -550,10 +551,9 @@ struct CreateCommunityPostSheet: View {
 
     private var isEditMode: Bool { existingPost != nil && existingPost?.type == .event }
 
-    /// Only show "Dating activity" option when user has dating (or both) enabled; friends-only users do not see it.
+    /// Only show "Dating activity" option when user is not in friends-only mode (i.e. they have dating or both discovery).
     private var hasDatingEnabled: Bool {
-        guard let lookingFor = profileManager.currentProfile?.lookingFor else { return false }
-        return lookingFor == .dating || lookingFor == .both
+        supabaseManager.getDiscoveryMode() != .friends
     }
 
     private let charcoal = Color("Charcoal")
@@ -770,7 +770,7 @@ struct CreateCommunityPostSheet: View {
                             longitude: eventLongitude,
                             maxAttendees: Int(maxAttendees),
                             privacy: eventPrivacy,
-                            isDatingEvent: isDatingActivity
+                            isDatingEvent: hasDatingEnabled ? isDatingActivity : false
                         )
                     } else {
                         _ = try await communityManager.createEventPost(
@@ -783,7 +783,7 @@ struct CreateCommunityPostSheet: View {
                             maxAttendees: Int(maxAttendees),
                             privacy: eventPrivacy,
                             images: [],
-                            isDatingEvent: isDatingActivity
+                            isDatingEvent: hasDatingEnabled ? isDatingActivity : false
                         )
                     }
                 } else {

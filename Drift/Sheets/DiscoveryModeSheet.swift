@@ -12,10 +12,10 @@ struct DiscoveryModeSheet: View {
     @Binding var isPresented: Bool
     @Environment(\.dismiss) var dismiss
     @ObservedObject private var supabaseManager = SupabaseManager.shared
+    @ObservedObject private var profileManager = ProfileManager.shared
 
     var onSelectDatingAndFriends: () -> Void
     var onSelectFriendsOnly: () -> Void
-    var hasCompletedDatingOnboarding: Bool
 
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
@@ -76,7 +76,7 @@ struct DiscoveryModeSheet: View {
                                 endPoint: .bottomTrailing
                             ),
                             accentColor: burntOrange,
-                            showSetupNote: !hasCompletedDatingOnboarding && currentMode == .friends
+                            showSetupNote: !profileManager.hasCompletedDatingOnboarding()
                         ) {
                             onSelectDatingAndFriends()
                             dismiss()
@@ -213,7 +213,6 @@ struct DiscoveryModeOption: View {
     DiscoveryModeSheet(
         isPresented: .constant(true),
         onSelectDatingAndFriends: {},
-        onSelectFriendsOnly: {},
-        hasCompletedDatingOnboarding: false
+        onSelectFriendsOnly: {}
     )
 }
