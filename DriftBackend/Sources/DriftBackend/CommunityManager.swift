@@ -80,6 +80,15 @@ public class CommunityManager: ObservableObject {
                 .execute()
                 .value
 
+            // Hide dating-only events when discovery mode is "Friends" (use auth metadata, not profiles table)
+            let discoveryMode = SupabaseManager.shared.getDiscoveryMode()
+            if discoveryMode == .friends {
+                posts = posts.filter { post in
+                    if post.type != .event { return true }
+                    return post.isDatingEvent != true
+                }
+            }
+
             // Check if current user has liked each post
             if let userId = SupabaseManager.shared.currentUser?.id {
                 let postIds = posts.map { $0.id }
@@ -224,6 +233,7 @@ public class CommunityManager: ObservableObject {
     ///   - longitude: Event longitude coordinate.
     ///   - maxAttendees: Maximum number of attendees.
     ///   - images: Array of image URLs.
+    ///   - isDatingEvent: When true, only users with dating or both see this event (hidden from friends-only).
     /// - Returns: The created post.
     @discardableResult
     public func createEventPost(
@@ -236,7 +246,8 @@ public class CommunityManager: ObservableObject {
         longitude: Double? = nil,
         maxAttendees: Int? = nil,
         privacy: EventPrivacy = .public,
-        images: [String] = []
+        images: [String] = [],
+        isDatingEvent: Bool = false
     ) async throws -> CommunityPost {
         guard let userId = SupabaseManager.shared.currentUser?.id else {
             throw CommunityError.notAuthenticated
@@ -261,7 +272,8 @@ public class CommunityManager: ObservableObject {
             eventLatitude: latitude,
             eventLongitude: longitude,
             maxAttendees: maxAttendees,
-            eventPrivacy: privacy
+            eventPrivacy: privacy,
+            isDatingEvent: isDatingEvent
         )
 
         let post: CommunityPost = try await client
@@ -820,9 +832,12 @@ public class CommunityManager: ObservableObject {
 
     // MARK: - Realtime Subscriptions
 
-    /// Subscribes to real-time post updates.
+    /// Subscribes to real-time post updates. If already subscribed, returns so postgresChange is never registered after join.
     public func subscribeToPosts() async {
+        if postsChannel != nil { return }
+
         let channel = client.realtimeV2.channel("community_posts")
+        postsChannel = channel
 
         let insertions = channel.postgresChange(
             InsertAction.self,
@@ -831,7 +846,6 @@ public class CommunityManager: ObservableObject {
         )
 
         await channel.subscribe()
-        postsChannel = channel
 
         Task {
             for await _ in insertions {
@@ -888,18 +902,27 @@ public class CommunityManager: ObservableObject {
         }
     }
 
-    /// Unsubscribes from all channels.
+    /// Unsubscribes from all channels and removes them so the next subscribe gets fresh channels (avoids "postgresChange after join" warning).
     public func unsubscribe() async {
-        await postsChannel?.unsubscribe()
-        await repliesChannel?.unsubscribe()
-        postsChannel = nil
-        repliesChannel = nil
+        if let ch = postsChannel {
+            await ch.unsubscribe()
+            await client.realtimeV2.removeChannel(ch)
+            postsChannel = nil
+        }
+        if let ch = repliesChannel {
+            await ch.unsubscribe()
+            await client.realtimeV2.removeChannel(ch)
+            repliesChannel = nil
+        }
     }
 
-    /// Unsubscribes from replies channel only.
+    /// Unsubscribes from replies channel only and removes it so the next subscribe gets a fresh channel.
     public func unsubscribeFromReplies() async {
-        await repliesChannel?.unsubscribe()
-        repliesChannel = nil
+        if let ch = repliesChannel {
+            await ch.unsubscribe()
+            await client.realtimeV2.removeChannel(ch)
+            repliesChannel = nil
+        }
         currentReplies = []
     }
 

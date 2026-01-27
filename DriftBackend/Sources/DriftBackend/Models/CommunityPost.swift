@@ -120,6 +120,8 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
     public var maxAttendees: Int?
     public var currentAttendees: Int?
     public var eventPrivacy: EventPrivacy?
+    /// When true, only visible to users with dating or both (hidden from friends-only).
+    public var isDatingEvent: Bool?
 
     // Help-specific fields (nullable for event posts)
     public var helpCategory: HelpCategory?
@@ -158,6 +160,7 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
         case maxAttendees = "max_attendees"
         case currentAttendees = "current_attendees"
         case eventPrivacy = "event_privacy"
+        case isDatingEvent = "is_dating_event"
         case helpCategory = "help_category"
         case isSolved = "is_solved"
         case bestAnswerId = "best_answer_id"
@@ -186,6 +189,7 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
         maxAttendees: Int? = nil,
         currentAttendees: Int? = nil,
         eventPrivacy: EventPrivacy? = nil,
+        isDatingEvent: Bool? = nil,
         helpCategory: HelpCategory? = nil,
         isSolved: Bool? = nil,
         bestAnswerId: UUID? = nil,
@@ -212,6 +216,7 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
         self.maxAttendees = maxAttendees
         self.currentAttendees = currentAttendees
         self.eventPrivacy = eventPrivacy
+        self.isDatingEvent = isDatingEvent
         self.helpCategory = helpCategory
         self.isSolved = isSolved
         self.bestAnswerId = bestAnswerId
@@ -244,6 +249,7 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
         maxAttendees = try container.decodeIfPresent(Int.self, forKey: .maxAttendees)
         currentAttendees = try container.decodeIfPresent(Int.self, forKey: .currentAttendees)
         eventPrivacy = try container.decodeIfPresent(EventPrivacy.self, forKey: .eventPrivacy)
+        isDatingEvent = try container.decodeIfPresent(Bool.self, forKey: .isDatingEvent)
 
         // Help fields
         helpCategory = try container.decodeIfPresent(HelpCategory.self, forKey: .helpCategory)
@@ -468,6 +474,7 @@ public struct CommunityPostCreateRequest: Encodable {
     public let eventLongitude: Double?
     public let maxAttendees: Int?
     public let eventPrivacy: EventPrivacy?
+    public let isDatingEvent: Bool?
 
     // Help fields
     public let helpCategory: HelpCategory?
@@ -485,6 +492,7 @@ public struct CommunityPostCreateRequest: Encodable {
         case eventLongitude = "event_longitude"
         case maxAttendees = "max_attendees"
         case eventPrivacy = "event_privacy"
+        case isDatingEvent = "is_dating_event"
         case helpCategory = "help_category"
     }
 
@@ -501,6 +509,7 @@ public struct CommunityPostCreateRequest: Encodable {
         eventLongitude: Double? = nil,
         maxAttendees: Int? = nil,
         eventPrivacy: EventPrivacy? = nil,
+        isDatingEvent: Bool? = nil,
         helpCategory: HelpCategory? = nil
     ) {
         self.authorId = authorId
@@ -515,6 +524,7 @@ public struct CommunityPostCreateRequest: Encodable {
         self.eventLongitude = eventLongitude
         self.maxAttendees = maxAttendees
         self.eventPrivacy = eventPrivacy
+        self.isDatingEvent = isDatingEvent
         self.helpCategory = helpCategory
     }
 }

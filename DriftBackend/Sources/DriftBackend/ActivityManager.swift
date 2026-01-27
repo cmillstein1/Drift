@@ -356,44 +356,48 @@ public class ActivityManager: ObservableObject {
 
     // MARK: - Realtime Subscriptions
 
-    /// Subscribes to activity updates.
+    /// Subscribes to activity updates. If already subscribed, returns so postgresChange is never registered after join.
     public func subscribeToActivities() async {
-        activitiesChannel = client.realtimeV2.channel("activities")
+        if activitiesChannel != nil { return }
 
-        let changes = activitiesChannel?.postgresChange(
+        let channel = client.realtimeV2.channel("activities")
+        activitiesChannel = channel
+
+        let changes = channel.postgresChange(
             AnyAction.self,
             schema: "public",
             table: "activities"
         )
 
-        let attendeeChanges = activitiesChannel?.postgresChange(
+        let attendeeChanges = channel.postgresChange(
             AnyAction.self,
             schema: "public",
             table: "activity_attendees"
         )
 
         Task {
-            guard let changes = changes else { return }
             for await _ in changes {
                 try? await self.fetchActivities()
             }
         }
 
         Task {
-            guard let attendeeChanges = attendeeChanges else { return }
             for await _ in attendeeChanges {
                 try? await self.fetchActivities()
                 try? await self.fetchJoinedActivities()
             }
         }
 
-        await activitiesChannel?.subscribe()
+        await channel.subscribe()
     }
 
-    /// Unsubscribes from activity updates.
+    /// Unsubscribes from activity updates and removes the channel so the next subscribe gets a fresh channel (avoids "postgresChange after join" warning).
     public func unsubscribe() async {
-        await activitiesChannel?.unsubscribe()
-        activitiesChannel = nil
+        if let ch = activitiesChannel {
+            await ch.unsubscribe()
+            await client.realtimeV2.removeChannel(ch)
+            activitiesChannel = nil
+        }
     }
 }
 
