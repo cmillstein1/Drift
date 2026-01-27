@@ -13,6 +13,7 @@ struct ProfileScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var revenueCatManager = RevenueCatManager.shared
+    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
     @State private var isSigningOut = false
     @State private var showEditProfile = false
     @State private var showDiscoveryModeSheet = false
@@ -105,10 +106,17 @@ struct ProfileScreen: View {
                     VerificationView()
                 } else if destination == "editProfile" {
                     EditProfileScreen(onBack: {
+                        tabBarVisibility.isVisible = true
                         navigationPath.removeLast()
                     })
                 } else if destination == "privacySafetySupport" {
                     PrivacySafetySupportScreen()
+                }
+            }
+            .onChange(of: navigationPath) { _, newPath in
+                // Only show tab bar when fully back at profile root (no edit/detail push)
+                if newPath.isEmpty {
+                    tabBarVisibility.isVisible = true
                 }
             }
             .sheet(isPresented: $showPaywall) {

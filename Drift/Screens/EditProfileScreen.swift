@@ -81,6 +81,9 @@ struct EditProfileScreen: View {
     private let burntOrange = Color("BurntOrange")
     private let desertSand = Color("DesertSand")
     
+    /// Max number of prompt answers allowed in My Journey.
+    private static let maxPrompts = 3
+
     // Track original state for change detection
     struct ProfileSnapshot: Equatable {
         let name: String
@@ -132,22 +135,35 @@ struct EditProfileScreen: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    onBack()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(charcoalColor)
+                }
+            }
             ToolbarItem(placement: .principal) {
                 Text("Edit Profile")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(charcoalColor)
             }
-            
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: {
-                    saveChanges()
+                    if hasChanges {
+                        saveChanges()
+                    } else {
+                        onBack()
+                    }
                 }) {
                     Text(hasChanges ? "Save" : "Done")
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(burntOrange)
                 }
-                .disabled(isSaving || !hasChanges)
+                .disabled(isSaving)
             }
         }
         .task {
@@ -167,25 +183,9 @@ struct EditProfileScreen: View {
                 }
             }
         }
-        .onChange(of: tabBarVisibility.isVisible) { _, newValue in
-            // If tab bar becomes visible while we're on this screen, hide it again
-            if newValue {
-                tabBarVisibility.isVisible = false
-            }
-        }
         .onDisappear {
-            // Don't show tab bar here - it will be shown when we actually go back
-            // (either via onBack callback or system back button which will trigger this again)
-            // We use a longer delay to ensure child views have set it to false first
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
-                // Only show if we're not saving (saving handles it separately)
-                if !isSaving {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        tabBarVisibility.isVisible = true
-                    }
-                }
-            }
+            // Don't show tab bar here - we may have only pushed to a child (About, Age, etc.).
+            // ProfileScreen shows the tab bar when navigation path becomes empty.
         }
         .onChange(of: name) { _, _ in checkForChanges() }
         .onChange(of: age) { _, _ in checkForChanges() }
@@ -231,15 +231,17 @@ struct EditProfileScreen: View {
                         get: { promptAnswers[index] },
                         set: { promptAnswers[index] = $0 }
                     ),
-                    isPresented: $showPromptEditor
+                    isPresented: $showPromptEditor,
+                    onDidSave: { savePromptsToProfile() }
                 )
             } else {
                 PromptEditorSheet(
                     promptAnswer: Binding(
                         get: { DriftBackend.PromptAnswer(prompt: "", answer: "") },
-                        set: { promptAnswers.append($0) }
+                        set: { if promptAnswers.count < Self.maxPrompts { promptAnswers.append($0) } }
                     ),
-                    isPresented: $showPromptEditor
+                    isPresented: $showPromptEditor,
+                    onDidSave: { savePromptsToProfile() }
                 )
             }
         }
@@ -501,8 +503,8 @@ struct EditProfileScreen: View {
                 }
             }
             
-            // Add prompt button if less than 3
-            if promptAnswers.count < 3 {
+            // Add prompt button if less than max
+            if promptAnswers.count < Self.maxPrompts {
                 Divider()
                     .background(Color.gray.opacity(0.1))
                 
@@ -745,11 +747,26 @@ struct EditProfileScreen: View {
         return imageData
     }
     
+    /// Saves current prompt answers to the profile (max 3). Call after user saves in PromptEditorSheet.
+    private func savePromptsToProfile() {
+        let capped = Array(promptAnswers.prefix(Self.maxPrompts))
+        Task {
+            do {
+                try await profileManager.updateProfile(ProfileUpdateRequest(
+                    promptAnswers: capped.isEmpty ? nil : capped
+                ))
+            } catch {
+                print("Failed to save prompts: \(error)")
+            }
+        }
+    }
+
     private func saveChanges() {
         isSaving = true
         
         Task {
             do {
+                let cappedPrompts = Array(promptAnswers.prefix(Self.maxPrompts))
                 let updates = ProfileUpdateRequest(
                     name: name.isEmpty ? nil : name,
                     birthday: birthday,
@@ -759,11 +776,13 @@ struct EditProfileScreen: View {
                     travelPace: travelPace.toBackendType,
                     interests: interests.isEmpty ? nil : interests,
                     rigInfo: rigInfo.isEmpty ? nil : rigInfo,
-                    promptAnswers: promptAnswers.isEmpty ? nil : promptAnswers
+                    promptAnswers: cappedPrompts.isEmpty ? nil : cappedPrompts
                 )
-                
                 try await profileManager.updateProfile(updates)
                 await MainActor.run {
+                    if promptAnswers.count > Self.maxPrompts {
+                        promptAnswers = cappedPrompts
+                    }
                     isSaving = false
                     // Show tab bar before going back
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -853,56 +872,72 @@ private struct EditProfilePhotoDropDelegate: DropDelegate {
     @Binding var photoImages: [Int: Image]
     @Binding var draggedPhoto: Int?
     
+    /// Perform the swap only when the user drops (releases), not on drag-over. Dragged photo takes this slot; the photo in this slot moves to the dragged photo’s spot.
     func performDrop(info: DropInfo) -> Bool {
+        let dragged = draggedPhoto
         DispatchQueue.main.async {
-            draggedPhoto = nil
-        }
-        return true
-    }
-    
-    func dropEntered(info: DropInfo) {
-        guard let dragged = draggedPhoto,
-              dragged != destinationIndex,
-              dragged >= 0, dragged < 6,
-              destinationIndex >= 0, destinationIndex < 6 else {
-            return
-        }
-        
-        // Only swap if both indices are valid
-        guard dragged < photos.count || destinationIndex < photos.count else {
-            return
-        }
-        
-        withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
-            // Swap photos
-            if dragged < photos.count && destinationIndex < photos.count {
-                photos.swapAt(dragged, destinationIndex)
-            } else if dragged < photos.count {
-                // Move from dragged to destination
-                let photo = photos[dragged]
-                photos.remove(at: dragged)
-                if destinationIndex <= photos.count {
-                    photos.insert(photo, at: min(destinationIndex, photos.count))
-                }
-            } else if destinationIndex < photos.count {
-                // Move from destination to dragged (empty to filled)
-                let photo = photos[destinationIndex]
-                photos.remove(at: destinationIndex)
-                if dragged <= photos.count {
-                    photos.insert(photo, at: min(dragged, photos.count))
+            defer { draggedPhoto = nil }
+            guard let src = dragged,
+                  src != destinationIndex,
+                  src >= 0, src < 6,
+                  destinationIndex >= 0, destinationIndex < 6 else {
+                return
+            }
+            guard src < photos.count || destinationIndex < photos.count else {
+                return
+            }
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                if src < photos.count && destinationIndex < photos.count {
+                    // Both slots have photos: swap them
+                    photos.swapAt(src, destinationIndex)
+                    let sourceImage = photoImages[src]
+                    let destImage = photoImages[destinationIndex]
+                    photoImages[src] = destImage
+                    photoImages[destinationIndex] = sourceImage
+                } else if src < photos.count {
+                    // Dragged from filled slot to empty slot (or another position): bubble to target index or end
+                    var p = photos
+                    var pi = photoImages
+                    var idx = src
+                    let dest = min(destinationIndex, p.count - 1) // empty slot = move to end
+                    while idx < dest {
+                        p.swapAt(idx, idx + 1)
+                        let a = pi[idx]; let b = pi[idx + 1]
+                        pi[idx] = b; pi[idx + 1] = a
+                        idx += 1
+                    }
+                    while idx > dest {
+                        p.swapAt(idx - 1, idx)
+                        let a = pi[idx - 1]; let b = pi[idx]
+                        pi[idx - 1] = b; pi[idx] = a
+                        idx -= 1
+                    }
+                    photos = p
+                    photoImages = pi
+                } else if destinationIndex < photos.count {
+                    // Dragged from empty slot onto a photo: that photo moves to the empty slot (at src)
+                    var p = photos
+                    var pi = photoImages
+                    var idx = destinationIndex
+                    let dest = min(src, p.count - 1)
+                    while idx < dest {
+                        p.swapAt(idx, idx + 1)
+                        let a = pi[idx]; let b = pi[idx + 1]
+                        pi[idx] = b; pi[idx + 1] = a
+                        idx += 1
+                    }
+                    while idx > dest {
+                        p.swapAt(idx - 1, idx)
+                        let a = pi[idx - 1]; let b = pi[idx]
+                        pi[idx - 1] = b; pi[idx] = a
+                        idx -= 1
+                    }
+                    photos = p
+                    photoImages = pi
                 }
             }
-            
-            // Swap preview images
-            let sourceImage = photoImages[dragged]
-            let destImage = photoImages[destinationIndex]
-            photoImages[dragged] = destImage
-            photoImages[destinationIndex] = sourceImage
         }
-    }
-    
-    func dropExited(info: DropInfo) {
-        // Optional: handle when drag exits
+        return true
     }
 }
 
@@ -1123,7 +1158,10 @@ struct AboutEditorView: View {
     @Binding var about: String
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
+    @StateObject private var profileManager = ProfileManager.shared
     @State private var editedAbout: String = ""
+    @State private var isSaving = false
+    @State private var saveError: String?
     
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
@@ -1133,18 +1171,14 @@ struct AboutEditorView: View {
             Color(red: 0.97, green: 0.97, blue: 0.97)
                 .ignoresSafeArea()
             
-            VStack(spacing: 24) {
+            VStack(alignment: .leading, spacing: 16) {
                 // About label (eyebrow)
-                HStack {
-                    Text("ABOUT")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(Color(red: 0.29, green: 0.33, blue: 0.41))
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 24)
+                Text("ABOUT")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Color(red: 0.29, green: 0.33, blue: 0.41))
+                    .padding(.horizontal, 16)
                 
-                // Text editor
+                // Text editor - normal height (~5 lines)
                 TextEditor(text: $editedAbout)
                     .font(.system(size: 17))
                     .foregroundColor(charcoalColor)
@@ -1152,21 +1186,30 @@ struct AboutEditorView: View {
                     .background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 2)
-                    .frame(minHeight: 200)
+                    .frame(height: 160)
                     .padding(.horizontal, 16)
+                    .scrollContentBackground(.hidden)
                 
-                Spacer()
+                if let saveError {
+                    Text(saveError)
+                        .font(.system(size: 14))
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 16)
+                }
+                
+                Spacer(minLength: 0)
             }
+            .padding(.top, 24)
         }
         .navigationTitle("About")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Save") {
-                    about = editedAbout
-                    dismiss()
+                    saveAbout()
                 }
                 .foregroundColor(burntOrange)
+                .disabled(isSaving)
             }
         }
         .onAppear {
@@ -1174,7 +1217,31 @@ struct AboutEditorView: View {
             tabBarVisibility.isVisible = false
         }
         .onDisappear {
-            tabBarVisibility.isVisible = true
+            // Keep tab bar hidden when popping back to Edit Profile
+        }
+    }
+    
+    private func saveAbout() {
+        saveError = nil
+        isSaving = true
+        
+        Task {
+            do {
+                let newBio = editedAbout.trimmingCharacters(in: .whitespacesAndNewlines)
+                try await profileManager.updateProfile(ProfileUpdateRequest(
+                    bio: newBio.isEmpty ? nil : newBio
+                ))
+                await MainActor.run {
+                    about = editedAbout
+                    isSaving = false
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    isSaving = false
+                    saveError = error.localizedDescription
+                }
+            }
         }
     }
 }
@@ -1182,7 +1249,8 @@ struct AboutEditorView: View {
 struct PromptEditorSheet: View {
     @Binding var promptAnswer: DriftBackend.PromptAnswer
     @Binding var isPresented: Bool
-    
+    var onDidSave: (() -> Void)? = nil
+
     @State private var selectedPrompt: String = ""
     @State private var answer: String = ""
     @State private var showPromptSelection = false
@@ -1296,6 +1364,7 @@ struct PromptEditorSheet: View {
                     Button("Save") {
                         promptAnswer = DriftBackend.PromptAnswer(prompt: selectedPrompt, answer: answer)
                         isPresented = false
+                        onDidSave?()
                     }
                     .foregroundColor(burntOrange)
                     .disabled(selectedPrompt.isEmpty || answer.isEmpty)
