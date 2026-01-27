@@ -99,6 +99,8 @@ Drift/CampflareConfig.swift
 **/VerifyFaceIDConfig.swift
 Drift/Network/VerifyFaceIDConfig.swift
 Drift/VerifyFaceIDConfig.swift
+**/UnsplashConfig.swift
+Drift/Network/UnsplashConfig.swift
 *.env
 .env.local
 .env.*.local

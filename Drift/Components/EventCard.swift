@@ -119,16 +119,6 @@ struct EventCard: View {
                     endPoint: .bottom
                 )
                 .frame(height: 160)
-
-                // Category badge
-                Text("Event")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(charcoal)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.white.opacity(0.9))
-                    .clipShape(Capsule())
-                    .padding(12)
             }
             .frame(height: 160)
             .clipped()

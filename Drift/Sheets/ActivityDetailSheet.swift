@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UIKit
+import Auth
 import DriftBackend
 
 struct ActivityDetailSheet: View {
@@ -21,9 +22,17 @@ struct ActivityDetailSheet: View {
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
     private let forestGreen = Color("ForestGreen")
-    private let skyBlue = Color("SkyBlue")
     private let softGray = Color("SoftGray")
     private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
+
+    /// Share button is visible when activity is public, or when the current user is the host (for private activities).
+    private var canShowShareButton: Bool {
+        guard let currentUserId = SupabaseManager.shared.currentUser?.id else { return false }
+        if activity.isPrivate {
+            return activity.hostId == currentUserId
+        }
+        return true
+    }
 
     var displayedAttendees: [ActivityAttendee] {
         activity.attendees?.filter { $0.status == .confirmed } ?? []
@@ -70,55 +79,50 @@ struct ActivityDetailSheet: View {
                 .frame(height: 256)
                 .clipped()
                 
-                // Gradient Overlay
+                // Gradient Overlay (match CampgroundDetailSheet: dark to clear to white)
                 LinearGradient(
-                        gradient: Gradient(colors: [
-                            Color.black.opacity(0.2),
-                            Color.black.opacity(0.6)
-                        ]),
-                        startPoint: .top,
-                        endPoint: .bottom
+                    gradient: Gradient(colors: [
+                        Color.black.opacity(0.4),
+                        Color.clear,
+                        Color.white
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
                 .frame(height: 256)
                 
                 // Header Controls
                 HStack {
-                        Button(action: {
-                            dismiss()
-                        }) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(charcoalColor)
-                                .frame(width: 44, height: 44)
-                                .background(Color.white.opacity(0.9))
-                                .clipShape(Circle())
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                )
-                        }
-                        
-                        Spacer()
-                        
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(charcoalColor)
+                            .frame(width: 36, height: 36)
+                            .background(Color.white.opacity(0.9))
+                            .clipShape(Circle())
+                    }
+                    
+                    Spacer()
+                    
+                    if canShowShareButton {
                         Button(action: {
                             handleShare()
                         }) {
                             Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 20, weight: .medium))
+                                .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(charcoalColor)
-                                .frame(width: 44, height: 44)
+                                .frame(width: 36, height: 36)
                                 .background(Color.white.opacity(0.9))
                                 .clipShape(Circle())
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                )
                         }
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
                 
-                // Title Overlay
+                // Title Overlay (positioned higher)
                 VStack {
                         Spacer()
                         VStack(alignment: .leading, spacing: 4) {
@@ -137,7 +141,7 @@ struct ActivityDetailSheet: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
+                        .padding(.bottom, 56)
                 }
             }
             .frame(height: 256)
@@ -196,7 +200,7 @@ struct ActivityDetailSheet: View {
                                         RoundedRectangle(cornerRadius: 6)
                                             .fill(
                                                 LinearGradient(
-                                                    gradient: Gradient(colors: [forestGreen, skyBlue]),
+                                                    gradient: Gradient(colors: [forestGreen, burntOrange]),
                                                     startPoint: .leading,
                                                     endPoint: .trailing
                                                 )
@@ -242,18 +246,6 @@ struct ActivityDetailSheet: View {
                                     .foregroundColor(charcoalColor)
                                 
                                 Spacer()
-                                
-                                Text(activity.category.displayName)
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(charcoalColor)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        Capsule()
-                                            .fill(Color.white)
-                                            .background(.ultraThinMaterial)
-                                            .cornerRadius(12)
-                                    )
                             }
                             
                             Text(activity.location)
@@ -394,7 +386,7 @@ struct ActivityDetailSheet: View {
                                     endPoint: .trailing
                                 )
                                 : LinearGradient(
-                                    gradient: Gradient(colors: [forestGreen, skyBlue]),
+                                    gradient: Gradient(colors: [burntOrange, sunsetRose]),
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
@@ -405,7 +397,10 @@ struct ActivityDetailSheet: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 28)
-                .background(Color.white)
+                .background(
+                    Color.white.opacity(0.95)
+                        .background(.ultraThinMaterial)
+                )
             }
         }
         .background(Color.white)
@@ -449,15 +444,68 @@ struct ActivityDetailSheet: View {
     }
 
     private func handleShare() {
-        // Share functionality
-        let activityInfo = "\(activity.title) - \(activity.location) on \(activity.formattedDate)"
-        let activityItems: [Any] = [activityInfo]
+        let shareText = "\(activity.title) – \(activity.location) on \(activity.formattedDate)"
+        let previewImage = sharePreviewImage()
+        var activityItems: [Any] = [shareText]
+        if let image = previewImage {
+            activityItems.insert(image, at: 0)
+        }
         let activityVC = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
 
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootViewController = windowScene.windows.first?.rootViewController {
-            rootViewController.present(activityVC, animated: true)
+        DispatchQueue.main.async {
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let window = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first,
+                  let rootVC = window.rootViewController else { return }
+            var top = rootVC
+            while let presented = top.presentedViewController { top = presented }
+            if let popover = activityVC.popoverPresentationController {
+                popover.sourceView = top.view
+                popover.sourceRect = CGRect(x: top.view.bounds.midX, y: top.view.bounds.midY, width: 0, height: 0)
+                popover.permittedArrowDirections = []
+            }
+            top.present(activityVC, animated: true)
         }
+    }
+
+    /// Builds a preview image for the share sheet: icon and event name.
+    private func sharePreviewImage() -> UIImage? {
+        let size = CGSize(width: 120, height: 120)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { ctx in
+            let rect = CGRect(origin: .zero, size: size)
+            UIColor(red: 0.13, green: 0.55, blue: 0.13, alpha: 1).setFill()
+            ctx.fill(rect)
+            let config = UIImage.SymbolConfiguration(pointSize: 44, weight: .medium)
+            if let symbol = UIImage(systemName: activity.category.icon, withConfiguration: config)?
+                .withTintColor(.white, renderingMode: .alwaysOriginal) {
+                let symbolRect = CGRect(
+                    x: (size.width - symbol.size.width) / 2,
+                    y: (size.height - symbol.size.height) / 2 - 10,
+                    width: symbol.size.width,
+                    height: symbol.size.height
+                )
+                symbol.draw(in: symbolRect)
+            }
+            let maxTitleWidth = size.width - 12
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.alignment = .center
+            paragraphStyle.lineBreakMode = .byTruncatingTail
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 11, weight: .semibold),
+                .foregroundColor: UIColor.white,
+                .paragraphStyle: paragraphStyle
+            ]
+            let title = activity.title as NSString
+            let titleSize = title.boundingRect(with: CGSize(width: maxTitleWidth, height: 24), options: .usesLineFragmentOrigin, attributes: attrs, context: nil).size
+            let titleRect = CGRect(
+                x: 6,
+                y: size.height - titleSize.height - 12,
+                width: maxTitleWidth,
+                height: min(titleSize.height, 24)
+            )
+            title.draw(in: titleRect, withAttributes: attrs)
+        }
+        return image
     }
 
     private func handleMessage() {

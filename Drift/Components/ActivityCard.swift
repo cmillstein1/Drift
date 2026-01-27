@@ -41,20 +41,6 @@ struct ActivityCard: View {
                     endPoint: .bottom
                 )
                 .frame(height: 160)
-
-                Text(activity.category.displayName)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(charcoalColor)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(Color.white.opacity(0.9))
-                            .background(.ultraThinMaterial)
-                            .cornerRadius(12)
-                    )
-                    .padding(.top, 12)
-                    .padding(.trailing, 12)
             }
 
             VStack(alignment: .leading, spacing: 12) {
