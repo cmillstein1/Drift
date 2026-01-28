@@ -49,6 +49,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				"Network/RevenueCatConfig.example.swift",
 			);
 			target = 16B754EB2F1961350012C1F4 /* Drift */;
 		};

@@ -1,17 +1,18 @@
 //
-//  RevenueCatConfig.swift
+//  RevenueCatConfig.example.swift
 //  Drift
 //
-//  Do not commit — contains RevenueCat API key. See RevenueCatConfig.example.swift.
+//  Copy this file to RevenueCatConfig.swift (gitignored) and set your real key.
 //
 
 import Foundation
 
 struct RevenueCatConfig {
-    static let apiKey = "appl_xlsfqzUgtqSILhJmNsjnWmfDjiw"
+    static let apiKey = "<#RevenueCat API Key#>"
     static let entitlementIdentifier = "Drift Pro"
 
     // Product identifiers
     static let monthlyProductId = "monthly"
     static let yearlyProductId = "DriftYearly"
 }
+
