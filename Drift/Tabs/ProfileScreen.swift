@@ -138,6 +138,8 @@ struct ProfileScreen: View {
                     } catch {
                         print("Failed to fetch profile: \(error)")
                     }
+                    // Refresh subscription status so Drift Pro badge and menu stay in sync
+                    await revenueCatManager.loadCustomerInfo()
                 }
             }
         }
