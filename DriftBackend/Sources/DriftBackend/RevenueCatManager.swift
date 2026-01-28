@@ -56,6 +56,34 @@ public class RevenueCatManager: NSObject, ObservableObject {
         }
     }
 
+    // MARK: - Identity (log in / log out)
+
+    /// Logs in to RevenueCat with the given app user ID (e.g. Supabase user UUID).
+    /// Call this after the user signs in so their subscription is tied to their account across devices.
+    public func logIn(userId: String) async {
+        do {
+            let result = try await Purchases.shared.logIn(userId)
+            let info = result.customerInfo
+            self.customerInfo = info
+            self.hasProAccess = info.entitlements[_BackendConfiguration.shared.revenueCatEntitlementID]?.isActive == true
+        } catch {
+            errorMessage = error.localizedDescription
+            await loadCustomerInfo()
+        }
+    }
+
+    /// Logs out from RevenueCat (switches back to anonymous). Call when the user signs out.
+    public func logOut() async {
+        do {
+            let info = try await Purchases.shared.logOut()
+            self.customerInfo = info
+            self.hasProAccess = info.entitlements[_BackendConfiguration.shared.revenueCatEntitlementID]?.isActive == true
+        } catch {
+            self.customerInfo = nil
+            self.hasProAccess = false
+        }
+    }
+
     // MARK: - Customer Info
 
     /// Loads the current customer information from RevenueCat.

@@ -27,6 +27,10 @@ struct WelcomeScreen: View {
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
     private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
+
+    // Update these URLs to your actual Privacy Policy and Terms of Use pages
+    private static let privacyPolicyURL = URL(string: "https://usedrift.app/privacy")!
+    private static let termsOfUseURL = URL(string: "https://usedrift.app/terms")!
     
     var body: some View {
         ZStack {
@@ -257,7 +261,7 @@ struct WelcomeScreen: View {
                         .offset(y: buttonsOffset)
 
                         // Terms
-                        Text("By continuing, you agree to Drift's Terms of Service\nand Privacy Policy")
+                        Text("By continuing, you agree to Drift's Terms of Service and Privacy Policy")
                             .font(.system(size: 12))
                             .foregroundColor(.white.opacity(0.6))
                             .multilineTextAlignment(.center)
@@ -265,6 +269,22 @@ struct WelcomeScreen: View {
                             .padding(.top, 8)
                             .opacity(buttonsOpacity)
                             .offset(y: buttonsOffset)
+
+                        // Privacy Policy & Terms of Use links (small, bottom)
+                        HStack(spacing: 12) {
+                            Link("Privacy Policy", destination: Self.privacyPolicyURL)
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.7))
+                            Text("·")
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.5))
+                            Link("Terms of Use", destination: Self.termsOfUseURL)
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.7))
+                        }
+                        .padding(.top, 12)
+                        .opacity(buttonsOpacity)
+                        .offset(y: buttonsOffset)
                     }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 64)

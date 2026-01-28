@@ -221,13 +221,21 @@ struct DriftApp: App {
             .animation(.easeInOut(duration: 0.3), value: supabaseManager.isCheckingAuth)
             .animation(.easeInOut(duration: 0.6), value: supabaseManager.hasRedeemedInvite)
             .task(id: supabaseManager.isAuthenticated) {
-                // Fetch profile when authenticated to check onboarding status
-                if supabaseManager.isAuthenticated && profileManager.currentProfile == nil {
-                    do {
-                        try await profileManager.fetchCurrentProfile()
-                    } catch {
-                        print("Failed to fetch profile: \(error)")
+                if supabaseManager.isAuthenticated {
+                    // Link RevenueCat to this user so subscription is recognized across devices
+                    if let userId = supabaseManager.currentUser?.id.uuidString {
+                        await revenueCatManager.logIn(userId: userId)
                     }
+                    // Fetch profile when authenticated to check onboarding status
+                    if profileManager.currentProfile == nil {
+                        do {
+                            try await profileManager.fetchCurrentProfile()
+                        } catch {
+                            print("Failed to fetch profile: \(error)")
+                        }
+                    }
+                } else {
+                    await revenueCatManager.logOut()
                 }
             }
             .onChange(of: supabaseManager.isAuthenticated) { _, isAuthenticated in
