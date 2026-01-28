@@ -16,10 +16,10 @@ func initializeDriftBackend() {
         supabaseURL: SupabaseConfig.supabaseURL,
         supabaseAnonKey: SupabaseConfig.anonKey,
         campflareAPIKey: CampflareConfig.apiKey,
-        revenueCatAPIKey: "test_YJMEfoMqdCFelANmBrkdyUoUDsI",
-        revenueCatEntitlementID: "Drift Pro",
-        revenueCatMonthlyProductID: "monthly",
-        revenueCatYearlyProductID: "DriftYearly",
+        revenueCatAPIKey: RevenueCatConfig.apiKey,
+        revenueCatEntitlementID: RevenueCatConfig.entitlementIdentifier,
+        revenueCatMonthlyProductID: RevenueCatConfig.monthlyProductId,
+        revenueCatYearlyProductID: RevenueCatConfig.yearlyProductId,
         verifyFaceIDAPIKey: VerifyFaceIDConfig.apiKey,
         unsplashAccessKey: ProcessInfo.processInfo.environment["UNSPLASH_ACCESS_KEY"] ?? UnsplashConfig.accessKey
     )
