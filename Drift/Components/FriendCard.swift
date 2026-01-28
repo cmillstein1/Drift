@@ -127,21 +127,17 @@ struct FriendCard: View {
 
                 // Info section
                 VStack(alignment: .leading, spacing: 4) {
-                    // Name, age, verified badge
+                    // Name and age in one text run so they stay on the same baseline
                     HStack(spacing: 6) {
-                        Text(profile.displayName)
+                        Text(profile.displayAge > 0 ? "\(profile.displayName), \(profile.displayAge)" : profile.displayName)
                             .font(.system(size: 18, weight: .bold))
-                        if profile.displayAge > 0 {
-                            Text(", \(profile.displayAge)")
-                                .font(.system(size: 18, weight: .bold))
-                        }
+                            .foregroundColor(inkMain)
                         if profile.verified {
                             Image(systemName: "checkmark.seal.fill")
                                 .font(.system(size: 14))
                                 .foregroundColor(.blue)
                         }
                     }
-                    .foregroundColor(inkMain)
 
                     // Location with teal icon
                     if let location = profile.location {
