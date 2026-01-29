@@ -542,6 +542,11 @@ public class FriendsManager: ObservableObject {
         }
     }
 
+    /// Removes a profile from peopleLikedMe (e.g. after user likes or passes). Use for optimistic UI.
+    public func removeFromPeopleLikedMe(id: UUID) {
+        peopleLikedMe.removeAll { $0.id == id }
+    }
+
     // MARK: - Realtime Subscriptions
 
     /// Subscribes to realtime updates for friend requests. If already subscribed, returns immediately.
