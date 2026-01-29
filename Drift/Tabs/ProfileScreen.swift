@@ -40,6 +40,10 @@ struct ProfileScreen: View {
     private var hasDatingEnabled: Bool {
         supabaseManager.getDiscoveryMode() != .friends
     }
+    
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
 
     private let softGray = Color("SoftGray")
     private let desertSand = Color("DesertSand")
@@ -70,6 +74,13 @@ struct ProfileScreen: View {
                             
                             // Emergency Services Button
                             emergencyServicesButton
+                            
+                            // App version
+                            Text("Drift v\(appVersion)")
+                                .font(.system(size: 13))
+                                .foregroundColor(charcoalColor.opacity(0.5))
+                                .padding(.top, 8)
+                                .padding(.bottom, 24)
                         }
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
@@ -303,33 +314,55 @@ struct ProfileScreen: View {
         }
     }
     
-    // MARK: - Discovery Mode Button
+    // MARK: - Discovery Mode + Generate Code (HStack of two rounded rects)
     
     private var discoveryModeButton: some View {
-        Button(action: {
-            showDiscoveryModeSheet = true
-        }) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: 12) {
+            // Discovery Mode
+            Button(action: {
+                showDiscoveryModeSheet = true
+            }) {
+                VStack(spacing: 10) {
+                    Image("DiscoverMode")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 56)
                     Text("Discovery Mode")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(charcoalColor)
-                    
-                    Text(discoveryModeDescription)
-                        .font(.system(size: 14))
-                        .foregroundColor(charcoalColor.opacity(0.6))
+                        .multilineTextAlignment(.center)
                 }
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(charcoalColor.opacity(0.4))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .padding(.horizontal, 12)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
             }
-            .padding(20)
-            .background(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+            .buttonStyle(PlainButtonStyle())
+            
+            // Generate Code
+            Button(action: {
+                showGenerateInvite = true
+            }) {
+                VStack(spacing: 10) {
+                    Image("InviteFriends")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 56)
+                    Text("Invite Friends")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(charcoalColor)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .padding(.horizontal, 12)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+            }
+            .buttonStyle(PlainButtonStyle())
         }
     }
     
@@ -362,8 +395,8 @@ struct ProfileScreen: View {
                 showNotificationsSheet = true
             }) {
                 ProfileMenuRow(
-                    icon: "bell.fill",
-                    iconBackground: skyBlue,
+                    icon: "bell",
+                    iconStyle: .outline,
                     title: "Notifications",
                     subtitle: nil
                 )
@@ -374,8 +407,8 @@ struct ProfileScreen: View {
             // Privacy, Safety & Support (Blocked users, etc.) — navigation push
             NavigationLink(value: "privacySafetySupport") {
                 ProfileMenuRow(
-                    icon: "shield.fill",
-                    iconBackground: forestGreen,
+                    icon: "lock",
+                    iconStyle: .outline,
                     title: "Privacy, Safety & Support",
                     subtitle: "Blocked users, help and more"
                 )
@@ -389,9 +422,8 @@ struct ProfileScreen: View {
                 showGenerateInvite = true
             }) {
                 ProfileMenuRow(
-                    icon: "gift.fill",
-                    iconBackground: burntOrange.opacity(0.1),
-                    iconColor: burntOrange,
+                    icon: "gift",
+                    iconStyle: .outline,
                     title: "Generate Invite Code",
                     subtitle: nil
                 )
@@ -584,18 +616,29 @@ struct ProfileMenuRow: View {
     var iconBackground: Color? = nil
     var iconBackgroundGradient: [Color]? = nil
     var iconColor: Color? = nil
+    var iconStyle: ProfileMenuRowIconStyle = .filled
     let title: String
     var subtitle: String? = nil
     var badge: String? = nil
     var badgeColor: Color? = nil
     
+    enum ProfileMenuRowIconStyle {
+        case filled   // colored background, white/colored icon
+        case outline  // light beige circle, dark charcoal outline icon
+    }
+    
     private let charcoalColor = Color("Charcoal")
+    private let iconBeige = Color(red: 0.97, green: 0.96, blue: 0.93) // #F7F4EE
     
     var body: some View {
         HStack(spacing: 12) {
             // Icon
             ZStack {
-                if let gradient = iconBackgroundGradient {
+                if iconStyle == .outline {
+                    Circle()
+                        .fill(iconBeige)
+                        .frame(width: 40, height: 40)
+                } else if let gradient = iconBackgroundGradient {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(
                             LinearGradient(
@@ -612,10 +655,11 @@ struct ProfileMenuRow: View {
                 }
                 
                 Image(systemName: icon)
-                    .font(.system(size: 20))
+                    .font(.system(size: iconStyle == .outline ? 18 : 20, weight: .medium))
                     .foregroundColor(
-                        iconBackgroundGradient != nil ? .white :
-                        (iconColor ?? (iconBackground != nil ? .white : charcoalColor))
+                        iconStyle == .outline ? charcoalColor :
+                        (iconBackgroundGradient != nil ? .white :
+                        (iconColor ?? (iconBackground != nil ? .white : charcoalColor)))
                     )
             }
             
