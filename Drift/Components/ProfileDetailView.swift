@@ -13,9 +13,16 @@ struct ProfileDetailView: View {
     @Binding var isOpen: Bool
     let onLike: () -> Void
     let onPass: () -> Void
+    /// When true, show a back button at top left (e.g. when opened from message thread).
+    var showBackButton: Bool = false
 
     @State private var imageIndex: Int = 0
+    @State private var profileScrollOffset: CGFloat = 0
+    @State private var profileScrollInitialY: CGFloat?
     @Environment(\.dismiss) var dismiss
+
+    private let profileHeaderCollapseThreshold: CGFloat = 72
+    private let profileCompactHeaderHeight: CGFloat = 44
 
     // Colors from Discover
     private let coralPrimary = Color(red: 1.0, green: 0.37, blue: 0.37)
@@ -23,6 +30,7 @@ struct ProfileDetailView: View {
     private let inkSub = Color(red: 0.42, green: 0.44, blue: 0.50)
     private let gray100 = Color(red: 0.95, green: 0.95, blue: 0.96)
     private let gray700 = Color(red: 0.37, green: 0.37, blue: 0.42)
+    private let softGray = Color("SoftGray")
 
     private var images: [String] {
         if profile.photos.isEmpty {
@@ -33,11 +41,23 @@ struct ProfileDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.white.ignoresSafeArea()
+            (showBackButton ? softGray : Color.white).ignoresSafeArea()
 
-            // Main scrollable content
+            // Main scrollable content; coordinate space on parent so scroll offset is relative to viewport
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
+                    // Scroll offset tracker (for parallax when showBackButton); use global Y so offset updates as content scrolls
+                    if showBackButton {
+                        Color.clear
+                            .frame(height: 1)
+                            .background(
+                                GeometryReader { g in
+                                    let globalY = g.frame(in: .global).minY
+                                    Color.clear.preference(key: ScrollOffsetPreferenceKey.self, value: globalY)
+                                }
+                            )
+                        Color.clear.frame(height: 79)
+                    }
                     GeometryReader { geo in
                         ZStack(alignment: .topTrailing) {
                             ZStack(alignment: .bottom) {
@@ -96,41 +116,49 @@ struct ProfileDetailView: View {
 
                                 Spacer()
 
-                                // Like button
-                                Button {
-                                    onLike()
-                                    dismiss()
-                                } label: {
-                                    Image(systemName: "heart.fill")
-                                        .font(.system(size: 24))
-                                        .foregroundColor(.white)
-                                        .frame(width: 56, height: 56)
-                                        .background(Color.white.opacity(0.2))
-                                        .clipShape(Circle())
-                                        .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
-                                        .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+                                // Like button (hidden when opened from message)
+                                if !showBackButton {
+                                    Button {
+                                        onLike()
+                                        dismiss()
+                                    } label: {
+                                        Image(systemName: "heart.fill")
+                                            .font(.system(size: 24))
+                                            .foregroundColor(.white)
+                                            .frame(width: 56, height: 56)
+                                            .background(Color.white.opacity(0.2))
+                                            .clipShape(Circle())
+                                            .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
+                                            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+                                    }
                                 }
                             }
                             .padding(24)
                             }
 
-                            // Report/Block menu - top right
-                            ReportBlockMenuButton(
-                                userId: profile.id,
-                                displayName: profile.displayName,
-                                onBlockComplete: { isOpen = false },
-                                darkStyle: true
-                            )
-                            .padding(.top, 12)
-                            .padding(.trailing, 24)
+                            // Report/Block menu - top right (hidden when showBackButton; shown in parallax overlay instead)
+                            if !showBackButton {
+                                ReportBlockMenuButton(
+                                    userId: profile.id,
+                                    displayName: profile.displayName,
+                                    onBlockComplete: { isOpen = false },
+                                    darkStyle: true
+                                )
+                                .padding(.top, 12)
+                                .padding(.trailing, 24)
+                            }
                         }
                     }
                     .frame(height: 500)
 
                     // ==========================================
-                    // BIO SECTION
+                    // ABOUT ME SECTION
                     // ==========================================
-                    VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text("About me")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(inkMain)
+
                         if let bio = profile.bio, !bio.isEmpty {
                             Text(bio)
                                 .font(.system(size: 18))
@@ -138,17 +166,22 @@ struct ProfileDetailView: View {
                                 .lineSpacing(6)
                         }
 
-                        // Tags row (interests)
+                        // Interests (when we have them)
                         if !profile.interests.isEmpty {
-                            WrappingHStack(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
-                                ForEach(profile.interests, id: \.self) { interest in
-                                    Text(interest)
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(gray700)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 6)
-                                        .background(gray100)
-                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Interests")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(inkSub)
+                                WrappingHStack(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                                    ForEach(profile.interests, id: \.self) { interest in
+                                        Text(interest)
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(inkMain)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(gray100)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    }
                                 }
                             }
                         }
@@ -156,6 +189,9 @@ struct ProfileDetailView: View {
                     .padding(24)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: showBackButton ? 20 : 0))
+                    .padding(.horizontal, showBackButton ? 16 : 0)
+                    .padding(.top, showBackButton ? 16 : 0)
 
                     // ==========================================
                     // PROMPT SECTION 1 - "My simple pleasure"
@@ -205,27 +241,29 @@ struct ProfileDetailView: View {
                                 .frame(width: geo.size.width, height: 400)
                                 .clipped()
 
-                                // Like button top-right
-                                VStack {
-                                    HStack {
-                                        Spacer()
-                                        Button {
-                                            onLike()
-                                            dismiss()
-                                        } label: {
-                                            Image(systemName: "heart.fill")
-                                                .font(.system(size: 20))
-                                                .foregroundColor(.white)
-                                                .frame(width: 48, height: 48)
-                                                .background(Color.white.opacity(0.2))
-                                                .clipShape(Circle())
-                                                .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
-                                                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                                // Like button top-right (hidden when opened from message)
+                                if !showBackButton {
+                                    VStack {
+                                        HStack {
+                                            Spacer()
+                                            Button {
+                                                onLike()
+                                                dismiss()
+                                            } label: {
+                                                Image(systemName: "heart.fill")
+                                                    .font(.system(size: 20))
+                                                    .foregroundColor(.white)
+                                                    .frame(width: 48, height: 48)
+                                                    .background(Color.white.opacity(0.2))
+                                                    .clipShape(Circle())
+                                                    .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
+                                                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                                            }
+                                            .padding(.trailing, 24)
+                                            .padding(.top, 16)
                                         }
-                                        .padding(.trailing, 24)
-                                        .padding(.top, 16)
+                                        Spacer()
                                     }
-                                    Spacer()
                                 }
 
                                 // Rig info card bottom-left
@@ -313,27 +351,29 @@ struct ProfileDetailView: View {
                                 .frame(width: geo.size.width, height: 400)
                                 .clipped()
 
-                                // Like button top-right
-                                VStack {
-                                    HStack {
-                                        Spacer()
-                                        Button {
-                                            onLike()
-                                            dismiss()
-                                        } label: {
-                                            Image(systemName: "heart.fill")
-                                                .font(.system(size: 20))
-                                                .foregroundColor(.white)
-                                                .frame(width: 48, height: 48)
-                                                .background(Color.white.opacity(0.2))
-                                                .clipShape(Circle())
-                                                .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
-                                                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                                // Like button top-right (hidden when opened from message)
+                                if !showBackButton {
+                                    VStack {
+                                        HStack {
+                                            Spacer()
+                                            Button {
+                                                onLike()
+                                                dismiss()
+                                            } label: {
+                                                Image(systemName: "heart.fill")
+                                                    .font(.system(size: 20))
+                                                    .foregroundColor(.white)
+                                                    .frame(width: 48, height: 48)
+                                                    .background(Color.white.opacity(0.2))
+                                                    .clipShape(Circle())
+                                                    .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
+                                                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                                            }
+                                            .padding(.trailing, 24)
+                                            .padding(.top, 16)
                                         }
-                                        .padding(.trailing, 24)
-                                        .padding(.top, 16)
+                                        Spacer()
                                     }
-                                    Spacer()
                                 }
                             }
                         }
@@ -344,56 +384,134 @@ struct ProfileDetailView: View {
                     Spacer().frame(height: 120)
                 }
             }
-
-            // ==========================================
-            // FLOATING HEADER - close button
-            // ==========================================
-            VStack {
-                HStack {
-                    Spacer()
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(.white)
-                            .frame(width: 40, height: 40)
-                            .background(Color.white.opacity(0.2))
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
-                            .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
-                    }
+            .onPreferenceChange(ScrollOffsetPreferenceKey.self) { globalY in
+                guard showBackButton else { return }
+                if let initial = profileScrollInitialY {
+                    profileScrollOffset = globalY - initial
+                } else {
+                    profileScrollInitialY = globalY
+                    profileScrollOffset = 0
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 12)
-
-                Spacer()
             }
 
             // ==========================================
-            // PASS BUTTON - bottom left
+            // FLOATING HEADER - close button (hidden when opened from message; we use back button instead)
             // ==========================================
-            VStack {
-                Spacer()
-                HStack {
-                    Button {
-                        onPass()
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 28, weight: .medium))
-                            .foregroundColor(Color.gray)
-                            .frame(width: 64, height: 64)
-                            .background(Color.white)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.gray.opacity(0.15), lineWidth: 1))
-                            .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 4)
+            if !showBackButton {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(.white)
+                                .frame(width: 40, height: 40)
+                                .background(Color.white.opacity(0.2))
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
+                                .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+                        }
                     }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 12)
 
                     Spacer()
                 }
-                .padding(.leading, 24)
-                .padding(.bottom, 40)
+            }
+
+            // ==========================================
+            // PASS BUTTON - bottom left (hidden when opened from message)
+            // ==========================================
+            if !showBackButton {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Button {
+                            onPass()
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 28, weight: .medium))
+                                .foregroundColor(Color.gray)
+                                .frame(width: 64, height: 64)
+                                .background(Color.white)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.gray.opacity(0.15), lineWidth: 1))
+                                .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 4)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.leading, 24)
+                    .padding(.bottom, 40)
+                }
+            }
+
+        }
+        .overlay(alignment: .top) {
+            // PARALLAX HEADER (when opened from message): pinned to top; back + menu slide up and fade; compact name bar fades in
+            if showBackButton {
+                ZStack(alignment: .top) {
+                    // Expanded: back button + ReportBlockMenu — slide up and fade with scroll
+                    let headerOffset = max(-80, min(0, profileScrollOffset))
+                    let headerOpacity = profileScrollOffset > 0 ? 1.0 : max(0, 1.0 + Double(profileScrollOffset) / Double(profileHeaderCollapseThreshold))
+                    HStack {
+                        Button {
+                            isOpen = false
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(.black)
+                        }
+                        .padding(.leading, 24)
+                        .padding(.vertical, 12)
+                        .padding(.trailing, 8)
+                        Spacer()
+                        ReportBlockMenuButton(
+                            userId: profile.id,
+                            displayName: profile.displayName,
+                            onBlockComplete: { isOpen = false },
+                            plainStyle: true
+                        )
+                        .padding(.trailing, 24)
+                    }
+                    .padding(.top, 16)
+                    .offset(y: headerOffset)
+                    .opacity(headerOpacity)
+
+                    // Compact: name centered — fades in when scrolled past threshold
+                    let compactOpacity = profileScrollOffset >= -profileHeaderCollapseThreshold ? 0.0 : min(1.0, Double(-profileScrollOffset - profileHeaderCollapseThreshold) / 40.0)
+                    ZStack {
+                        Text(profile.displayName)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundColor(inkMain)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity)
+                        HStack {
+                            Spacer().frame(width: 44)
+                            Spacer()
+                            ReportBlockMenuButton(
+                                userId: profile.id,
+                                displayName: profile.displayName,
+                                onBlockComplete: { isOpen = false },
+                                plainStyle: true
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(height: profileCompactHeaderHeight)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.white)
+                    .overlay(
+                        Rectangle().frame(height: 1).foregroundColor(gray100),
+                        alignment: .bottom
+                    )
+                    .padding(.top, 16)
+                    .opacity(compactOpacity)
+                }
+                .frame(maxWidth: .infinity, alignment: .top)
             }
         }
     }

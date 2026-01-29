@@ -115,6 +115,8 @@ struct ReportBlockMenuButton: View {
     var onBlockComplete: (() -> Void)? = nil
     /// When true, use light foreground for dark backgrounds (e.g. profile hero).
     var darkStyle: Bool = false
+    /// When true, show only the ellipsis in black with no circle/background (matches plain back button).
+    var plainStyle: Bool = false
 
     @StateObject private var friendsManager = FriendsManager.shared
     @State private var isBlocking = false
@@ -148,13 +150,13 @@ struct ReportBlockMenuButton: View {
             .disabled(userId == nil || isBlocking)
         } label: {
             Image(systemName: "ellipsis")
-                .font(.system(size: darkStyle ? 18 : 20))
-                .foregroundColor(darkStyle ? .white : inkMain)
-                .frame(width: darkStyle ? 36 : 40, height: darkStyle ? 36 : 40)
-                .background(darkStyle ? Color.white.opacity(0.2) : Color.white)
+                .font(.system(size: plainStyle ? 20 : (darkStyle ? 18 : 20), weight: plainStyle ? .medium : .regular))
+                .foregroundColor(plainStyle ? .black : (darkStyle ? .white : inkMain))
+                .frame(width: plainStyle ? 44 : (darkStyle ? 36 : 40), height: plainStyle ? 44 : (darkStyle ? 36 : 40))
+                .background(plainStyle ? Color.clear : (darkStyle ? Color.white.opacity(0.2) : Color.white))
                 .clipShape(Circle())
-                .overlay(Circle().stroke(darkStyle ? Color.white.opacity(0.3) : Color.gray.opacity(0.2), lineWidth: 1))
-                .shadow(color: .black.opacity(darkStyle ? 0.2 : 0.05), radius: darkStyle ? 4 : 4, x: 0, y: 2)
+                .overlay(Circle().stroke(plainStyle ? Color.clear : (darkStyle ? Color.white.opacity(0.3) : Color.gray.opacity(0.2)), lineWidth: plainStyle ? 0 : 1))
+                .shadow(color: plainStyle ? .clear : .black.opacity(darkStyle ? 0.2 : 0.05), radius: darkStyle ? 4 : 4, x: 0, y: 2)
         }
         .disabled(userId == nil || isBlocking)
         .alert("Block \(pendingBlockDisplayName)?", isPresented: $showBlockConfirm) {
