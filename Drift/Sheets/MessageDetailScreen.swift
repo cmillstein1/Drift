@@ -15,11 +15,14 @@ struct MessageDetailScreen: View {
     let onClose: () -> Void
 
     @StateObject private var messagingManager = MessagingManager.shared
+    @StateObject private var profileManager = ProfileManager.shared
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @State private var messageText: String = ""
     @FocusState private var isInputFocused: Bool
     @State private var typingDebounceTask: Task<Void, Never>?
     @State private var lastTypingSentAt: Date?
+    @State private var profileToShowFromMessage: UserProfile?
+    @State private var isLoadingProfileForMessage: Bool = false
 
     private var currentUserId: UUID? {
         supabaseManager.currentUser?.id
@@ -127,75 +130,98 @@ struct MessageDetailScreen: View {
                             .clipShape(Circle())
                     }
                     
-                    ZStack(alignment: .bottomTrailing) {
-                        // Avatar
-                        AsyncImage(url: URL(string: conversation.avatarUrl ?? "")) { phase in
-                            switch phase {
-                            case .empty:
-                                Circle()
-                                    .fill(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [burntOrange, forestGreen]),
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .frame(width: 40, height: 40)
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: 40, height: 40)
-                                    .clipShape(Circle())
-                            case .failure:
-                                Circle()
-                                    .fill(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [burntOrange, forestGreen]),
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .frame(width: 40, height: 40)
-                            @unknown default:
-                                Circle()
-                                    .fill(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [burntOrange, forestGreen]),
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .frame(width: 40, height: 40)
+                    Button {
+                        if let other = conversation.otherUser {
+                            profileToShowFromMessage = other
+                        } else if let id = otherUserId {
+                            isLoadingProfileForMessage = true
+                            Task {
+                                do {
+                                    let p = try await profileManager.fetchProfile(by: id)
+                                    await MainActor.run {
+                                        profileToShowFromMessage = p
+                                        isLoadingProfileForMessage = false
+                                    }
+                                } catch {
+                                    await MainActor.run { isLoadingProfileForMessage = false }
+                                }
                             }
                         }
-                        
-                        // Match/Friend Badge
-                        ZStack {
-                            Circle()
-                                .fill(badgeBackground)
-                                .frame(width: 16, height: 16)
+                    } label: {
+                        HStack(spacing: 12) {
+                            ZStack(alignment: .bottomTrailing) {
+                                // Avatar
+                                AsyncImage(url: URL(string: conversation.avatarUrl ?? "")) { phase in
+                                    switch phase {
+                                    case .empty:
+                                        Circle()
+                                            .fill(
+                                                LinearGradient(
+                                                    gradient: Gradient(colors: [burntOrange, forestGreen]),
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                            .frame(width: 40, height: 40)
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                            .frame(width: 40, height: 40)
+                                            .clipShape(Circle())
+                                    case .failure:
+                                        Circle()
+                                            .fill(
+                                                LinearGradient(
+                                                    gradient: Gradient(colors: [burntOrange, forestGreen]),
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                            .frame(width: 40, height: 40)
+                                    @unknown default:
+                                        Circle()
+                                            .fill(
+                                                LinearGradient(
+                                                    gradient: Gradient(colors: [burntOrange, forestGreen]),
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                            .frame(width: 40, height: 40)
+                                    }
+                                }
+                                
+                                // Match/Friend Badge
+                                ZStack {
+                                    Circle()
+                                        .fill(badgeBackground)
+                                        .frame(width: 16, height: 16)
+                                    
+                                    Image(systemName: badgeIcon)
+                                        .font(.system(size: 8, weight: .semibold))
+                                        .foregroundColor(.white)
+                                }
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white, lineWidth: 2)
+                                )
+                                .offset(x: -2, y: -2)
+                            }
                             
-                            Image(systemName: badgeIcon)
-                                .font(.system(size: 8, weight: .semibold))
-                                .foregroundColor(.white)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(conversation.displayName)
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(charcoalColor)
+                                
+                                Text(typeLabel)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(charcoalColor.opacity(0.6))
+                            }
                         }
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white, lineWidth: 2)
-                        )
-                        .offset(x: -2, y: -2)
                     }
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(conversation.displayName)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(charcoalColor)
-                        
-                        Text(typeLabel)
-                            .font(.system(size: 12))
-                            .foregroundColor(charcoalColor.opacity(0.6))
-                    }
+                    .buttonStyle(.plain)
+                    .disabled(isLoadingProfileForMessage)
                     
                     Spacer()
                     
@@ -328,6 +354,18 @@ struct MessageDetailScreen: View {
             Task {
                 await messagingManager.unsubscribeFromMessages()
             }
+        }
+        .fullScreenCover(item: $profileToShowFromMessage) { profile in
+            ProfileDetailView(
+                profile: profile,
+                isOpen: Binding(
+                    get: { profileToShowFromMessage != nil },
+                    set: { if !$0 { profileToShowFromMessage = nil } }
+                ),
+                onLike: { profileToShowFromMessage = nil },
+                onPass: { profileToShowFromMessage = nil },
+                showBackButton: true
+            )
         }
         .onChange(of: messageText) { _, newValue in
             if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
