@@ -35,6 +35,7 @@ struct DiscoveryModeSheet: View {
                 Text("Discovery Mode")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(charcoalColor)
+                    .padding(.top, 8)
 
                 Spacer()
 

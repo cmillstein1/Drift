@@ -86,6 +86,7 @@ struct NotificationsSettingsSheet: View {
                 Text("Notifications")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(charcoalColor)
+                    .padding(.top, 8)
 
                 Spacer()
 

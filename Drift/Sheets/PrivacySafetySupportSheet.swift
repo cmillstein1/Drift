@@ -64,6 +64,9 @@ struct PrivacySafetySupportScreen: View {
         .background(softGray)
         .navigationTitle("Privacy, Safety & Support")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(softGray, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .tint(.black)
     }
 }
 
