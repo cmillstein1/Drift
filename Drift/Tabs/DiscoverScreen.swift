@@ -42,6 +42,10 @@ struct DiscoverScreen: View {
 
     /// Height of top nav bar (status padding + content) for scroll‑away offset
     private let topNavBarHeight: CGFloat = 132
+    /// Scroll offset past which expanded header is fully gone and compact (name) header is shown
+    private let headerCollapseThreshold: CGFloat = 72
+    /// Height of compact header (safe area + title row)
+    private let compactHeaderHeight: CGFloat = 44
 
     // Colors from HTML
     private let softGray = Color("SoftGray")
@@ -387,45 +391,28 @@ struct DiscoverScreen: View {
             softGray.ignoresSafeArea()
 
             if let profile = currentCard {
-                VStack(spacing: 0) {
-                    // Top nav bar - fixed in layout so card starts directly below it (header at top)
-                    HStack {
-                        if supabaseManager.getDiscoveryMode() == .both {
-                            modeSwitcher(style: .light)
-                        }
-                        Spacer()
-                        ReportBlockMenuButton(
-                            userId: currentCard?.id,
-                            displayName: currentCard?.displayName,
-                            onBlockComplete: { loadProfiles() }
-                        )
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 12)
-                    .padding(.bottom, 16)
-                    .frame(maxWidth: .infinity)
-                    .background(softGray.ignoresSafeArea(edges: .top))
-                    .padding(.top, 60)
+                // ScrollView full size so content can scroll into header zone; header overlaid and slides up with scroll
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        Color.clear
+                            .frame(height: 1)
+                            .background(
+                                GeometryReader { geo in
+                                    let namedOffset = geo.frame(in: .named("discoverScroll")).minY
+                                    Color.clear
+                                        .preference(key: ScrollOffsetPreferenceKey.self, value: namedOffset)
+                                        .onAppear { handleScrollOffset(namedOffset) }
+                                        .onChange(of: namedOffset) { _, newValue in
+                                            currentScrollOffset = newValue
+                                            handleScrollOffset(newValue)
+                                        }
+                                }
+                            )
 
-                    // Scroll view - card only, no top spacer; header sits right below nav
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(spacing: 0) {
-                            Color.clear
-                                .frame(height: 1)
-                                .background(
-                                    GeometryReader { geo in
-                                        let namedOffset = geo.frame(in: .named("discoverScroll")).minY
-                                        Color.clear
-                                            .preference(key: ScrollOffsetPreferenceKey.self, value: namedOffset)
-                                            .onAppear { handleScrollOffset(namedOffset) }
-                                            .onChange(of: namedOffset) { _, newValue in
-                                                currentScrollOffset = newValue
-                                                handleScrollOffset(newValue)
-                                            }
-                                    }
-                                )
+                        // Top spacer so card starts below header when at rest; content scrolls into header area
+                        Color.clear.frame(height: topNavBarHeight - 1)
 
-                            // White card
+                        // White card
                             VStack(spacing: 0) {
                             // ----- Header: name, age, verified, location, distance, tags -----
                             VStack(alignment: .leading, spacing: 0) {
@@ -781,6 +768,62 @@ struct DiscoverScreen: View {
                         .background(softGray)
                     }
                     .coordinateSpace(name: "discoverScroll")
+                    .overlay(alignment: .top) {
+                        ZStack(alignment: .top) {
+                            // 1) Expanded bar: slides up and fades as user scrolls
+                            let expandedOffset = max(-topNavBarHeight, min(0, currentScrollOffset))
+                            let expandedOpacity = currentScrollOffset > 0 ? 1.0 : max(0, 1.0 + currentScrollOffset / headerCollapseThreshold)
+                            HStack {
+                                if supabaseManager.getDiscoveryMode() == .both {
+                                    modeSwitcher(style: .light)
+                                }
+                                Spacer()
+                                ReportBlockMenuButton(
+                                    userId: currentCard?.id,
+                                    displayName: currentCard?.displayName,
+                                    onBlockComplete: { loadProfiles() }
+                                )
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.top, 12)
+                            .padding(.bottom, 16)
+                            .frame(maxWidth: .infinity)
+                            .background(softGray.ignoresSafeArea(edges: .top))
+                            .padding(.top, 60)
+                            .offset(y: expandedOffset)
+                            .opacity(expandedOpacity)
+
+                            // 2) Compact bar: person's name centered + more button; fades in when expanded has scrolled away
+                            let compactOpacity = currentScrollOffset >= -headerCollapseThreshold ? 0.0 : min(1.0, (-currentScrollOffset - headerCollapseThreshold) / 40.0)
+                            let compactButtonOpacity: Double = currentScrollOffset >= -headerCollapseThreshold ? 1.0 : max(0, 1.0 + Double(currentScrollOffset + headerCollapseThreshold) / 50.0)
+                            ZStack {
+                                Text(profile.displayName)
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundColor(charcoal)
+                                    .lineLimit(1)
+                                    .frame(maxWidth: .infinity)
+                                HStack {
+                                    Spacer()
+                                    ReportBlockMenuButton(
+                                        userId: currentCard?.id,
+                                        displayName: currentCard?.displayName,
+                                        onBlockComplete: { loadProfiles() }
+                                    )
+                                    .opacity(compactButtonOpacity)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .frame(height: compactHeaderHeight)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.white.ignoresSafeArea(edges: .top))
+                            .overlay(
+                                Rectangle().frame(height: 1).foregroundColor(gray100),
+                                alignment: .bottom
+                            )
+                            .padding(.top, 60)
+                            .opacity(compactOpacity)
+                        }
+                    }
                     .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newOffset in
                     // Update scroll position
                     scrollPosition = newOffset
@@ -863,8 +906,6 @@ struct DiscoverScreen: View {
                     }
                     lastScrollOffset = newOffset
                 }
-
-                } // end VStack (nav + scroll)
 
                 // Persistent Pass (X) button - bottom left, more pronounced
                 VStack {
