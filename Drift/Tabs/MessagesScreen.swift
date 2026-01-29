@@ -96,6 +96,7 @@ struct MessagesScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var messagingManager = MessagingManager.shared
     @StateObject private var friendsManager = FriendsManager.shared
+    @StateObject private var revenueCatManager = RevenueCatManager.shared
     @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
 
     @State private var searchText: String = ""
@@ -104,6 +105,7 @@ struct MessagesScreen: View {
     @State private var segmentIndex: Int = 0 // Default to dating (index 0)
     @State private var selectedProfileToView: UserProfile? = nil
     @State private var showLikesYouScreen = false
+    @State private var showLikesYouPaywall = false
     @State private var hiddenSectionExpanded = false
     @State private var showMyFriendsSheet = false
     @State private var pendingConversationToOpen: Conversation?
@@ -360,8 +362,13 @@ struct MessagesScreen: View {
                         LikesYouBanner(
                             count: friendsManager.peopleLikedMe.count,
                             profiles: Array(friendsManager.peopleLikedMe.prefix(3)),
+                            hasProAccess: revenueCatManager.hasProAccess,
                             onTap: {
-                                showLikesYouScreen = true
+                                if revenueCatManager.hasProAccess {
+                                    showLikesYouScreen = true
+                                } else {
+                                    showLikesYouPaywall = true
+                                }
                             }
                         )
                         .padding(.horizontal, 16)
@@ -657,6 +664,9 @@ struct MessagesScreen: View {
         }
         .sheet(isPresented: $showLikesYouScreen) {
             LikesYouScreen()
+        }
+        .sheet(isPresented: $showLikesYouPaywall) {
+            PaywallScreen(isOpen: $showLikesYouPaywall, source: .likesYou)
         }
         .sheet(isPresented: $showMyFriendsSheet, onDismiss: {
             if let conv = pendingConversationToOpen {
@@ -1043,40 +1053,68 @@ struct FriendRow: View {
 struct LikesYouBanner: View {
     let count: Int
     let profiles: [UserProfile]
+    let hasProAccess: Bool
     let onTap: () -> Void
 
     private let burntOrange = Color("BurntOrange")
     private let pink500 = Color(red: 0.93, green: 0.36, blue: 0.51)
     private let charcoalColor = Color("Charcoal")
 
+    /// Single avatar: profile photo (blurred when !hasProAccess) or neutral gray placeholder so we never show "glowing rings".
+    @ViewBuilder
+    private func avatarView(urlString: String, profile: UserProfile, hasProAccess: Bool) -> some View {
+        let url = URL(string: urlString)
+        let showBlur = !hasProAccess
+
+        Group {
+            if let url = url, !urlString.isEmpty {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 44, height: 44)
+                            .clipped()
+                            .blur(radius: showBlur ? 12 : 0)
+                    case .failure, .empty:
+                        neutralPlaceholder(profile: profile)
+                            .blur(radius: showBlur ? 12 : 0)
+                    @unknown default:
+                        neutralPlaceholder(profile: profile)
+                            .blur(radius: showBlur ? 12 : 0)
+                    }
+                }
+                .frame(width: 44, height: 44)
+                .clipShape(Circle())
+            } else {
+                neutralPlaceholder(profile: profile)
+                    .frame(width: 44, height: 44)
+                    .blur(radius: showBlur ? 12 : 0)
+                    .clipShape(Circle())
+            }
+        }
+        .overlay(Circle().stroke(Color.white, lineWidth: 2))
+    }
+
+    private func neutralPlaceholder(profile: UserProfile) -> some View {
+        Color(white: 0.75)
+            .overlay(
+                Text(profile.initials)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.white)
+            )
+    }
+
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
-                // Stacked avatars
+                // Stacked avatars: show actual profile photo, blurred when user doesn't have Drift Pro
                 HStack(spacing: -12) {
                     ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
-                        AsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? "")) { phase in
-                            if let image = phase.image {
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } else {
-                                LinearGradient(
-                                    colors: [burntOrange, pink500],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                                .overlay(
-                                    Text(profile.initials)
-                                        .font(.system(size: 12, weight: .bold))
-                                        .foregroundColor(.white)
-                                )
-                            }
-                        }
-                        .frame(width: 44, height: 44)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                        .zIndex(Double(profiles.count - index))
+                        let photoURL = profile.photos.first ?? profile.avatarUrl ?? ""
+                        avatarView(urlString: photoURL, profile: profile, hasProAccess: hasProAccess)
+                            .zIndex(Double(profiles.count - index))
                     }
 
                     if count > 3 {
@@ -1104,7 +1142,7 @@ struct LikesYouBanner: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(charcoalColor)
 
-                    Text("Tap to see who")
+                    Text(hasProAccess ? "Tap to see who" : "Upgrade to Drift Pro to see who")
                         .font(.system(size: 14))
                         .foregroundColor(charcoalColor.opacity(0.6))
                 }

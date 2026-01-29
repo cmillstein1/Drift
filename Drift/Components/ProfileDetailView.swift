@@ -13,8 +13,10 @@ struct ProfileDetailView: View {
     @Binding var isOpen: Bool
     let onLike: () -> Void
     let onPass: () -> Void
-    /// When true, show a back button at top left (e.g. when opened from message thread).
+    /// When true, show a back button at top left (e.g. when opened from message thread or Likes You).
     var showBackButton: Bool = false
+    /// When true with showBackButton, still show Like and Pass buttons (e.g. when opened from Likes You).
+    var showLikeAndPassButtons: Bool = false
 
     @State private var imageIndex: Int = 0
     @State private var profileScrollOffset: CGFloat = 0
@@ -116,8 +118,8 @@ struct ProfileDetailView: View {
 
                                 Spacer()
 
-                                // Like button (hidden when opened from message)
-                                if !showBackButton {
+                                // Like button (hidden when opened from message; shown when from Likes You)
+                                if !showBackButton || showLikeAndPassButtons {
                                     Button {
                                         onLike()
                                         dismiss()
@@ -241,8 +243,8 @@ struct ProfileDetailView: View {
                                 .frame(width: geo.size.width, height: 400)
                                 .clipped()
 
-                                // Like button top-right (hidden when opened from message)
-                                if !showBackButton {
+                                // Like button top-right (hidden when opened from message; shown when from Likes You)
+                                if !showBackButton || showLikeAndPassButtons {
                                     VStack {
                                         HStack {
                                             Spacer()
@@ -351,8 +353,8 @@ struct ProfileDetailView: View {
                                 .frame(width: geo.size.width, height: 400)
                                 .clipped()
 
-                                // Like button top-right (hidden when opened from message)
-                                if !showBackButton {
+                                // Like button top-right (hidden when opened from message; shown when from Likes You)
+                                if !showBackButton || showLikeAndPassButtons {
                                     VStack {
                                         HStack {
                                             Spacer()
@@ -395,7 +397,7 @@ struct ProfileDetailView: View {
             }
 
             // ==========================================
-            // FLOATING HEADER - close button (hidden when opened from message; we use back button instead)
+            // FLOATING HEADER - close button (hidden when showBackButton; we use back button instead)
             // ==========================================
             if !showBackButton {
                 VStack {
@@ -422,9 +424,9 @@ struct ProfileDetailView: View {
             }
 
             // ==========================================
-            // PASS BUTTON - bottom left (hidden when opened from message)
+            // PASS BUTTON - bottom left (hidden when opened from message; shown when from Likes You)
             // ==========================================
-            if !showBackButton {
+            if !showBackButton || showLikeAndPassButtons {
                 VStack {
                     Spacer()
                     HStack {
@@ -451,7 +453,7 @@ struct ProfileDetailView: View {
 
         }
         .overlay(alignment: .top) {
-            // PARALLAX HEADER (when opened from message): pinned to top; back + menu slide up and fade; compact name bar fades in
+            // PARALLAX HEADER (when opened from message or Likes You): back + menu; top padding respects safe area so button isn't hidden
             if showBackButton {
                 ZStack(alignment: .top) {
                     // Expanded: back button + ReportBlockMenu — slide up and fade with scroll

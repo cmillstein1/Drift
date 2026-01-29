@@ -74,7 +74,9 @@ struct LikesYouScreen: View {
                 },
                 onPass: {
                     handlePass(profile: profile)
-                }
+                },
+                showBackButton: true,
+                showLikeAndPassButtons: true
             )
         }
         .fullScreenCover(item: $matchedProfile) { matched in
@@ -128,42 +130,36 @@ struct LikesYouScreen: View {
     }
 
     private func handleLikeBack(profile: UserProfile) {
+        // Optimistically remove from list and dismiss so they disappear immediately
+        friendsManager.removeFromPeopleLikedMe(id: profile.id)
+        selectedProfile = nil
+
         Task {
             do {
                 let match = try await friendsManager.swipe(on: profile.id, direction: .right)
-
-                // Refresh the likes list
-                try await friendsManager.fetchPeopleLikedMe()
-
                 await MainActor.run {
-                    selectedProfile = nil
-
                     if match != nil {
-                        // It's a match! Setting matchedProfile triggers fullScreenCover
                         matchedProfile = profile
                     }
                 }
             } catch {
                 print("Failed to like back: \(error)")
-                selectedProfile = nil
+                try? await friendsManager.fetchPeopleLikedMe()
             }
         }
     }
 
     private func handlePass(profile: UserProfile) {
+        // Optimistically remove from list and dismiss so they disappear immediately
+        friendsManager.removeFromPeopleLikedMe(id: profile.id)
+        selectedProfile = nil
+
         Task {
             do {
                 _ = try await friendsManager.swipe(on: profile.id, direction: .left)
-
-                // Refresh the likes list
-                try await friendsManager.fetchPeopleLikedMe()
-
-                await MainActor.run {
-                    selectedProfile = nil
-                }
             } catch {
                 print("Failed to pass: \(error)")
-                selectedProfile = nil
+                try? await friendsManager.fetchPeopleLikedMe()
             }
         }
     }
