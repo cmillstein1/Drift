@@ -211,6 +211,13 @@ public class ActivityManager: ObservableObject {
             .execute()
             .value
 
+        // Automatically add the host as an attendee
+        let hostAttendee = AttendeeCreateRequest(activityId: activity.id, userId: userId)
+        try await client
+            .from("activity_attendees")
+            .insert(hostAttendee)
+            .execute()
+
         // Refresh lists
         try await fetchActivities()
         try await fetchMyActivities()

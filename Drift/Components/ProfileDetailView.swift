@@ -176,13 +176,65 @@ struct ProfileDetailView: View {
                                     .foregroundColor(inkSub)
                                 WrappingHStack(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
                                     ForEach(profile.interests, id: \.self) { interest in
-                                        Text(interest)
-                                            .font(.system(size: 14, weight: .medium))
-                                            .foregroundColor(inkMain)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(gray100)
-                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        HStack(spacing: 4) {
+                                            if let emoji = DriftUI.emoji(for: interest) {
+                                                Text(emoji)
+                                                    .font(.system(size: 14))
+                                            }
+                                            Text(interest)
+                                                .font(.system(size: 14, weight: .medium))
+                                                .foregroundColor(inkMain)
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(gray100)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    }
+                                }
+                            }
+                        }
+
+                        // Lifestyle
+                        if profile.lifestyle != nil || profile.workStyle != nil || profile.homeBase != nil || profile.morningPerson != nil {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Lifestyle")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(inkSub)
+
+                                LazyVGrid(columns: [
+                                    GridItem(.flexible(), spacing: 12),
+                                    GridItem(.flexible(), spacing: 12)
+                                ], spacing: 12) {
+                                    if let lifestyle = profile.lifestyle {
+                                        LifestyleGridItemView(
+                                            icon: lifestyleIcon(for: lifestyle),
+                                            label: "Van Life",
+                                            value: lifestyle.displayName
+                                        )
+                                    }
+
+                                    if let workStyle = profile.workStyle {
+                                        LifestyleGridItemView(
+                                            icon: "briefcase",
+                                            label: "Work Style",
+                                            value: workStyle.displayName
+                                        )
+                                    }
+
+                                    if let homeBase = profile.homeBase, !homeBase.isEmpty {
+                                        LifestyleGridItemView(
+                                            icon: "house",
+                                            label: "Home Base",
+                                            value: homeBase
+                                        )
+                                    }
+
+                                    if let morningPerson = profile.morningPerson {
+                                        LifestyleGridItemView(
+                                            icon: morningPerson ? "sun.max" : "moon.stars",
+                                            label: "Morning Person",
+                                            value: morningPerson ? "Yes" : "No"
+                                        )
                                     }
                                 }
                             }
@@ -526,6 +578,15 @@ struct ProfileDetailView: View {
         )
     }
 
+    private func lifestyleIcon(for lifestyle: Lifestyle) -> String {
+        switch lifestyle {
+        case .vanLife: return "car.side"
+        case .rvLife: return "bus"
+        case .digitalNomad: return "laptopcomputer"
+        case .traveler: return "airplane"
+        }
+    }
+
     // Wrapping HStack for tags
     struct WrappingHStack: Layout {
         var alignment: HorizontalAlignment = .leading
@@ -568,6 +629,38 @@ struct ProfileDetailView: View {
                 currentX += size.width + horizontalSpacing
                 lineHeight = max(lineHeight, size.height)
             }
+        }
+    }
+
+    // Lifestyle grid item for profile detail
+    struct LifestyleGridItemView: View {
+        let icon: String
+        let label: String
+        let value: String
+
+        private let charcoal = Color("Charcoal")
+        private let desertSand = Color("DesertSand")
+        private let forestGreen = Color("ForestGreen")
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(forestGreen)
+
+                Text(label)
+                    .font(.system(size: 12))
+                    .foregroundColor(charcoal.opacity(0.6))
+
+                Text(value)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(charcoal)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .background(desertSand.opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
 }

@@ -19,6 +19,7 @@ struct ActivityDetailSheet: View {
     @State private var errorMessage: String?
     @State private var showError: Bool = false
     @State private var showEditSheet: Bool = false
+    @State private var selectedHostProfile: UserProfile? = nil
     var onActivityUpdated: (() -> Void)? = nil
 
     private var isHost: Bool {
@@ -137,13 +138,43 @@ struct ActivityDetailSheet: View {
                                 .font(.system(size: 28, weight: .bold))
                                 .foregroundColor(.white)
                             
-                            HStack(spacing: 4) {
-                                Text("Hosted by")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.white.opacity(0.9))
-                                Text(activity.host?.displayName ?? "Unknown")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.white)
+                            Button(action: {
+                                if let host = activity.host {
+                                    selectedHostProfile = host
+                                }
+                            }) {
+                                HStack(spacing: 8) {
+                                    AsyncImage(url: URL(string: activity.host?.avatarUrl ?? "")) { phase in
+                                        switch phase {
+                                        case .empty:
+                                            Circle()
+                                                .fill(Color.white.opacity(0.3))
+                                                .frame(width: 24, height: 24)
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: 24, height: 24)
+                                                .clipShape(Circle())
+                                        case .failure:
+                                            Image(systemName: "person.circle.fill")
+                                                .font(.system(size: 24))
+                                                .foregroundColor(.white.opacity(0.7))
+                                        @unknown default:
+                                            EmptyView()
+                                        }
+                                    }
+                                    .frame(width: 24, height: 24)
+
+                                    HStack(spacing: 4) {
+                                        Text("Hosted by")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.white.opacity(0.9))
+                                        Text(activity.host?.displayName ?? "Unknown")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(.white)
+                                    }
+                                }
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -462,6 +493,19 @@ struct ActivityDetailSheet: View {
             }
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
+        }
+        .fullScreenCover(item: $selectedHostProfile) { host in
+            ProfileDetailView(
+                profile: host,
+                isOpen: Binding(
+                    get: { selectedHostProfile != nil },
+                    set: { if !$0 { selectedHostProfile = nil } }
+                ),
+                onLike: {},
+                onPass: {},
+                showBackButton: true,
+                showLikeAndPassButtons: false
+            )
         }
     }
 
