@@ -42,8 +42,7 @@ struct ProfilePromptsScreen: View {
     private let burntOrange = Color("BurntOrange")
     
     private var canContinue: Bool {
-        promptAnswers.compactMap { $0?.answer }.count == 3 &&
-        promptAnswers.allSatisfy { $0?.answer?.isEmpty == false }
+        promptAnswers.compactMap { $0?.answer }.filter { !$0.isEmpty }.count >= 1
     }
     
     var body: some View {
@@ -104,7 +103,7 @@ struct ProfilePromptsScreen: View {
                             )
                         }
                         
-                        Text("3 answers required")
+                        Text("At least 1 answer required")
                             .font(.system(size: 14))
                             .foregroundColor(charcoalColor.opacity(0.6))
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -114,25 +113,36 @@ struct ProfilePromptsScreen: View {
                     .padding(.bottom, 24)
                 }
                 
-                Button(action: {
-                    saveAndContinue()
-                }) {
-                    if isSaving {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                    } else {
-                        Text("Continue")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
+                VStack(spacing: 12) {
+                    Button(action: {
+                        saveAndContinue()
+                    }) {
+                        if isSaving {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        } else {
+                            Text("Continue")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        }
                     }
+                    .background(canContinue ? burntOrange : Color.gray.opacity(0.3))
+                    .clipShape(Capsule())
+                    .disabled(!canContinue || isSaving)
+
+                    Button(action: {
+                        onContinue()
+                    }) {
+                        Text("Fill in later")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(charcoalColor.opacity(0.6))
+                    }
+                    .disabled(isSaving)
                 }
-                .background(canContinue ? burntOrange : Color.gray.opacity(0.3))
-                .clipShape(Capsule())
-                .disabled(!canContinue || isSaving)
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
                 .opacity(buttonOpacity)
