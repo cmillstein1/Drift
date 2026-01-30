@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct TravelStyle: Identifiable {
     let id: String
@@ -25,8 +26,10 @@ struct SocialPreference: Identifiable {
 struct TravelStyleScreen: View {
     let onContinue: () -> Void
     
+    @StateObject private var profileManager = ProfileManager.shared
     @State private var selectedStyle: String? = nil
     @State private var selectedSocial: String? = nil
+    @State private var isSaving = false
     
     private let softGray = Color("SoftGray")
     private let charcoalColor = Color("Charcoal")
@@ -105,7 +108,38 @@ struct TravelStyleScreen: View {
     private var canContinue: Bool {
         selectedStyle != nil && selectedSocial != nil
     }
-    
+
+    /// Maps travel style id from UI to backend Lifestyle enum.
+    private func lifestyle(for styleId: String?) -> Lifestyle? {
+        guard let id = styleId else { return nil }
+        switch id {
+        case "van-life": return .vanLife
+        case "digital-nomad": return .digitalNomad
+        case "slow-travel", "frequent-traveler": return .traveler
+        case "rv-life": return .rvLife
+        default: return .traveler
+        }
+    }
+
+    private func saveAndContinue() {
+        guard let styleId = selectedStyle, let _ = selectedSocial else { return }
+        guard let lifestyleValue = lifestyle(for: styleId) else { onContinue(); return }
+        isSaving = true
+        Task {
+            do {
+                try await profileManager.updateProfile(
+                    ProfileUpdateRequest(lifestyle: lifestyleValue)
+                )
+            } catch {
+                print("Failed to save travel style: \(error)")
+            }
+            await MainActor.run {
+                isSaving = false
+                onContinue()
+            }
+        }
+    }
+
     var body: some View {
         ZStack {
             softGray
@@ -187,14 +221,19 @@ struct TravelStyleScreen: View {
                     // Button - Make entire area clickable
                     Button(action: {
                         if canContinue {
-                            onContinue()
+                            saveAndContinue()
                         }
                     }) {
                         HStack {
                             Spacer()
-                            Text("Continue")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
+                            if isSaving {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            } else {
+                                Text("Continue")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
                             Spacer()
                         }
                         .frame(height: 56)
@@ -214,7 +253,7 @@ struct TravelStyleScreen: View {
                         .clipShape(Capsule())
                         .shadow(color: canContinue ? .black.opacity(0.2) : .clear, radius: 8, x: 0, y: 4)
                     }
-                    .disabled(!canContinue)
+                    .disabled(!canContinue || isSaving)
                     .buttonStyle(PlainButtonStyle())
                     .padding(.horizontal, 24)
                     .padding(.bottom, 8)

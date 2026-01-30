@@ -418,18 +418,18 @@ struct ProfileScreen: View {
             menuDivider
             
             // Generate Invite Code
-            Button(action: {
-                showGenerateInvite = true
-            }) {
-                ProfileMenuRow(
-                    icon: "gift",
-                    iconStyle: .outline,
-                    title: "Generate Invite Code",
-                    subtitle: nil
-                )
-            }
-            
-            menuDivider
+//            Button(action: {
+//                showGenerateInvite = true
+//            }) {
+//                ProfileMenuRow(
+//                    icon: "gift",
+//                    iconStyle: .outline,
+//                    title: "Generate Invite Code",
+//                    subtitle: nil
+//                )
+//            }
+//            
+//            menuDivider
             
             // Log Out
             Button(action: {
@@ -635,7 +635,7 @@ struct ProfileMenuRow: View {
             // Icon
             ZStack {
                 if iconStyle == .outline {
-                    Circle()
+                    RoundedRectangle(cornerRadius: 16)
                         .fill(iconBeige)
                         .frame(width: 40, height: 40)
                 } else if let gradient = iconBackgroundGradient {

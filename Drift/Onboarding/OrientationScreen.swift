@@ -13,6 +13,7 @@ struct OrientationScreen: View {
     
     @StateObject private var profileManager = ProfileManager.shared
     @State private var selectedOrientation: String = ""
+    @State private var isSaving = false
     @State private var titleOpacity: Double = 0
     @State private var titleOffset: CGFloat = -20
     @State private var subtitleOpacity: Double = 0
@@ -91,17 +92,24 @@ struct OrientationScreen: View {
                     Spacer()
                     
                     Button(action: {
-                        onContinue()
+                        saveAndContinue()
                     }) {
-                        Text("Continue")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(selectedOrientation.isEmpty ? Color.gray.opacity(0.3) : burntOrange)
-                            .clipShape(Capsule())
+                        if isSaving {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        } else {
+                            Text("Continue")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        }
                     }
-                    .disabled(selectedOrientation.isEmpty)
+                    .background(selectedOrientation.isEmpty ? Color.gray.opacity(0.3) : burntOrange)
+                    .clipShape(Capsule())
+                    .disabled(selectedOrientation.isEmpty || isSaving)
                     .padding(.horizontal, 24)
                     .padding(.bottom, 16)
                     .opacity(buttonOpacity)
@@ -135,6 +143,24 @@ struct OrientationScreen: View {
             withAnimation(.easeOut(duration: 0.5).delay(0.6)) {
                 buttonOpacity = 1
                 buttonOffset = 0
+            }
+        }
+    }
+
+    private func saveAndContinue() {
+        guard !selectedOrientation.isEmpty else { return }
+        isSaving = true
+        Task {
+            do {
+                try await profileManager.updateProfile(
+                    ProfileUpdateRequest(orientation: selectedOrientation)
+                )
+            } catch {
+                print("Failed to save orientation: \(error)")
+            }
+            await MainActor.run {
+                isSaving = false
+                onContinue()
             }
         }
     }

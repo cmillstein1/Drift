@@ -17,6 +17,7 @@ struct Interest: Identifiable {
 struct InterestCategory: Identifiable {
     var id: String { title }
     var title: String
+    var emoji: String = ""
     var interests: [Interest]
     var expanded: Bool
 }
@@ -29,62 +30,92 @@ struct InterestsScreen: View {
     @State private var isSaving = false
     @State private var categories: [InterestCategory] = [
         InterestCategory(
-            title: "Food & drink",
+            title: "Outdoor Adventures",
+            emoji: "⛺",
             interests: [
-                Interest(emoji: "🍺", label: "Beer"),
-                Interest(emoji: "🧋", label: "Boba tea"),
-                Interest(emoji: "☕", label: "Coffee"),
-                Interest(emoji: "🍝", label: "Foodie"),
-                Interest(emoji: "🍸", label: "Gin"),
-                Interest(emoji: "🍕", label: "Pizza"),
-                Interest(emoji: "🍣", label: "Sushi"),
-                Interest(emoji: "🍭", label: "Sweet tooth"),
-                Interest(emoji: "🌮", label: "Tacos"),
-                Interest(emoji: "🍵", label: "Tea"),
-                Interest(emoji: "🌱", label: "Vegan"),
-                Interest(emoji: "🥗", label: "Vegetarian"),
-                Interest(emoji: "🥃", label: "Whisky"),
-                Interest(emoji: "🍷", label: "Wine")
+                Interest(emoji: "⛺", label: "Hiking & Nature Walks"),
+                Interest(emoji: "⛺", label: "Camping"),
+                Interest(emoji: "⛺", label: "Rock Climbing"),
+                Interest(emoji: "⛺", label: "Kayaking & Water Sports"),
+                Interest(emoji: "⛺", label: "Mountain Biking"),
+                Interest(emoji: "⛺", label: "Surfing"),
+                Interest(emoji: "⛺", label: "Trail Running"),
+                Interest(emoji: "⛺", label: "Wildlife Watching")
             ],
             expanded: true
         ),
         InterestCategory(
-            title: "Traveling",
+            title: "Food & Drink",
+            emoji: "☕",
             interests: [
-                Interest(emoji: "🎒", label: "Backpacking"),
-                Interest(emoji: "🏖️", label: "Beaches"),
-                Interest(emoji: "🏕️", label: "Camping"),
-                Interest(emoji: "🏙️", label: "Exploring new cities"),
-                Interest(emoji: "🎣", label: "Fishing trips"),
-                Interest(emoji: "⛰️", label: "Hiking trips"),
-                Interest(emoji: "🚗", label: "Road trips"),
-                Interest(emoji: "🧖", label: "Spa weekends"),
-                Interest(emoji: "🏡", label: "Staycations"),
-                Interest(emoji: "❄️", label: "Winter sports")
+                Interest(emoji: "☕", label: "Coffee Shop Hopping"),
+                Interest(emoji: "☕", label: "Local Food & Dining"),
+                Interest(emoji: "☕", label: "Breweries & Wineries"),
+                Interest(emoji: "☕", label: "Cooking Together"),
+                Interest(emoji: "☕", label: "Food Trucks & Markets"),
+                Interest(emoji: "☕", label: "Picnics"),
+                Interest(emoji: "☕", label: "Vegan/Vegetarian Spots"),
+                Interest(emoji: "☕", label: "Trying New Cuisines")
             ],
             expanded: true
         ),
         InterestCategory(
-            title: "Creative",
+            title: "Creative & Culture",
+            emoji: "🎨",
             interests: [
-                Interest(emoji: "🎨", label: "Art"),
-                Interest(emoji: "📸", label: "Photography"),
-                Interest(emoji: "✍️", label: "Writing"),
-                Interest(emoji: "🎭", label: "Theater"),
-                Interest(emoji: "🎸", label: "Music"),
-                Interest(emoji: "💃", label: "Dancing")
+                Interest(emoji: "🎨", label: "Photography"),
+                Interest(emoji: "🎨", label: "Live Music & Concerts"),
+                Interest(emoji: "🎨", label: "Art Galleries & Museums"),
+                Interest(emoji: "🎨", label: "Street Art Tours"),
+                Interest(emoji: "🎨", label: "Writing & Journaling"),
+                Interest(emoji: "🎨", label: "Painting & Drawing"),
+                Interest(emoji: "🎨", label: "Film & Cinema"),
+                Interest(emoji: "🎨", label: "Local Festivals")
             ],
             expanded: true
         ),
         InterestCategory(
-            title: "Active",
+            title: "Wellness & Mindfulness",
+            emoji: "🧘",
             interests: [
-                Interest(emoji: "🏃", label: "Running"),
-                Interest(emoji: "🚴", label: "Cycling"),
                 Interest(emoji: "🧘", label: "Yoga"),
-                Interest(emoji: "🏋️", label: "Gym"),
-                Interest(emoji: "🏊", label: "Swimming"),
-                Interest(emoji: "⛷️", label: "Skiing")
+                Interest(emoji: "🧘", label: "Meditation"),
+                Interest(emoji: "🧘", label: "Beach Walks"),
+                Interest(emoji: "🧘", label: "Sunrise/Sunset Watching"),
+                Interest(emoji: "🧘", label: "Hot Springs & Spas"),
+                Interest(emoji: "🧘", label: "Breathwork"),
+                Interest(emoji: "🧘", label: "Sound Baths"),
+                Interest(emoji: "🧘", label: "Fitness & Workouts")
+            ],
+            expanded: true
+        ),
+        InterestCategory(
+            title: "Social & Nightlife",
+            emoji: "🎉",
+            interests: [
+                Interest(emoji: "🎉", label: "Trivia Nights"),
+                Interest(emoji: "🎉", label: "Board Game Cafes"),
+                Interest(emoji: "🎉", label: "Dancing & Clubs"),
+                Interest(emoji: "🎉", label: "Karaoke"),
+                Interest(emoji: "🎉", label: "Comedy Shows"),
+                Interest(emoji: "🎉", label: "Open Mic Nights"),
+                Interest(emoji: "🎉", label: "Bar Hopping"),
+                Interest(emoji: "🎉", label: "Networking Events")
+            ],
+            expanded: true
+        ),
+        InterestCategory(
+            title: "Learning & Growth",
+            emoji: "📚",
+            interests: [
+                Interest(emoji: "📚", label: "Book Clubs"),
+                Interest(emoji: "📚", label: "Language Exchange"),
+                Interest(emoji: "📚", label: "Skill Workshops"),
+                Interest(emoji: "📚", label: "Podcasting"),
+                Interest(emoji: "📚", label: "Philosophy Discussions"),
+                Interest(emoji: "📚", label: "Tech Meetups"),
+                Interest(emoji: "📚", label: "Sustainability Projects"),
+                Interest(emoji: "📚", label: "Volunteering")
             ],
             expanded: true
         )
@@ -100,6 +131,7 @@ struct InterestsScreen: View {
     private let warmWhite = Color(red: 0.98, green: 0.98, blue: 0.96)
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
+    private let forestGreen = Color("ForestGreen")
     
     private var canContinue: Bool {
         selectedInterests.count >= 3
@@ -107,7 +139,7 @@ struct InterestsScreen: View {
     
     var body: some View {
         ZStack {
-            warmWhite
+            Color.softGray
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -116,53 +148,50 @@ struct InterestsScreen: View {
                     .frame(height: 24)
                 
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Your interests")
+                    Text("What do you love doing?")
                         .font(.system(size: 32, weight: .bold))
                         .foregroundColor(charcoalColor)
                         .opacity(titleOpacity)
                         .offset(x: titleOffset)
                     
-                    Text("Select at least 3 interests")
+                    Text("Select at least 3 activities you enjoy. We'll help you find people who share your interests and discover local events.")
                         .font(.system(size: 16))
                         .foregroundColor(charcoalColor.opacity(0.7))
                         .padding(.top, 8)
-                        .padding(.bottom, 24)
                         .opacity(subtitleOpacity)
                         .offset(x: subtitleOffset)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 24)
+                .padding(.bottom, 20)
                 
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(alignment: .leading, spacing: 28) {
                         ForEach(Array(categories.enumerated()), id: \.element.id) { categoryIndex, category in
                             VStack(alignment: .leading, spacing: 12) {
-                                // Category Header
-                                HStack {
-                                    Text(category.title)
-                                        .font(.system(size: 17, weight: .medium))
-                                        .foregroundColor(charcoalColor)
-                                    
-                                    Spacer()
-                                    
-                                    Button(action: {
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                            categories[categoryIndex].expanded.toggle()
-                                        }
-                                    }) {
-                                        HStack(spacing: 4) {
-                                            Text(category.expanded ? "Show less" : "Show more")
-                                                .font(.system(size: 14))
-                                                .foregroundColor(charcoalColor.opacity(0.6))
-                                            
-                                            Image(systemName: category.expanded ? "chevron.up" : "chevron.down")
-                                                .font(.system(size: 12))
-                                                .foregroundColor(charcoalColor.opacity(0.6))
-                                        }
+                                // Category Header: emoji + title + collapse chevron
+                                Button(action: {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        categories[categoryIndex].expanded.toggle()
                                     }
+                                }) {
+                                    HStack(spacing: 8) {
+                                        Text(category.emoji)
+                                            .font(.system(size: 18))
+                                        Text(category.title)
+                                            .font(.system(size: 17, weight: .semibold))
+                                            .foregroundColor(charcoalColor)
+                                        Spacer()
+                                        Image(systemName: category.expanded ? "chevron.up" : "chevron.down")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(charcoalColor.opacity(0.6))
+                                    }
+                                    .padding(.vertical, 4)
+                                    .contentShape(Rectangle())
                                 }
+                                .buttonStyle(PlainButtonStyle())
                                 
-                                // Interest Pills
+                                // Interest Pills (flow layout)
                                 if category.expanded {
                                     FlowLayout(data: category.interests, spacing: 8) { interest in
                                         InterestPill(
@@ -188,9 +217,6 @@ struct InterestsScreen: View {
                 }
                 
                 VStack(spacing: 12) {
-                    Text("\(selectedInterests.count) selected")
-                        .font(.system(size: 14))
-                        .foregroundColor(charcoalColor.opacity(0.6))
 
                     Button(action: {
                         saveAndContinue()
@@ -268,6 +294,7 @@ struct InterestPill: View {
     
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
+    private let unselectedBackground = Color(white: 0.96)
     
     var body: some View {
         Button(action: {
@@ -281,25 +308,20 @@ struct InterestPill: View {
             }
             onTap()
         }) {
-            HStack(spacing: 8) {
-                Text(interest.emoji)
-                    .font(.system(size: 18))
-                
-                Text(interest.label)
-                    .font(.system(size: 14))
-                    .foregroundColor(charcoalColor)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(
-                Capsule()
-                    .fill(isSelected ? burntOrange.opacity(0.05) : Color.white)
-                    .overlay(
-                        Capsule()
-                            .stroke(isSelected ? burntOrange : Color.gray.opacity(0.3), lineWidth: 2)
-                    )
-            )
-            .scaleEffect(isPressed ? 0.95 : 1.0)
+            Text(interest.label)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(isSelected ? .white : charcoalColor)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(isSelected ? burntOrange : unselectedBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.gray.opacity(0.25), lineWidth: 1)
+                        )
+                )
+                .scaleEffect(isPressed ? 0.95 : 1.0)
         }
         .buttonStyle(PlainButtonStyle())
     }
