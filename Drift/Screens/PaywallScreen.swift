@@ -266,7 +266,7 @@ struct PaywallScreen: View {
                                         .font(.system(size: 18))
                                 }
                                 
-                                Text(isPurchasing ? "Processing..." : "Start Free 7-Day Trial")
+                                Text(isPurchasing ? "Processing..." : "Subscribe")
                                     .font(.system(size: 16, weight: .semibold))
                             }
                             .foregroundColor(.white)
