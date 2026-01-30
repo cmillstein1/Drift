@@ -35,36 +35,42 @@ struct EditPhotoSlotWithStroke: View {
                             .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                     )
             } else if let previewImage = previewImage {
-                previewImage
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Self.cornerRadius)
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                    )
-                    .overlay(photoOverlay)
+                GeometryReader { geometry in
+                    previewImage
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .clipped()
+                }
+                .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Self.cornerRadius)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                )
+                .overlay(photoOverlay)
             } else if let url = photoUrl, !url.isEmpty {
-                AsyncImage(url: URL(string: url)) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    case .failure, .empty:
-                        RoundedRectangle(cornerRadius: Self.cornerRadius)
-                            .fill(softGray)
-                            .overlay(
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: charcoalColor.opacity(0.4)))
-                            )
-                    @unknown default:
-                        RoundedRectangle(cornerRadius: Self.cornerRadius)
-                            .fill(softGray)
+                GeometryReader { geometry in
+                    AsyncImage(url: URL(string: url)) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: geometry.size.width, height: geometry.size.height)
+                                .clipped()
+                        case .failure, .empty:
+                            RoundedRectangle(cornerRadius: Self.cornerRadius)
+                                .fill(softGray)
+                                .overlay(
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: charcoalColor.opacity(0.4)))
+                                )
+                        @unknown default:
+                            RoundedRectangle(cornerRadius: Self.cornerRadius)
+                                .fill(softGray)
+                        }
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
                 .overlay(
                     RoundedRectangle(cornerRadius: Self.cornerRadius)

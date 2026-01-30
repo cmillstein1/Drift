@@ -177,25 +177,36 @@ struct AboutMeScreen: View {
             VStack {
                 Spacer()
                 
-                Button(action: {
-                    saveAndContinue()
-                }) {
-                    if isSaving {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                    } else {
-                        Text("Continue")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
+                VStack(spacing: 12) {
+                    Button(action: {
+                        saveAndContinue()
+                    }) {
+                        if isSaving {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        } else {
+                            Text("Continue")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        }
                     }
+                    .background(canContinue ? burntOrange : Color.gray.opacity(0.3))
+                    .clipShape(Capsule())
+                    .disabled(!canContinue || isSaving)
+
+                    Button(action: {
+                        onContinue()
+                    }) {
+                        Text("Fill in later")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(charcoalColor.opacity(0.6))
+                    }
+                    .disabled(isSaving)
                 }
-                .background(canContinue ? burntOrange : Color.gray.opacity(0.3))
-                .clipShape(Capsule())
-                .disabled(!canContinue || isSaving)
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
                 .opacity(buttonOpacity)

@@ -52,19 +52,28 @@ extension EditProfileScreen {
     // MARK: - Preview Components
 
     private var mainPhotoCard: some View {
-        VStack(spacing: 0) {
+        GeometryReader { geometry in
+            let cardWidth = geometry.size.width
+            let cardHeight = cardWidth * 4 / 3
+
             ZStack(alignment: .bottom) {
                 if let firstPhoto = photos.first, !firstPhoto.isEmpty,
                    let url = URL(string: firstPhoto) {
                     AsyncImage(url: url) { phase in
                         if let image = phase.image {
-                            image.resizable().aspectRatio(contentMode: .fill)
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: cardWidth, height: cardHeight)
+                                .clipped()
                         } else {
                             previewPlaceholderGradient
+                                .frame(width: cardWidth, height: cardHeight)
                         }
                     }
                 } else {
                     previewPlaceholderGradient
+                        .frame(width: cardWidth, height: cardHeight)
                 }
 
                 LinearGradient(
@@ -96,9 +105,10 @@ extension EditProfileScreen {
                 }
                 .padding(20)
             }
-            .aspectRatio(3/4, contentMode: .fit)
+            .frame(width: cardWidth, height: cardHeight)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .aspectRatio(3/4, contentMode: .fit)
     }
 
     @ViewBuilder
@@ -171,11 +181,17 @@ extension EditProfileScreen {
             ForEach(1..<min(photos.count, 4), id: \.self) { index in
                 if let photoUrl = photos[safe: index], !photoUrl.isEmpty,
                    let url = URL(string: photoUrl) {
-                    AsyncImage(url: url) { phase in
-                        if let image = phase.image {
-                            image.resizable().aspectRatio(contentMode: .fill)
-                        } else {
-                            previewPlaceholderGradient
+                    GeometryReader { geometry in
+                        AsyncImage(url: url) { phase in
+                            if let image = phase.image {
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: geometry.size.width, height: geometry.size.height)
+                                    .clipped()
+                            } else {
+                                previewPlaceholderGradient
+                            }
                         }
                     }
                     .aspectRatio(1, contentMode: .fit)
