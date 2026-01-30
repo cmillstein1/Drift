@@ -13,6 +13,8 @@ struct LifestyleCard: View {
     let workStyle: WorkStyle?
     let homeBase: String?
     let morningPerson: Bool?
+    /// When set (e.g. 16), the card gets rounded corners. Use in ProfileDetailView; omit in Discover (flat middle section).
+    var cornerRadius: CGFloat? = nil
 
     private let charcoal = Color("Charcoal")
     private let desertSand = Color("DesertSand")
@@ -74,6 +76,7 @@ struct LifestyleCard: View {
             }
             .padding(20)
             .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius ?? 0))
         }
     }
 
@@ -118,6 +121,7 @@ private struct LifestyleGridItem: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(desertSand.opacity(0.5))
+        .cornerRadius(16)
     }
 }
 

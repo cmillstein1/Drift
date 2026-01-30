@@ -733,9 +733,11 @@ struct DiscoverScreen: View {
                                     VStack(alignment: .leading, spacing: 12) {
                                         if let dest = profile.nextDestination {
                                             HStack(alignment: .top, spacing: 12) {
-                                                Image(systemName: "mappin")
-                                                    .font(.system(size: 18))
-                                                    .foregroundColor(burntOrange)
+                                                Text(TravelPlansCard.locationEmoji(for: dest))
+                                                    .font(.system(size: 20))
+                                                    .frame(width: 44, height: 44)
+                                                    .background(desertSand)
+                                                    .clipShape(Circle())
                                                 VStack(alignment: .leading, spacing: 2) {
                                                     Text("Next Destination")
                                                         .font(.system(size: 12))

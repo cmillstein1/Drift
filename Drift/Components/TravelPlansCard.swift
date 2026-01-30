@@ -15,23 +15,32 @@ struct TravelPlansCard: View {
     private let desertSand = Color("DesertSand")
     private let burntOrange = Color("BurntOrange")
 
-    // Location emoji mapping based on keywords
-    private func locationEmoji(for location: String) -> String {
+    /// Picks the best emoji for a location name (e.g. coast → 🌊, park → 🌲). Use for travel plans and destination displays.
+    static func locationEmoji(for location: String) -> String {
         let lowercased = location.lowercased()
-        if lowercased.contains("beach") || lowercased.contains("coast") || lowercased.contains("ocean") {
+        if lowercased.contains("beach") || lowercased.contains("coast") || lowercased.contains("ocean") || lowercased.contains("shore") || lowercased.contains("sea ") {
             return "🌊"
-        } else if lowercased.contains("mountain") || lowercased.contains("peak") || lowercased.contains("alpine") {
+        }
+        if lowercased.contains("mountain") || lowercased.contains("peak") || lowercased.contains("alpine") || lowercased.contains("bend") || lowercased.contains("ski") || lowercased.contains("summit") {
             return "⛰️"
-        } else if lowercased.contains("desert") || lowercased.contains("canyon") {
+        }
+        if lowercased.contains("desert") || lowercased.contains("canyon") {
             return "🏜️"
-        } else if lowercased.contains("forest") || lowercased.contains("woods") || lowercased.contains("park") {
+        }
+        if lowercased.contains("forest") || lowercased.contains("woods") || lowercased.contains("park") || lowercased.contains("national park") {
             return "🌲"
-        } else if lowercased.contains("lake") || lowercased.contains("river") {
+        }
+        if lowercased.contains("lake") || lowercased.contains("river") {
             return "🏞️"
-        } else if lowercased.contains("city") || lowercased.contains("downtown") {
+        }
+        if lowercased.contains("city") || lowercased.contains("downtown") {
             return "🏙️"
         }
         return "📍"
+    }
+
+    private func locationEmoji(for location: String) -> String {
+        Self.locationEmoji(for: location)
     }
 
     var body: some View {
