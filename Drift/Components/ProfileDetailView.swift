@@ -17,15 +17,16 @@ struct ProfileDetailView: View {
     var showBackButton: Bool = false
     /// When true with showBackButton, still show Like and Pass buttons (e.g. when opened from Likes You).
     var showLikeAndPassButtons: Bool = false
+    /// When set, shown next to location as "X miles away".
+    var distanceMiles: Int? = nil
 
     @State private var imageIndex: Int = 0
-    @State private var profileScrollOffset: CGFloat = 0
-    @State private var profileScrollInitialY: CGFloat?
+    /// UIScrollView contentOffset.y: 0 at top, positive when scrolled down. Used to fade header.
+    @State private var scrollContentOffsetY: CGFloat = 0
     @State private var travelStops: [DriftBackend.TravelStop] = []
     @Environment(\.dismiss) var dismiss
 
     private let profileHeaderCollapseThreshold: CGFloat = 72
-    private let profileCompactHeaderHeight: CGFloat = 44
 
     // Colors from Discover
     private let coralPrimary = Color(red: 1.0, green: 0.37, blue: 0.37)
@@ -46,79 +47,117 @@ struct ProfileDetailView: View {
         ZStack {
             (showBackButton ? softGray : Color.white).ignoresSafeArea()
 
-            // Main scrollable content; coordinate space on parent so scroll offset is relative to viewport
-            ScrollView(.vertical, showsIndicators: false) {
+            // Main scrollable content; ScrollViewWithOffset reports contentOffset.y so header fade works
+            ScrollViewWithOffset(contentOffsetY: $scrollContentOffsetY, showsIndicators: false) {
                 VStack(spacing: 0) {
-                    // Scroll offset tracker (for parallax when showBackButton); use global Y so offset updates as content scrolls
                     if showBackButton {
-                        Color.clear
-                            .frame(height: 1)
-                            .background(
-                                GeometryReader { g in
-                                    let globalY = g.frame(in: .global).minY
-                                    Color.clear.preference(key: ScrollOffsetPreferenceKey.self, value: globalY)
-                                }
-                            )
                         Color.clear.frame(height: 79)
                     }
+                    // Photo carousel at top (all photos, swipeable)
                     GeometryReader { geo in
+                        let w = max(geo.size.width, 1)
                         ZStack(alignment: .topTrailing) {
                             ZStack(alignment: .bottom) {
-                                // Hero image
-                            if let heroUrl = images.first,
-                               let url = URL(string: heroUrl) {
-                                AsyncImage(url: url) { phase in
-                                    if let image = phase.image {
-                                        image
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                            .frame(width: geo.size.width, height: 500)
-                                    } else if phase.error != nil {
-                                        placeholderGradient
-                                    } else {
-                                        placeholderGradient
-                                            .overlay(ProgressView().tint(.white))
+                                TabView(selection: $imageIndex) {
+                                    ForEach(Array(images.enumerated()), id: \.offset) { index, photoUrl in
+                                        Group {
+                                            if !photoUrl.isEmpty, let url = URL(string: photoUrl) {
+                                                AsyncImage(url: url) { phase in
+                                                    if let image = phase.image {
+                                                        image
+                                                            .resizable()
+                                                            .aspectRatio(contentMode: .fill)
+                                                            .frame(width: w, height: 500)
+                                                    } else if phase.error != nil {
+                                                        placeholderGradient
+                                                    } else {
+                                                        placeholderGradient
+                                                            .overlay(ProgressView().tint(.white))
+                                                    }
+                                                }
+                                                .frame(width: w, height: 500)
+                                                .clipped()
+                                            } else {
+                                                placeholderGradient
+                                                    .frame(width: w, height: 500)
+                                            }
+                                        }
+                                        .tag(index)
                                     }
                                 }
-                                .frame(width: geo.size.width, height: 500)
+                                .tabViewStyle(.page(indexDisplayMode: images.count > 1 ? .automatic : .never))
+                                .frame(width: w, height: 500)
                                 .clipped()
-                            } else {
-                                placeholderGradient
-                                    .frame(width: geo.size.width, height: 500)
-                            }
+                                .id(images.count)
 
-                            // Gradient overlay
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .black.opacity(0.8), location: 0.0),
-                                    .init(color: .clear, location: 0.4)
-                                ],
-                                startPoint: .bottom,
-                                endPoint: .top
-                            )
-                            .frame(width: geo.size.width, height: 500)
+                                // Gradient overlay
+                                LinearGradient(
+                                    stops: [
+                                        .init(color: .black.opacity(0.8), location: 0.0),
+                                        .init(color: .clear, location: 0.4)
+                                    ],
+                                    startPoint: .bottom,
+                                    endPoint: .top
+                                )
+                                .frame(width: w, height: 500)
 
-                            // Hero overlay content
-                            HStack(alignment: .bottom, spacing: 16) {
-                                VStack(alignment: .leading, spacing: 4) {
+                                // Overlay: name, mappin + location + distance, 2 interest chips + last active
+                                VStack(alignment: .leading, spacing: 12) {
                                     Text("\(profile.displayName), \(profile.displayAge)")
                                         .font(.system(size: 36, weight: .heavy))
                                         .tracking(-0.5)
                                         .foregroundColor(.white)
 
+                                    // White mappin + location + optional "X miles away"
                                     if let location = profile.location {
-                                        HStack(spacing: 8) {
-                                            Image(systemName: "mappin")
-                                                .font(.system(size: 14))
+                                        HStack(spacing: 6) {
+                                            Image("map_pin_white")
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fit)
+                                                .frame(width: 14, height: 14)
                                             Text(location)
+                                            if let miles = distanceMiles {
+                                                Text("•")
+                                                Text("\(miles) miles away")
+                                            }
                                         }
                                         .font(.system(size: 16, weight: .medium))
                                         .foregroundColor(.white.opacity(0.9))
                                     }
+
+                                    // 2 interest segments + last active segment
+                                    HStack(spacing: 8) {
+                                        ForEach(Array(profile.interests.prefix(2)), id: \.self) { interest in
+                                            HStack(spacing: 4) {
+                                                if let emoji = DriftUI.emoji(for: interest) {
+                                                    Text(emoji).font(.system(size: 12))
+                                                }
+                                                Text(interest)
+                                                    .font(.system(size: 12, weight: .medium))
+                                            }
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(Color.white.opacity(0.25))
+                                            .clipShape(Capsule())
+                                        }
+                                        if let lastActive = lastActiveString(for: profile.lastActiveAt) {
+                                            Text("Active \(lastActive)")
+                                                .font(.system(size: 12, weight: .medium))
+                                                .foregroundColor(.white.opacity(0.9))
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color.white.opacity(0.25))
+                                                .clipShape(Capsule())
+                                        }
+                                    }
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(24)
+                            }
 
+                            HStack(alignment: .top) {
                                 Spacer()
-
                                 // Like button (hidden when opened from message; shown when from Likes You)
                                 if !showBackButton || showLikeAndPassButtons {
                                     Button {
@@ -136,22 +175,11 @@ struct ProfileDetailView: View {
                                     }
                                 }
                             }
-                            .padding(24)
-                            }
-
-                            // Report/Block menu - top right (hidden when showBackButton; shown in parallax overlay instead)
-                            if !showBackButton {
-                                ReportBlockMenuButton(
-                                    userId: profile.id,
-                                    displayName: profile.displayName,
-                                    onBlockComplete: { isOpen = false },
-                                    darkStyle: true
-                                )
-                                .padding(.top, 12)
-                                .padding(.trailing, 24)
-                            }
+                            .padding(.top, 12)
+                            .padding(.trailing, 24)
                         }
                     }
+                    .frame(maxWidth: .infinity)
                     .frame(height: 500)
 
                     // ==========================================
@@ -193,7 +221,8 @@ struct ProfileDetailView: View {
                             lifestyle: profile.lifestyle,
                             workStyle: profile.workStyle,
                             homeBase: profile.homeBase,
-                            morningPerson: profile.morningPerson
+                            morningPerson: profile.morningPerson,
+                            cornerRadius: 16
                         )
                         .padding(.horizontal, showBackButton ? 16 : 0)
                         .padding(.top, showBackButton ? 12 : 0)
@@ -237,185 +266,25 @@ struct ProfileDetailView: View {
 //                        .background(Color.white)
 //                    }
 
-                    // ==========================================
-                    // RIG PHOTO SECTION
-                    // ==========================================
-                    if images.count > 1 {
-                        GeometryReader { geo in
-                            ZStack {
-                                AsyncImage(url: URL(string: images[1])) { phase in
-                                    if let image = phase.image {
-                                        image
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                            .frame(width: geo.size.width, height: 400)
-                                    } else {
-                                        placeholderGradient
-                                    }
-                                }
-                                .frame(width: geo.size.width, height: 400)
-                                .clipped()
-
-                                // Like button top-right (hidden when opened from message; shown when from Likes You)
-                                if !showBackButton || showLikeAndPassButtons {
-                                    VStack {
-                                        HStack {
-                                            Spacer()
-                                            Button {
-                                                onLike()
-                                                dismiss()
-                                            } label: {
-                                                Image(systemName: "heart.fill")
-                                                    .font(.system(size: 20))
-                                                    .foregroundColor(.white)
-                                                    .frame(width: 48, height: 48)
-                                                    .background(Color.white.opacity(0.2))
-                                                    .clipShape(Circle())
-                                                    .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
-                                                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
-                                            }
-                                            .padding(.trailing, 24)
-                                            .padding(.top, 16)
-                                        }
-                                        Spacer()
-                                    }
-                                }
-
-                                // Rig info card bottom-left
-                                if let rigInfo = profile.rigInfo, !rigInfo.isEmpty {
-                                    VStack {
-                                        Spacer()
-                                        HStack {
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                HStack(spacing: 8) {
-                                                    Image(systemName: "box.truck.fill")
-                                                        .font(.system(size: 14))
-                                                        .foregroundColor(coralPrimary)
-                                                    Text("The Rig")
-                                                        .font(.system(size: 14, weight: .bold))
-                                                        .foregroundColor(inkMain)
-                                                }
-                                                Text(rigInfo)
-                                                    .font(.system(size: 12))
-                                                    .foregroundColor(inkSub)
-                                            }
-                                            .padding(12)
-                                            .frame(maxWidth: 200, alignment: .leading)
-                                            .background(Color.white.opacity(0.95))
-                                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-
-                                            Spacer()
-                                        }
-                                        .padding(.leading, 24)
-                                        .padding(.bottom, 24)
-                                    }
-                                }
-                            }
-                        }
-                        .frame(height: 400)
-                        .padding(.top, 24)
-                    }
-
-                    // ==========================================
-                    // PROMPT SECTION 2 - "Dating me looks like"
-                    // ==========================================
-//                    if let datingLooksLike = profile.datingLooksLike, !datingLooksLike.isEmpty {
-//                        VStack(spacing: 16) {
-//                            Text("DATING ME LOOKS LIKE")
-//                                .font(.system(size: 14, weight: .bold))
-//                                .tracking(1)
-//                                .foregroundColor(Color.gray)
-//
-//                            Text(datingLooksLike)
-//                                .font(.system(size: 18))
-//                                .foregroundColor(inkMain)
-//                                .multilineTextAlignment(.center)
-//                                .padding(20)
-//                                .frame(maxWidth: .infinity)
-//                                .background(Color.white)
-//                                .clipShape(RoundedRectangle(cornerRadius: 16))
-//                                .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-//                                .overlay(
-//                                    RoundedRectangle(cornerRadius: 16)
-//                                        .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-//                                )
-//                        }
-//                        .padding(.horizontal, 24)
-//                        .padding(.vertical, 32)
-//                        .frame(maxWidth: .infinity)
-//                        .background(Color.gray.opacity(0.05))
-//                    }
-
-                    // ==========================================
-                    // ADDITIONAL PHOTOS
-                    // ==========================================
-                    ForEach(Array(images.dropFirst(2).enumerated()), id: \.offset) { index, photoUrl in
-                        GeometryReader { geo in
-                            ZStack {
-                                AsyncImage(url: URL(string: photoUrl)) { phase in
-                                    if let image = phase.image {
-                                        image
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                            .frame(width: geo.size.width, height: 400)
-                                    } else {
-                                        placeholderGradient
-                                    }
-                                }
-                                .frame(width: geo.size.width, height: 400)
-                                .clipped()
-
-                                // Like button top-right (hidden when opened from message; shown when from Likes You)
-                                if !showBackButton || showLikeAndPassButtons {
-                                    VStack {
-                                        HStack {
-                                            Spacer()
-                                            Button {
-                                                onLike()
-                                                dismiss()
-                                            } label: {
-                                                Image(systemName: "heart.fill")
-                                                    .font(.system(size: 20))
-                                                    .foregroundColor(.white)
-                                                    .frame(width: 48, height: 48)
-                                                    .background(Color.white.opacity(0.2))
-                                                    .clipShape(Circle())
-                                                    .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
-                                                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
-                                            }
-                                            .padding(.trailing, 24)
-                                            .padding(.top, 16)
-                                        }
-                                        Spacer()
-                                    }
-                                }
-                            }
-                        }
-                        .frame(height: 400)
-                    }
-
                     // Bottom padding for action buttons
                     Spacer().frame(height: 120)
                 }
             }
-            .onPreferenceChange(ScrollOffsetPreferenceKey.self) { globalY in
-                guard showBackButton else { return }
-                if let initial = profileScrollInitialY {
-                    profileScrollOffset = globalY - initial
-                } else {
-                    profileScrollInitialY = globalY
-                    profileScrollOffset = 0
-                }
-            }
 
             // ==========================================
-            // FLOATING HEADER - close button (hidden when showBackButton; we use back button instead)
+            // FLOATING HEADER - close + menu (hidden when showBackButton); fades out when user scrolls up
             // ==========================================
             if !showBackButton {
+                let fullscreenHeaderOpacity = scrollContentOffsetY <= 0 ? 1.0 : max(0, 1.0 - Double(scrollContentOffsetY) / Double(profileHeaderCollapseThreshold))
                 VStack {
                     HStack {
                         Spacer()
+                        ReportBlockMenuButton(
+                            userId: profile.id,
+                            displayName: profile.displayName,
+                            onBlockComplete: { isOpen = false },
+                            darkStyle: true
+                        )
                         Button {
                             dismiss()
                         } label: {
@@ -431,6 +300,7 @@ struct ProfileDetailView: View {
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 12)
+                    .opacity(fullscreenHeaderOpacity)
 
                     Spacer()
                 }
@@ -470,8 +340,8 @@ struct ProfileDetailView: View {
             if showBackButton {
                 ZStack(alignment: .top) {
                     // Expanded: back button + ReportBlockMenu — slide up and fade with scroll
-                    let headerOffset = max(-80, min(0, profileScrollOffset))
-                    let headerOpacity = profileScrollOffset > 0 ? 1.0 : max(0, 1.0 + Double(profileScrollOffset) / Double(profileHeaderCollapseThreshold))
+                    let headerOffset = max(-80, min(0, -scrollContentOffsetY))
+                    let headerOpacity = scrollContentOffsetY <= 0 ? 1.0 : max(0, 1.0 - Double(scrollContentOffsetY) / Double(profileHeaderCollapseThreshold))
                     HStack {
                         Button {
                             isOpen = false
@@ -495,36 +365,6 @@ struct ProfileDetailView: View {
                     .padding(.top, 16)
                     .offset(y: headerOffset)
                     .opacity(headerOpacity)
-
-                    // Compact: name centered — fades in when scrolled past threshold
-                    let compactOpacity = profileScrollOffset >= -profileHeaderCollapseThreshold ? 0.0 : min(1.0, Double(-profileScrollOffset - profileHeaderCollapseThreshold) / 40.0)
-                    ZStack {
-                        Text(profile.displayName)
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(inkMain)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity)
-                        HStack {
-                            Spacer().frame(width: 44)
-                            Spacer()
-                            ReportBlockMenuButton(
-                                userId: profile.id,
-                                displayName: profile.displayName,
-                                onBlockComplete: { isOpen = false },
-                                plainStyle: true
-                            )
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .frame(height: profileCompactHeaderHeight)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.white)
-                    .overlay(
-                        Rectangle().frame(height: 1).foregroundColor(gray100),
-                        alignment: .bottom
-                    )
-                    .padding(.top, 16)
-                    .opacity(compactOpacity)
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
             }
@@ -545,6 +385,15 @@ struct ProfileDetailView: View {
             startPoint: .top,
             endPoint: .bottom
         )
+    }
+
+    /// Relative time string for last active (e.g. "2h ago", "1d ago").
+    private func lastActiveString(for date: Date?) -> String? {
+        guard let date = date else { return nil }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        formatter.locale = Locale.current
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 
     private func lifestyleIcon(for lifestyle: Lifestyle) -> String {
