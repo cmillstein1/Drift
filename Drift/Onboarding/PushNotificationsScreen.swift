@@ -67,29 +67,25 @@ struct PushNotificationsScreen: View {
                     .padding(.horizontal, 24)
                     .padding(.bottom, 28)
 
-                    // Benefit cards
+                    // Benefit cards (outline style like profile Notifications / Privacy)
                     VStack(spacing: 12) {
                         NotificationBenefitRow(
-                            iconColor: skyBlue,
-                            iconName: "message.fill",
+                            iconName: "message",
                             title: "New messages",
                             subtitle: "Never miss a conversation"
                         )
                         NotificationBenefitRow(
-                            iconColor: sunsetRose,
-                            iconName: "heart.fill",
+                            iconName: "heart",
                             title: "New matches",
                             subtitle: "Know when someone connects"
                         )
                         NotificationBenefitRow(
-                            iconColor: forestGreen,
-                            iconName: "person.2.fill",
+                            iconName: "person.2",
                             title: "Nearby travelers",
                             subtitle: "Find people in your area"
                         )
                         NotificationBenefitRow(
-                            iconColor: burntOrange,
-                            iconName: "mappin.circle.fill",
+                            iconName: "mappin.circle",
                             title: "Event updates",
                             subtitle: "Get notified about activities"
                         )
@@ -153,30 +149,32 @@ struct PushNotificationsScreen: View {
 }
 
 private struct NotificationBenefitRow: View {
-    let iconColor: Color
     let iconName: String
     let title: String
     let subtitle: String
 
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
+    private let iconBeige = Color(red: 0.97, green: 0.96, blue: 0.93)
 
     var body: some View {
-        HStack(spacing: 16) {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(iconColor)
-                .frame(width: 44, height: 44)
-                .overlay(
-                    Image(systemName: iconName)
-                        .font(.system(size: 20))
-                        .foregroundColor(.white)
-                )
+        HStack(spacing: 12) {
+            // Icon — outline style like ProfileScreen (Notifications, Privacy): light bg, dark icon, corner radius 16
+            ZStack {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(iconBeige)
+                    .frame(width: 40, height: 40)
+
+                Image(systemName: iconName)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(charcoalColor)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundColor(charcoalColor)
                 Text(subtitle)
-                    .font(.system(size: 14))
+                    .font(.system(size: 12))
                     .foregroundColor(charcoalColor.opacity(0.6))
             }
 

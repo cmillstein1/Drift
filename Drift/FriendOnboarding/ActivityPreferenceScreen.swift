@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct ActivityPreference: Identifiable {
     let id: String
@@ -17,7 +18,9 @@ struct ActivityPreference: Identifiable {
 struct ActivityPreferenceScreen: View {
     let onContinue: () -> Void
     
+    @StateObject private var profileManager = ProfileManager.shared
     @State private var selectedActivities: Set<String> = []
+    @State private var isSaving = false
     
     private let softGray = Color("SoftGray")
     private let charcoalColor = Color("Charcoal")
@@ -155,7 +158,33 @@ struct ActivityPreferenceScreen: View {
     private var canContinue: Bool {
         selectedActivities.count >= 3
     }
-    
+
+    /// Selected activity labels for saving as profile interests (merged with existing).
+    private var selectedActivityLabels: [String] {
+        selectedActivities.sorted().compactMap { id in
+            activities.first(where: { $0.id == id })?.label
+        }
+    }
+
+    private func saveAndContinue() {
+        let existing = profileManager.currentProfile?.interests ?? []
+        let merged = Array(Set(existing + selectedActivityLabels))
+        isSaving = true
+        Task {
+            do {
+                try await profileManager.updateProfile(
+                    ProfileUpdateRequest(interests: merged)
+                )
+            } catch {
+                print("Failed to save activity preferences: \(error)")
+            }
+            await MainActor.run {
+                isSaving = false
+                onContinue()
+            }
+        }
+    }
+
     var body: some View {
         ZStack {
             softGray
@@ -217,14 +246,19 @@ struct ActivityPreferenceScreen: View {
                     // Button - Make entire area clickable
                     Button(action: {
                         if canContinue {
-                            onContinue()
+                            saveAndContinue()
                         }
                     }) {
                         HStack {
                             Spacer()
-                            Text("Continue")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
+                            if isSaving {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            } else {
+                                Text("Continue")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
                             Spacer()
                         }
                         .frame(height: 56)
@@ -244,7 +278,7 @@ struct ActivityPreferenceScreen: View {
                         .clipShape(Capsule())
                         .shadow(color: canContinue ? .black.opacity(0.2) : .clear, radius: 8, x: 0, y: 4)
                     }
-                    .disabled(!canContinue)
+                    .disabled(!canContinue || isSaving)
                     .buttonStyle(PlainButtonStyle())
                     .padding(.horizontal, 24)
                     .padding(.bottom, 8)

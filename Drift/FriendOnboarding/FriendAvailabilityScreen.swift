@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import DriftBackend
 
 struct MeetupFrequency: Identifiable {
     let id: String
@@ -23,8 +24,10 @@ struct LocationStatus: Identifiable {
 struct FriendAvailabilityScreen: View {
     let onContinue: () -> Void
     
+    @StateObject private var profileManager = ProfileManager.shared
     @State private var selectedFrequency: String? = nil
     @State private var selectedLocation: String? = nil
+    @State private var isSaving = false
     
     private let softGray = Color("SoftGray")
     private let charcoalColor = Color("Charcoal")
@@ -80,7 +83,37 @@ struct FriendAvailabilityScreen: View {
     private var canContinue: Bool {
         selectedFrequency != nil && selectedLocation != nil
     }
-    
+
+    /// Maps location status (travel pace) from UI to backend TravelPace enum.
+    private func travelPace(for locationId: String?) -> TravelPace? {
+        guard let id = locationId else { return nil }
+        switch id {
+        case "settled": return .slow
+        case "moving": return .fast
+        case "seasonal": return .moderate
+        default: return .moderate
+        }
+    }
+
+    private func saveAndContinue() {
+        guard let locationId = selectedLocation else { return }
+        guard let pace = travelPace(for: locationId) else { onContinue(); return }
+        isSaving = true
+        Task {
+            do {
+                try await profileManager.updateProfile(
+                    ProfileUpdateRequest(travelPace: pace)
+                )
+            } catch {
+                print("Failed to save availability: \(error)")
+            }
+            await MainActor.run {
+                isSaving = false
+                onContinue()
+            }
+        }
+    }
+
     var body: some View {
         ZStack {
             softGray
@@ -198,14 +231,19 @@ struct FriendAvailabilityScreen: View {
                     // Button - Make entire area clickable
                     Button(action: {
                         if canContinue {
-                            onContinue()
+                            saveAndContinue()
                         }
                     }) {
                         HStack {
                             Spacer()
-                            Text("Continue")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
+                            if isSaving {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            } else {
+                                Text("Continue")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
                             Spacer()
                         }
                         .frame(height: 56)
@@ -225,7 +263,7 @@ struct FriendAvailabilityScreen: View {
                         .clipShape(Capsule())
                         .shadow(color: canContinue ? .black.opacity(0.2) : .clear, radius: 8, x: 0, y: 4)
                     }
-                    .disabled(!canContinue)
+                    .disabled(!canContinue || isSaving)
                     .buttonStyle(PlainButtonStyle())
                     .padding(.horizontal, 24)
                     .padding(.bottom, 8)

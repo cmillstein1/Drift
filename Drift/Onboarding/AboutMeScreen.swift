@@ -10,7 +10,8 @@ import DriftBackend
 
 struct AboutMeScreen: View {
     let onContinue: () -> Void
-    
+    var backgroundColor: Color? = nil
+
     @StateObject private var profileManager = ProfileManager.shared
     @State private var aboutText: String = ""
     @State private var isSaving = false
@@ -26,6 +27,10 @@ struct AboutMeScreen: View {
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
     private let lightBeige = Color(red: 0.96, green: 0.95, blue: 0.93)
+
+    private var screenBackground: Color {
+        backgroundColor ?? warmWhite
+    }
     
     private let minCharacters = 50
     private let maxCharacters = 500
@@ -40,7 +45,7 @@ struct AboutMeScreen: View {
     
     var body: some View {
         ZStack {
-            warmWhite
+            screenBackground
                 .ignoresSafeArea()
             
             ScrollView {
