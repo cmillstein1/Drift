@@ -9,6 +9,7 @@ import SwiftUI
 import DriftBackend
 import Supabase
 
+
 struct ProfileScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var profileManager = ProfileManager.shared
@@ -297,7 +298,6 @@ struct ProfileScreen: View {
                             .buttonStyle(PlainButtonStyle())
                             .simultaneousGesture(
                                 TapGesture().onEnded {
-                                    // Hide tab bar immediately when tapped, before navigation
                                     let tabBarVisibility = TabBarVisibility.shared
                                     tabBarVisibility.isVisible = false
                                 }
@@ -574,30 +574,6 @@ struct ProfileScreen: View {
     }
 }
 
-// MARK: - Profile Interest Tag
-
-struct ProfileInterestTag: View {
-    let interest: String
-    
-    private let desertSand = Color("DesertSand")
-    private let charcoalColor = Color("Charcoal")
-    
-    var body: some View {
-        HStack(spacing: 6) {
-            if let emoji = DriftUI.emoji(for: interest) {
-                Text(emoji)
-                    .font(.system(size: 14))
-            }
-            Text(interest)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(charcoalColor)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(desertSand)
-        .clipShape(Capsule())
-    }
-}
 
 private struct InterestItem: Identifiable {
     let id: String
@@ -606,201 +582,6 @@ private struct InterestItem: Identifiable {
     init(_ name: String) {
         self.id = name
         self.name = name
-    }
-}
-
-// MARK: - Profile Menu Row
-
-struct ProfileMenuRow: View {
-    let icon: String
-    var iconBackground: Color? = nil
-    var iconBackgroundGradient: [Color]? = nil
-    var iconColor: Color? = nil
-    var iconStyle: ProfileMenuRowIconStyle = .filled
-    let title: String
-    var subtitle: String? = nil
-    var badge: String? = nil
-    var badgeColor: Color? = nil
-    
-    enum ProfileMenuRowIconStyle {
-        case filled   // colored background, white/colored icon
-        case outline  // light beige circle, dark charcoal outline icon
-    }
-    
-    private let charcoalColor = Color("Charcoal")
-    private let iconBeige = Color(red: 0.97, green: 0.96, blue: 0.93) // #F7F4EE
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            // Icon
-            ZStack {
-                if iconStyle == .outline {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(iconBeige)
-                        .frame(width: 40, height: 40)
-                } else if let gradient = iconBackgroundGradient {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: gradient),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 40, height: 40)
-                } else if let bg = iconBackground {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(bg)
-                        .frame(width: 40, height: 40)
-                }
-                
-                Image(systemName: icon)
-                    .font(.system(size: iconStyle == .outline ? 18 : 20, weight: .medium))
-                    .foregroundColor(
-                        iconStyle == .outline ? charcoalColor :
-                        (iconBackgroundGradient != nil ? .white :
-                        (iconColor ?? (iconBackground != nil ? .white : charcoalColor)))
-                    )
-            }
-            
-            // Text
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(charcoalColor)
-                
-                if let subtitle = subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 12))
-                        .foregroundColor(charcoalColor.opacity(0.6))
-                }
-            }
-            
-            Spacer()
-            
-            // Badge
-            if let badge = badge, let badgeColor = badgeColor {
-                Text(badge)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(badgeColor)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(badgeColor.opacity(0.1))
-                    .clipShape(Capsule())
-            }
-            
-            Image(systemName: "chevron.right")
-                .font(.system(size: 20, weight: .medium))
-                .foregroundColor(charcoalColor.opacity(0.4))
-        }
-        .padding(16)
-    }
-}
-
-// MARK: - Profile Stat Card
-
-struct ProfileStatCard: View {
-    let value: String
-    let label: String
-    let icon: String
-    let color: Color
-    
-    private let charcoalColor = Color("Charcoal")
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundColor(color)
-            
-            Text(value)
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(charcoalColor)
-            
-            Text(label)
-                .font(.system(size: 11))
-                .foregroundColor(charcoalColor.opacity(0.6))
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-}
-
-// MARK: - Settings Row
-
-struct SettingsRow: View {
-    let icon: String
-    let iconColor: Color
-    let title: String
-    let subtitle: String?
-    let showChevron: Bool
-    
-    private let charcoalColor = Color("Charcoal")
-    
-    var body: some View {
-        HStack(spacing: 14) {
-            // Icon
-            ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(iconColor.opacity(0.1))
-                    .frame(width: 40, height: 40)
-                
-                Image(systemName: icon)
-                    .font(.system(size: 16))
-                    .foregroundColor(iconColor)
-            }
-            
-            // Text
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(charcoalColor)
-                
-                if let subtitle = subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 13))
-                        .foregroundColor(charcoalColor.opacity(0.6))
-                }
-            }
-            
-            Spacer()
-            
-            if showChevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(charcoalColor.opacity(0.3))
-            }
-        }
-        .padding(16)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-}
-
-// MARK: - Simple Stat Card (for BuilderScreen compatibility)
-
-struct StatCard: View {
-    let value: String
-    let label: String
-    
-    private let charcoalColor = Color("Charcoal")
-    
-    var body: some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.system(size: 24, weight: .bold))
-                .foregroundColor(charcoalColor)
-            
-            Text(label)
-                .font(.system(size: 13))
-                .foregroundColor(charcoalColor.opacity(0.6))
-        }
-        .frame(maxWidth: .infinity)
-        .padding(16)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 

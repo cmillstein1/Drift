@@ -58,7 +58,7 @@ struct EmergencyButton: View {
                 }
                 .foregroundColor(style == .menuItem ? .clear : .white)
                 .frame(maxWidth: (style == .floating || style == .inline) ? .infinity : (style == .menuItem ? .infinity : nil))
-                .frame(height: style == .floating ? 48 : (style == .menuItem ? nil : (style == .compact ? 40 : (style == .inline ? 36 : (style == .prominent ? 44 : 50)))))
+                .frame(height: style == .floating ? 36 : (style == .menuItem ? nil : (style == .compact ? 28 : (style == .inline ? 28 : (style == .prominent ? 32 : 36)))))
                 .padding(.horizontal, style == .compact ? 16 : (style == .menuItem ? 0 : (style == .inline ? 20 : 24)))
                 .padding(.vertical, style == .menuItem ? 0 : nil)
                 .background(

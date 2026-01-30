@@ -46,6 +46,22 @@ public enum TravelPace: String, Codable, CaseIterable, Sendable {
     }
 }
 
+public enum WorkStyle: String, Codable, CaseIterable, Sendable {
+    case remote
+    case hybrid
+    case locationBased = "location_based"
+    case retired
+
+    public var displayName: String {
+        switch self {
+        case .remote: return "Remote"
+        case .hybrid: return "Hybrid"
+        case .locationBased: return "Location-based"
+        case .retired: return "Retired"
+        }
+    }
+}
+
 // MARK: - Prompt Answer
 
 public struct PromptAnswer: Codable, Hashable, Sendable {
@@ -92,6 +108,11 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
     public var datingLooksLike: String?
     public var promptAnswers: [PromptAnswer]?
 
+    // Lifestyle details
+    public var workStyle: WorkStyle?
+    public var homeBase: String?
+    public var morningPerson: Bool?
+
     public var createdAt: Date?
     public var updatedAt: Date?
     public var lastActiveAt: Date?
@@ -115,6 +136,9 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         case rigInfo = "rig_info"
         case datingLooksLike = "dating_looks_like"
         case promptAnswers = "prompt_answers"
+        case workStyle = "work_style"
+        case homeBase = "home_base"
+        case morningPerson = "morning_person"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case lastActiveAt = "last_active_at"
@@ -146,6 +170,9 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         rigInfo: String? = nil,
         datingLooksLike: String? = nil,
         promptAnswers: [PromptAnswer]? = nil,
+        workStyle: WorkStyle? = nil,
+        homeBase: String? = nil,
+        morningPerson: Bool? = nil,
         createdAt: Date? = nil,
         updatedAt: Date? = nil,
         lastActiveAt: Date? = nil,
@@ -175,6 +202,9 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         self.rigInfo = rigInfo
         self.datingLooksLike = datingLooksLike
         self.promptAnswers = promptAnswers
+        self.workStyle = workStyle
+        self.homeBase = homeBase
+        self.morningPerson = morningPerson
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.lastActiveAt = lastActiveAt
@@ -235,6 +265,9 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         } else {
             promptAnswers = nil
         }
+        workStyle = try container.decodeIfPresent(WorkStyle.self, forKey: .workStyle)
+        homeBase = try container.decodeIfPresent(String.self, forKey: .homeBase)
+        morningPerson = try container.decodeIfPresent(Bool.self, forKey: .morningPerson)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         lastActiveAt = try container.decodeIfPresent(Date.self, forKey: .lastActiveAt)
@@ -300,6 +333,62 @@ public struct TravelStop: Codable, Identifiable, Hashable, Sendable {
         self.createdAt = createdAt
     }
 
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        userId = try container.decode(UUID.self, forKey: .userId)
+        location = try container.decode(String.self, forKey: .location)
+
+        // Handle date-only format (yyyy-MM-dd) from Supabase
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone(identifier: "UTC")
+
+        let startDateString = try container.decode(String.self, forKey: .startDate)
+        guard let parsedStartDate = dateFormatter.date(from: startDateString) else {
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: [CodingKeys.startDate],
+                    debugDescription: "Invalid date format: \(startDateString)"
+                )
+            )
+        }
+        startDate = parsedStartDate
+
+        if let endDateString = try container.decodeIfPresent(String.self, forKey: .endDate) {
+            endDate = dateFormatter.date(from: endDateString)
+        } else {
+            endDate = nil
+        }
+
+        // createdAt uses ISO8601 with time
+        if let createdAtString = try container.decodeIfPresent(String.self, forKey: .createdAt) {
+            let iso8601Formatter = ISO8601DateFormatter()
+            iso8601Formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            createdAt = iso8601Formatter.date(from: createdAtString)
+        } else {
+            createdAt = nil
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(userId, forKey: .userId)
+        try container.encode(location, forKey: .location)
+
+        // Encode dates as yyyy-MM-dd for Supabase DATE columns
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone(identifier: "UTC")
+
+        try container.encode(dateFormatter.string(from: startDate), forKey: .startDate)
+        if let endDate = endDate {
+            try container.encode(dateFormatter.string(from: endDate), forKey: .endDate)
+        }
+        // Don't encode createdAt - it's managed by the database
+    }
+
     public var dateRange: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
@@ -337,6 +426,9 @@ public struct ProfileUpdateRequest: Encodable {
     public var rigInfo: String?
     public var datingLooksLike: String?
     public var promptAnswers: [PromptAnswer]?
+    public var workStyle: WorkStyle?
+    public var homeBase: String?
+    public var morningPerson: Bool?
     public var onboardingCompleted: Bool?
 
     enum CodingKeys: String, CodingKey {
@@ -357,6 +449,9 @@ public struct ProfileUpdateRequest: Encodable {
         case rigInfo = "rig_info"
         case datingLooksLike = "dating_looks_like"
         case promptAnswers = "prompt_answers"
+        case workStyle = "work_style"
+        case homeBase = "home_base"
+        case morningPerson = "morning_person"
         case onboardingCompleted = "onboarding_completed"
     }
 
@@ -383,6 +478,9 @@ public struct ProfileUpdateRequest: Encodable {
         rigInfo: String? = nil,
         datingLooksLike: String? = nil,
         promptAnswers: [PromptAnswer]? = nil,
+        workStyle: WorkStyle? = nil,
+        homeBase: String? = nil,
+        morningPerson: Bool? = nil,
         onboardingCompleted: Bool? = nil
     ) {
         self.name = name
@@ -407,6 +505,9 @@ public struct ProfileUpdateRequest: Encodable {
         self.rigInfo = rigInfo
         self.datingLooksLike = datingLooksLike
         self.promptAnswers = promptAnswers
+        self.workStyle = workStyle
+        self.homeBase = homeBase
+        self.morningPerson = morningPerson
         self.onboardingCompleted = onboardingCompleted
     }
     
@@ -434,8 +535,11 @@ public struct ProfileUpdateRequest: Encodable {
         try container.encodeIfPresent(simplePleasure, forKey: .simplePleasure)
         try container.encodeIfPresent(rigInfo, forKey: .rigInfo)
         try container.encodeIfPresent(datingLooksLike, forKey: .datingLooksLike)
+        try container.encodeIfPresent(workStyle, forKey: .workStyle)
+        try container.encodeIfPresent(homeBase, forKey: .homeBase)
+        try container.encodeIfPresent(morningPerson, forKey: .morningPerson)
         try container.encodeIfPresent(onboardingCompleted, forKey: .onboardingCompleted)
-        
+
         // Explicitly encode promptAnswers as JSON array (only if not nil)
         try container.encodeIfPresent(promptAnswers, forKey: .promptAnswers)
     }
