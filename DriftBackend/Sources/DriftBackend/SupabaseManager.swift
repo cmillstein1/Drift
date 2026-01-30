@@ -223,6 +223,11 @@ public class SupabaseManager: ObservableObject {
     /// - Throws: An error if sign out fails.
     public func signOut() async throws {
         try await client.auth.signOut()
+        clearAuthState()
+    }
+
+    /// Clears in-memory auth state (used after delete account or when sign out fails).
+    public func clearAuthState() {
         self.currentUser = nil
         self.isAuthenticated = false
         self.hasRedeemedInvite = nil

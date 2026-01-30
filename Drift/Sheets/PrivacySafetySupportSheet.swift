@@ -11,6 +11,11 @@ import Auth
 
 /// Pushed screen from Profile (Privacy, Safety & Support). Use as navigation destination.
 struct PrivacySafetySupportScreen: View {
+    @State private var showDeleteAccountConfirmation = false
+    @State private var isDeletingAccount = false
+    @State private var deleteAccountError: String?
+    @State private var showDeleteError = false
+
     private let charcoalColor = Color("Charcoal")
     private let softGray = Color("SoftGray")
     private let forestGreen = Color("ForestGreen")
@@ -58,6 +63,42 @@ struct PrivacySafetySupportScreen: View {
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+
+                // Delete account
+                Button {
+                    showDeleteAccountConfirmation = true
+                } label: {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.red.opacity(0.12))
+                                .frame(width: 40, height: 40)
+                            Image(systemName: "trash")
+                                .font(.system(size: 18))
+                                .foregroundColor(.red)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Delete account")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.red)
+                            Text("Permanently delete your account and all data")
+                                .font(.system(size: 12))
+                                .foregroundColor(charcoalColor.opacity(0.6))
+                        }
+                        Spacer()
+                        if isDeletingAccount {
+                            ProgressView()
+                                .scaleEffect(0.9)
+                        }
+                    }
+                    .padding(16)
+                    .background(Color.white)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(isDeletingAccount)
+                .padding(.top, 16)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
             }
             .padding(.horizontal, 24)
         }
@@ -67,6 +108,33 @@ struct PrivacySafetySupportScreen: View {
         .toolbarBackground(softGray, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .tint(.black)
+        .confirmationDialog("Delete account?", isPresented: $showDeleteAccountConfirmation, titleVisibility: .visible) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete account", role: .destructive) {
+                Task { await confirmDeleteAccount() }
+            }
+        } message: {
+            Text("Deleting your account is irreversible. All your data will be wiped and you will need to create a new account to use Drift again.")
+        }
+        .alert("Error", isPresented: $showDeleteError) {
+            Button("OK") { showDeleteError = false; deleteAccountError = nil }
+        } message: {
+            if let error = deleteAccountError {
+                Text(error)
+            }
+        }
+    }
+
+    private func confirmDeleteAccount() async {
+        isDeletingAccount = true
+        deleteAccountError = nil
+        defer { isDeletingAccount = false }
+        do {
+            try await SupabaseManager.shared.deleteAccount()
+        } catch {
+            deleteAccountError = error.localizedDescription
+            showDeleteError = true
+        }
     }
 }
 

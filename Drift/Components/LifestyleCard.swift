@@ -74,7 +74,6 @@ struct LifestyleCard: View {
             }
             .padding(20)
             .background(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
     }
 
@@ -119,7 +118,6 @@ private struct LifestyleGridItem: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(desertSand.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 

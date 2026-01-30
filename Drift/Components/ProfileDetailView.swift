@@ -629,7 +629,6 @@ struct ProfileDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
             .background(desertSand.opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
 }
