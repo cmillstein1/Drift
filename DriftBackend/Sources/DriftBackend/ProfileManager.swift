@@ -129,8 +129,14 @@ public class ProfileManager: ObservableObject {
     /// - Parameter updates: A `ProfileUpdateRequest` with fields to update.
     public func updateProfile(_ updates: ProfileUpdateRequest) async throws {
         guard let userId = SupabaseManager.shared.currentUser?.id else {
+            print("🔴 [ProfileManager] updateProfile: not authenticated")
             throw ProfileError.notAuthenticated
         }
+
+        print("🔵 [ProfileManager] updateProfile for userId: \(userId)")
+        print("🔵 [ProfileManager] workStyle: \(String(describing: updates.workStyle))")
+        print("🔵 [ProfileManager] homeBase: \(String(describing: updates.homeBase))")
+        print("🔵 [ProfileManager] morningPerson: \(String(describing: updates.morningPerson))")
 
         try await client
             .from("profiles")
@@ -138,8 +144,14 @@ public class ProfileManager: ObservableObject {
             .eq("id", value: userId)
             .execute()
 
+        print("🔵 [ProfileManager] Update executed, now fetching profile...")
+
         // Refresh profile after update
         try await fetchCurrentProfile()
+
+        print("🔵 [ProfileManager] After refresh - workStyle: \(String(describing: currentProfile?.workStyle))")
+        print("🔵 [ProfileManager] After refresh - homeBase: \(String(describing: currentProfile?.homeBase))")
+        print("🔵 [ProfileManager] After refresh - morningPerson: \(String(describing: currentProfile?.morningPerson))")
     }
 
     /// Fetches a profile by user ID.
@@ -283,6 +295,14 @@ public class ProfileManager: ObservableObject {
             throw ProfileError.notAuthenticated
         }
 
+        return try await fetchTravelSchedule(for: userId)
+    }
+
+    /// Fetches travel schedule for a specific user.
+    ///
+    /// - Parameter userId: The user ID to fetch travel schedule for.
+    /// - Returns: Array of travel stops ordered by start date.
+    public func fetchTravelSchedule(for userId: UUID) async throws -> [TravelStop] {
         return try await client
             .from("travel_schedule")
             .select()

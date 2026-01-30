@@ -14,41 +14,44 @@ import DriftBackend
 struct EditProfileScreen: View {
     let onBack: () -> Void
     @Environment(\.dismiss) var dismiss
-    @StateObject private var profileManager = ProfileManager.shared
-    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
+    @StateObject var profileManager = ProfileManager.shared
+    @ObservedObject var tabBarVisibility = TabBarVisibility.shared
     
-    @State private var name: String = ""
-    @State private var age: String = ""
-    @State private var birthday: Date?
-    @State private var currentLocation: String = ""
-    @State private var about: String = ""
-    @State private var rigInfo: String = ""
-    @State private var promptAnswers: [DriftBackend.PromptAnswer] = []
-    @State private var travelPace: TravelPaceOption = .slow
-    @State private var interests: [String] = []
-    @State private var photos: [String] = []
-    @State private var photoImages: [Int: Image] = [:]
-    @State private var selectedPhotoIndex: Int?
+    @State var name: String = ""
+    @State var age: String = ""
+    @State var birthday: Date?
+    @State var currentLocation: String = ""
+    @State var about: String = ""
+    @State var rigInfo: String = ""
+    @State var promptAnswers: [DriftBackend.PromptAnswer] = []
+    @State var travelPace: TravelPaceOption = .slow
+    @State var interests: [String] = []
+    @State var photos: [String] = []
+    @State var photoImages: [Int: Image] = [:]
+    @State var selectedPhotoIndex: Int?
     // Lifestyle fields
-    @State private var workStyle: WorkStyle?
-    @State private var homeBase: String = ""
-    @State private var morningPerson: Bool?
-    @State private var travelStopsCount: Int = 0
-    @State private var selectedPhotoItem: PhotosPickerItem?
-    @State private var isUploadingPhoto: Int? = nil
-    @State private var draggedPhoto: Int?
+    @State var workStyle: WorkStyle?
+    @State var homeBase: String = ""
+    @State var morningPerson: Bool?
+    @State var travelStopsCount: Int = 0
+    @State var travelStops: [DriftBackend.TravelStop] = []
+    @State var selectedPhotoItem: PhotosPickerItem?
+    @State var isUploadingPhoto: Int? = nil
+    @State var draggedPhoto: Int?
     @State private var isSaving = false
     @State private var showPromptsEditor = false
     @State private var hasChanges = false
     @State private var originalProfileData: ProfileSnapshot?
-    
+    @State private var hasLoadedInitialData = false
+    @State var showUnsavedChangesAlert = false
+
     // Navigation states
     @State private var showLocationEditor = false
-    @State private var showTravelPaceEditor = false
-    @State private var showPromptEditor = false
-    @State private var selectedPromptIndex: Int?
-    @State private var showInterestEditor = false
-    @State private var showWorkStyleEditor = false
+    @State var showTravelPaceEditor = false
+    @State var showPromptEditor = false
+    @State var selectedPromptIndex: Int?
+    @State var showInterestEditor = false
+    @State var showWorkStyleEditor = false
 
     // Tab selection
     @State private var selectedTab: ProfileTab = .edit
@@ -90,13 +93,13 @@ struct EditProfileScreen: View {
         }
     }
     
-    private let softGray = Color("SoftGray")
-    private let charcoalColor = Color("Charcoal")
-    private let burntOrange = Color("BurntOrange")
-    private let desertSand = Color("DesertSand")
-    
+    let softGray = Color("SoftGray")
+    let charcoalColor = Color("Charcoal")
+    let burntOrange = Color("BurntOrange")
+    let desertSand = Color("DesertSand")
+
     /// Max number of prompt answers allowed in My Journey.
-    private static let maxPrompts = 3
+    static let maxPrompts = 3
 
     // Track original state for change detection
     struct ProfileSnapshot: Equatable {
@@ -110,7 +113,10 @@ struct EditProfileScreen: View {
         let travelPace: TravelPaceOption
         let interests: [String]
         let photos: [String]
-        
+        let workStyle: WorkStyle?
+        let homeBase: String
+        let morningPerson: Bool?
+
         static func == (lhs: ProfileSnapshot, rhs: ProfileSnapshot) -> Bool {
             return lhs.name == rhs.name &&
                    lhs.age == rhs.age &&
@@ -122,17 +128,56 @@ struct EditProfileScreen: View {
                    zip(lhs.promptAnswers, rhs.promptAnswers).allSatisfy { $0.prompt == $1.prompt && $0.answer == $1.answer } &&
                    lhs.travelPace == rhs.travelPace &&
                    lhs.interests == rhs.interests &&
-                   lhs.photos == rhs.photos
+                   lhs.photos == rhs.photos &&
+                   lhs.workStyle == rhs.workStyle &&
+                   lhs.homeBase == rhs.homeBase &&
+                   lhs.morningPerson == rhs.morningPerson
         }
     }
     
     var body: some View {
+        mainContentWithNav
+            .onAppear(perform: handleOnAppear)
+            .task { tabBarVisibility.isVisible = false }
+            .onChange(of: name) { _, _ in checkForChanges() }
+            .onChange(of: age) { _, _ in checkForChanges() }
+            .onChange(of: currentLocation) { _, _ in checkForChanges() }
+            .onChange(of: about) { _, _ in checkForChanges() }
+            .onChange(of: rigInfo) { _, _ in checkForChanges() }
+            .onChange(of: promptAnswers.count) { _, _ in checkForChanges() }
+            .onChange(of: travelPace) { _, _ in checkForChanges() }
+            .onChange(of: interests) { _, _ in checkForChanges() }
+            .onChange(of: photos) { _, _ in checkForChanges() }
+            .onChange(of: workStyle) { _, _ in checkForChanges() }
+            .onChange(of: homeBase) { _, _ in checkForChanges() }
+            .onChange(of: morningPerson) { _, _ in checkForChanges() }
+            .photosPicker(isPresented: photosPickerBinding, selection: $selectedPhotoItem, matching: .images)
+            .onChange(of: selectedPhotoItem) { _, newItem in handlePhotoSelection(newItem) }
+            .sheet(isPresented: $showInterestEditor) { interestEditorSheet }
+            .sheet(isPresented: $showTravelPaceEditor) { travelPaceEditorSheet }
+            .sheet(isPresented: $showWorkStyleEditor) { workStyleEditorSheet }
+            .sheet(isPresented: $showPromptEditor) { promptEditorSheet }
+    }
+
+    private var mainContentWithNav: some View {
+        mainContent
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
+            .toolbar { toolbarContent }
+            .alert("Unsaved Changes", isPresented: $showUnsavedChangesAlert) {
+                unsavedChangesAlertButtons
+            } message: {
+                Text("You have unsaved changes. Would you like to save them before leaving?")
+            }
+    }
+
+    // MARK: - Main Content
+
+    private var mainContent: some View {
         ZStack {
             softGray.ignoresSafeArea()
-
             VStack(spacing: 0) {
                 tabSelector
-
                 if selectedTab == .edit {
                     editTabContent
                 } else {
@@ -140,127 +185,85 @@ struct EditProfileScreen: View {
                 }
             }
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button {
-                    onBack()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(charcoalColor)
-                }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("Edit Profile")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(charcoalColor)
-            }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: {
-                    if hasChanges {
-                        saveChanges()
-                    } else {
-                        onBack()
-                    }
-                }) {
-                    Text(hasChanges ? "Save" : "Done")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(burntOrange)
-                }
-                .disabled(isSaving)
-            }
-        }
-        .task {
-            // Hide tab bar immediately when view appears (runs as early as possible)
-            tabBarVisibility.isVisible = false
-        }
-        .onAppear {
+    }
+
+    // MARK: - Lifecycle Handlers
+
+    private func handleOnAppear() {
+        if !hasLoadedInitialData {
             loadProfileData()
-            // Hide tab bar immediately (no animation) to prevent it from showing during navigation
-            tabBarVisibility.isVisible = false
-            // Continuously ensure it stays hidden
-            Task { @MainActor in
-                // Check multiple times to ensure it stays hidden
-                for delay in [0.05, 0.1, 0.2, 0.3, 0.5] {
-                    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    tabBarVisibility.isVisible = false
-                }
+            hasLoadedInitialData = true
+        }
+        tabBarVisibility.isVisible = false
+        Task { @MainActor in
+            for delay in [0.05, 0.1, 0.2, 0.3, 0.5] {
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                tabBarVisibility.isVisible = false
             }
         }
-        .onDisappear {
-            // Don't show tab bar here - we may have only pushed to a child (About, Age, etc.).
-            // ProfileScreen shows the tab bar when navigation path becomes empty.
+    }
+
+    private func handlePhotoSelection(_ newItem: PhotosPickerItem?) {
+        if let item = newItem, let index = selectedPhotoIndex {
+            uploadPhoto(item, at: index)
+            selectedPhotoItem = nil
         }
-        .onChange(of: name) { _, _ in checkForChanges() }
-        .onChange(of: age) { _, _ in checkForChanges() }
-        .onChange(of: currentLocation) { _, _ in checkForChanges() }
-        .onChange(of: about) { _, _ in checkForChanges() }
-        .onChange(of: rigInfo) { _, _ in checkForChanges() }
-        .onChange(of: promptAnswers) { _, _ in checkForChanges() }
-        .onChange(of: travelPace) { _, _ in checkForChanges() }
-        .onChange(of: interests) { _, _ in checkForChanges() }
-        .onChange(of: photos) { _, _ in checkForChanges() }
-        .onChange(of: workStyle) { _, _ in checkForChanges() }
-        .onChange(of: homeBase) { _, _ in checkForChanges() }
-        .onChange(of: morningPerson) { _, _ in checkForChanges() }
-        .photosPicker(
-            isPresented: Binding(
-                get: { selectedPhotoIndex != nil },
-                set: { if !$0 { selectedPhotoIndex = nil } }
-            ),
-            selection: $selectedPhotoItem,
-            matching: .images
+    }
+
+    private var photosPickerBinding: Binding<Bool> {
+        Binding(
+            get: { selectedPhotoIndex != nil },
+            set: { if !$0 { selectedPhotoIndex = nil } }
         )
-        .onChange(of: selectedPhotoItem) { _, newItem in
-            if let item = newItem, let index = selectedPhotoIndex {
-                uploadPhoto(item, at: index)
-                selectedPhotoItem = nil
-            }
-        }
-        .sheet(isPresented: $showInterestEditor) {
-            InterestEditorSheet(
-                selectedInterests: $interests,
-                isPresented: $showInterestEditor
+    }
+
+    // MARK: - Sheet Views
+
+    private var interestEditorSheet: some View {
+        InterestEditorSheet(
+            selectedInterests: $interests,
+            isPresented: $showInterestEditor
+        )
+    }
+
+    private var travelPaceEditorSheet: some View {
+        TravelPaceEditorSheet(
+            travelPace: $travelPace,
+            isPresented: $showTravelPaceEditor
+        )
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var workStyleEditorSheet: some View {
+        WorkStyleEditorSheet(
+            workStyle: $workStyle,
+            isPresented: $showWorkStyleEditor
+        )
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    @ViewBuilder
+    private var promptEditorSheet: some View {
+        if let index = selectedPromptIndex {
+            PromptEditorSheet(
+                promptAnswer: Binding(
+                    get: { promptAnswers[index] },
+                    set: { promptAnswers[index] = $0 }
+                ),
+                isPresented: $showPromptEditor,
+                onDidSave: { savePromptsToProfile() }
             )
-        }
-        .sheet(isPresented: $showTravelPaceEditor) {
-            TravelPaceEditorSheet(
-                travelPace: $travelPace,
-                isPresented: $showTravelPaceEditor
+        } else {
+            PromptEditorSheet(
+                promptAnswer: Binding(
+                    get: { DriftBackend.PromptAnswer(prompt: "", answer: "") },
+                    set: { if promptAnswers.count < Self.maxPrompts { promptAnswers.append($0) } }
+                ),
+                isPresented: $showPromptEditor,
+                onDidSave: { savePromptsToProfile() }
             )
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $showWorkStyleEditor) {
-            WorkStyleEditorSheet(
-                workStyle: $workStyle,
-                isPresented: $showWorkStyleEditor
-            )
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $showPromptEditor) {
-            if let index = selectedPromptIndex {
-                PromptEditorSheet(
-                    promptAnswer: Binding(
-                        get: { promptAnswers[index] },
-                        set: { promptAnswers[index] = $0 }
-                    ),
-                    isPresented: $showPromptEditor,
-                    onDidSave: { savePromptsToProfile() }
-                )
-            } else {
-                PromptEditorSheet(
-                    promptAnswer: Binding(
-                        get: { DriftBackend.PromptAnswer(prompt: "", answer: "") },
-                        set: { if promptAnswers.count < Self.maxPrompts { promptAnswers.append($0) } }
-                    ),
-                    isPresented: $showPromptEditor,
-                    onDidSave: { savePromptsToProfile() }
-                )
-            }
         }
     }
     
@@ -294,6 +297,57 @@ struct EditProfileScreen: View {
         .padding(.bottom, 16)
     }
 
+    // MARK: - Toolbar Content
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarLeading) {
+            Button {
+                if hasChanges {
+                    showUnsavedChangesAlert = true
+                } else {
+                    onBack()
+                }
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(charcoalColor)
+            }
+        }
+        ToolbarItem(placement: .principal) {
+            Text("Edit Profile")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(charcoalColor)
+        }
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Button(action: {
+                if hasChanges {
+                    saveChanges()
+                } else {
+                    onBack()
+                }
+            }) {
+                Text(hasChanges ? "Save" : "Done")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(burntOrange)
+            }
+            .disabled(isSaving)
+        }
+    }
+
+    // MARK: - Unsaved Changes Alert Buttons
+
+    @ViewBuilder
+    private var unsavedChangesAlertButtons: some View {
+        Button("Save", role: .none) {
+            saveChanges()
+        }
+        Button("Discard", role: .destructive) {
+            onBack()
+        }
+        Button("Cancel", role: .cancel) { }
+    }
+
     // MARK: - Edit Tab Content
 
     private var editTabContent: some View {
@@ -310,760 +364,6 @@ struct EditProfileScreen: View {
         }
     }
 
-    // MARK: - Photos Section
-
-    private var photosSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("My Photos & Videos")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(charcoalColor.opacity(0.6))
-            
-            GeometryReader { geometry in
-                let availableWidth = geometry.size.width
-                let spacing: CGFloat = 12
-                let totalSpacing = spacing * 2 // 2 gaps between 3 columns
-                let itemWidth = (availableWidth - totalSpacing) / 3
-                let itemHeight = itemWidth * 4 / 3 // 3:4 aspect ratio
-                let gridColumns = [
-                    GridItem(.fixed(itemWidth), spacing: spacing),
-                    GridItem(.fixed(itemWidth), spacing: spacing),
-                    GridItem(.fixed(itemWidth), spacing: spacing)
-                ]
-                
-                photoGrid(
-                    columns: gridColumns,
-                    itemWidth: itemWidth,
-                    itemHeight: itemHeight
-                )
-            }
-            .frame(height: (UIScreen.main.bounds.width - 64) / 3 * 4 / 3 * 2 + 12)
-            
-            Text("Tap to edit, drag to reorder")
-                .font(.system(size: 12))
-                .foregroundColor(charcoalColor.opacity(0.5))
-        }
-        .padding(16)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
-    }
-    
-    private func photoGrid(columns: [GridItem], itemWidth: CGFloat, itemHeight: CGFloat) -> some View {
-        LazyVGrid(columns: columns, spacing: 12) {
-            ForEach(0..<6, id: \.self) { index in
-                photoSlot(at: index, width: itemWidth, height: itemHeight)
-            }
-        }
-    }
-    
-    private func photoSlot(at index: Int, width: CGFloat, height: CGFloat) -> some View {
-        ZStack(alignment: .topLeading) {
-            EditPhotoSlotWithStroke(
-                index: index,
-                photoUrl: index < photos.count ? photos[index] : nil,
-                previewImage: photoImages[index],
-                isUploading: isUploadingPhoto == index,
-                isMainPhoto: index == 0,
-                showMainBadge: false,
-                onSelect: {
-                    selectedPhotoIndex = index
-                },
-                onRemove: {
-                    removePhoto(at: index)
-                }
-            )
-            .frame(width: width, height: height)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-
-            if index == 0 {
-                EditProfileMainBadgeView()
-                    .padding(.top, 18)
-                    .padding(.leading, 18)
-            }
-        }
-        .frame(width: width, height: height)
-        .opacity(draggedPhoto == index ? 0.6 : 1.0)
-        .scaleEffect(draggedPhoto == index ? 0.92 : 1.0)
-        .animation(.spring(response: 0.2, dampingFraction: 0.8), value: draggedPhoto)
-        .contentShape(Rectangle())
-        .onDrag {
-            draggedPhoto = index
-            return NSItemProvider(object: "\(index)" as NSString)
-        }
-        .onDrop(of: [.text], delegate: EditProfilePhotoDropDelegate(
-            sourceIndex: draggedPhoto ?? index,
-            destinationIndex: index,
-            photos: $photos,
-            photoImages: $photoImages,
-            draggedPhoto: $draggedPhoto
-        ))
-    }
-    
-    // MARK: - Van Life Essentials Section
-    
-    private var vanLifeEssentialsSection: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("Van Life Essentials")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(charcoalColor.opacity(0.6))
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color.white)
-            
-            Divider()
-                .background(Color.gray.opacity(0.1))
-            
-            // Name
-            NavigationLink(destination: NameEditorView(name: $name)) {
-                ProfileEditRow(
-                    title: "Name",
-                    value: name.isEmpty ? "Add your name" : name
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    // Hide tab bar immediately when tapped
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        tabBarVisibility.isVisible = false
-                    }
-                }
-            )
-            
-            Divider()
-                .background(Color.gray.opacity(0.1))
-            
-            // Age
-            NavigationLink(destination: AgeEditorView(age: $age, birthday: $birthday)) {
-                ProfileEditRow(
-                    title: "Age",
-                    value: age.isEmpty ? "Add your age" : age
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    // Hide tab bar immediately when tapped
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        tabBarVisibility.isVisible = false
-                    }
-                }
-            )
-            
-            Divider()
-                .background(Color.gray.opacity(0.1))
-            
-            // Location
-            NavigationLink(destination: LocationMapPickerView(location: $currentLocation)) {
-                ProfileEditRow(
-                    title: "Current Location",
-                    value: currentLocation.isEmpty ? "Add location" : currentLocation
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    // Hide tab bar immediately when tapped
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        tabBarVisibility.isVisible = false
-                    }
-                }
-            )
-            
-            Divider()
-            .background(Color.gray.opacity(0.1))
-            
-            // The Rig
-            NavigationLink(destination: RigDetailsView(rigInfo: $rigInfo)) {
-                ProfileEditRow(
-                    title: "The Rig",
-                    value: rigInfo.isEmpty ? "Add your rig info" : rigInfo
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    // Hide tab bar immediately when tapped
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        tabBarVisibility.isVisible = false
-                    }
-                }
-            )
-            
-            Divider()
-                .background(Color.gray.opacity(0.1))
-            
-            // Travel Pace
-            ProfileEditRow(
-                title: "Travel Pace",
-                value: travelPace.displayName,
-                onTap: {
-                    showTravelPaceEditor = true
-                }
-            )
-        }
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
-    }
-    
-    // MARK: - My Journey Section
-    
-    private var myJourneySection: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("My Journey")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(charcoalColor.opacity(0.6))
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color.white)
-            
-            Divider()
-                .background(Color.gray.opacity(0.1))
-            
-            // About
-            NavigationLink(destination: AboutEditorView(about: $about)) {
-                ProfileEditRow(
-                    title: "About",
-                    value: about.isEmpty ? "Add your answer" : about,
-                    isMultiline: true
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    // Hide tab bar immediately when tapped
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        tabBarVisibility.isVisible = false
-                    }
-                }
-            )
-            
-            // Prompts
-            if !promptAnswers.isEmpty {
-                ForEach(Array(promptAnswers.enumerated()), id: \.offset) { index, promptAnswer in
-                    Divider()
-                        .background(Color.gray.opacity(0.1))
-                    
-                    Button(action: {
-                        selectedPromptIndex = index
-                        showPromptEditor = true
-                    }) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(promptAnswer.prompt)
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(charcoalColor)
-                            
-                            Text(promptAnswer.answer)
-                                .font(.system(size: 14))
-                                .foregroundColor(charcoalColor.opacity(0.6))
-                                .lineLimit(2)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
-            }
-            
-            // Add prompt button if less than max
-            if promptAnswers.count < Self.maxPrompts {
-                Divider()
-                    .background(Color.gray.opacity(0.1))
-                
-                Button(action: {
-                    selectedPromptIndex = nil
-                    showPromptEditor = true
-                }) {
-                    HStack {
-                        Text("Add a prompt")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(charcoalColor.opacity(0.4))
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(charcoalColor.opacity(0.4))
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-        }
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
-    }
-
-    // MARK: - Travel Plans Section
-
-    private var travelPlansSection: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("Travel Plans")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(charcoalColor.opacity(0.6))
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color.white)
-
-            Divider()
-                .background(Color.gray.opacity(0.1))
-
-            // Travel Plans row
-            NavigationLink(destination: TravelPlansEditorView()) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Upcoming Destinations")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(charcoalColor)
-
-                        Text(travelStopsCount > 0 ? "\(travelStopsCount) destination\(travelStopsCount == 1 ? "" : "s") planned" : "Add your travel plans")
-                            .font(.system(size: 14))
-                            .foregroundColor(travelStopsCount > 0 ? charcoalColor.opacity(0.6) : charcoalColor.opacity(0.4))
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(charcoalColor.opacity(0.4))
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(PlainButtonStyle())
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        tabBarVisibility.isVisible = false
-                    }
-                }
-            )
-        }
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
-    }
-
-    // MARK: - Lifestyle Section
-
-    private var lifestyleSection: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("Lifestyle")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(charcoalColor.opacity(0.6))
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color.white)
-
-            Divider()
-                .background(Color.gray.opacity(0.1))
-
-            // Work Style
-            ProfileEditRow(
-                title: "Work Style",
-                value: workStyle?.displayName ?? "Add work style",
-                onTap: {
-                    showWorkStyleEditor = true
-                }
-            )
-
-            Divider()
-                .background(Color.gray.opacity(0.1))
-
-            // Home Base
-            NavigationLink(destination: HomeBaseEditorView(homeBase: $homeBase)) {
-                ProfileEditRow(
-                    title: "Home Base",
-                    value: homeBase.isEmpty ? "Add home base" : homeBase
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        tabBarVisibility.isVisible = false
-                    }
-                }
-            )
-
-            Divider()
-                .background(Color.gray.opacity(0.1))
-
-            // Morning Person
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Morning Person")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(charcoalColor)
-
-                    Text(morningPerson == nil ? "Not set" : (morningPerson! ? "Yes" : "No"))
-                        .font(.system(size: 14))
-                        .foregroundColor(morningPerson == nil ? charcoalColor.opacity(0.4) : charcoalColor.opacity(0.6))
-                }
-
-                Spacer()
-
-                // Toggle buttons
-                HStack(spacing: 8) {
-                    Button {
-                        morningPerson = true
-                    } label: {
-                        Text("Yes")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(morningPerson == true ? .white : charcoalColor)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(morningPerson == true ? burntOrange : desertSand)
-                            .clipShape(Capsule())
-                    }
-
-                    Button {
-                        morningPerson = false
-                    } label: {
-                        Text("No")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(morningPerson == false ? .white : charcoalColor)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(morningPerson == false ? burntOrange : desertSand)
-                            .clipShape(Capsule())
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-        }
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
-    }
-
-    // MARK: - Profile Preview View (Discover Card Style)
-
-    private var profilePreviewView: some View {
-        let gray100 = Color(red: 0.95, green: 0.95, blue: 0.96)
-        let forestGreen = Color("ForestGreen")
-
-        return ScrollView {
-            VStack(spacing: 0) {
-                // Card container
-                VStack(spacing: 0) {
-                    // ----- First Image with header overlay -----
-                    ZStack(alignment: .bottom) {
-                        // First photo
-                        if let firstPhoto = photos.first, !firstPhoto.isEmpty,
-                           let url = URL(string: firstPhoto) {
-                            AsyncImage(url: url) { phase in
-                                if let image = phase.image {
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                } else {
-                                    previewPlaceholderGradient
-                                }
-                            }
-                        } else {
-                            previewPlaceholderGradient
-                        }
-
-                        // Gradient overlay
-                        LinearGradient(
-                            stops: [
-                                .init(color: .black.opacity(0.7), location: 0.0),
-                                .init(color: .clear, location: 0.5)
-                            ],
-                            startPoint: .bottom,
-                            endPoint: .top
-                        )
-
-                        // Header info
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(alignment: .bottom, spacing: 12) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("\(name.isEmpty ? "Your Name" : name), \(age.isEmpty ? "25" : age)")
-                                        .font(.system(size: 28, weight: .bold))
-                                        .foregroundColor(.white)
-
-                                    if !currentLocation.isEmpty {
-                                        HStack(spacing: 6) {
-                                            Image(systemName: "mappin")
-                                                .font(.system(size: 14))
-                                            Text(currentLocation)
-                                                .font(.system(size: 14))
-                                        }
-                                        .foregroundColor(.white.opacity(0.9))
-                                    }
-                                }
-
-                                Spacer()
-
-                                // Like button placeholder
-                                Image(systemName: "heart.fill")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(Color.white.opacity(0.2))
-                                    .clipShape(Circle())
-                            }
-                        }
-                        .padding(20)
-                    }
-                    .aspectRatio(3/4, contentMode: .fit)
-
-                    // ----- Interests -----
-                    if !interests.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Interests")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(charcoalColor.opacity(0.6))
-                            PreviewWrappingHStack(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
-                                ForEach(interests, id: \.self) { tag in
-                                    HStack(spacing: 4) {
-                                        if let emoji = DriftUI.emoji(for: tag) {
-                                            Text(emoji)
-                                                .font(.system(size: 14))
-                                        }
-                                        Text(tag)
-                                            .font(.system(size: 14, weight: .medium))
-                                            .foregroundColor(charcoalColor)
-                                    }
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(desertSand)
-                                    .clipShape(Capsule())
-                                }
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(20)
-                        .background(Color.white)
-                        .overlay(
-                            Rectangle().frame(height: 1).foregroundColor(gray100),
-                            alignment: .bottom
-                        )
-                    }
-
-                    // ----- Bio -----
-                    if !about.isEmpty {
-                        Text(about)
-                            .font(.system(size: 16))
-                            .foregroundColor(charcoalColor)
-                            .lineSpacing(6)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(20)
-                            .background(Color.white)
-                            .overlay(
-                                Rectangle().frame(height: 1).foregroundColor(gray100),
-                                alignment: .bottom
-                            )
-                    }
-
-                    // ----- Prompt 1 -----
-                    if let firstPrompt = promptAnswers.first {
-                        previewPromptSection(question: firstPrompt.prompt, answer: firstPrompt.answer)
-                    }
-
-                    // ----- Second Image -----
-                    if photos.count > 1, let secondPhoto = photos[safe: 1], !secondPhoto.isEmpty,
-                       let url = URL(string: secondPhoto) {
-                        ZStack(alignment: .topTrailing) {
-                            AsyncImage(url: url) { phase in
-                                if let image = phase.image {
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                } else {
-                                    previewPlaceholderGradient
-                                }
-                            }
-                            .aspectRatio(1, contentMode: .fit)
-                            .clipped()
-
-                            // Like button
-                            Image(systemName: "heart.fill")
-                                .font(.system(size: 20))
-                                .foregroundColor(.white)
-                                .frame(width: 44, height: 44)
-                                .background(Color.white.opacity(0.2))
-                                .clipShape(Circle())
-                                .padding(16)
-                        }
-                    }
-
-                    // ----- Lifestyle -----
-                    if profileManager.currentProfile?.lifestyle != nil || workStyle != nil || !homeBase.isEmpty || morningPerson != nil {
-                        LifestyleCard(
-                            lifestyle: profileManager.currentProfile?.lifestyle,
-                            workStyle: workStyle,
-                            homeBase: homeBase.isEmpty ? nil : homeBase,
-                            morningPerson: morningPerson
-                        )
-                        .overlay(
-                            Rectangle().frame(height: 1).foregroundColor(gray100),
-                            alignment: .bottom
-                        )
-                    }
-
-                    // ----- Prompt 2 -----
-                    if promptAnswers.count > 1 {
-                        previewPromptSection(question: promptAnswers[1].prompt, answer: promptAnswers[1].answer)
-                    }
-
-                    // ----- Third Image -----
-                    if photos.count > 2, let thirdPhoto = photos[safe: 2], !thirdPhoto.isEmpty,
-                       let url = URL(string: thirdPhoto) {
-                        ZStack(alignment: .topTrailing) {
-                            AsyncImage(url: url) { phase in
-                                if let image = phase.image {
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                } else {
-                                    previewPlaceholderGradient
-                                }
-                            }
-                            .aspectRatio(1, contentMode: .fit)
-                            .clipped()
-
-                            // Like button
-                            Image(systemName: "heart.fill")
-                                .font(.system(size: 20))
-                                .foregroundColor(.white)
-                                .frame(width: 44, height: 44)
-                                .background(Color.white.opacity(0.2))
-                                .clipShape(Circle())
-                                .padding(16)
-                        }
-                    }
-
-                    // ----- Prompt 3 -----
-                    if promptAnswers.count > 2 {
-                        previewPromptSection(question: promptAnswers[2].prompt, answer: promptAnswers[2].answer)
-                    }
-                }
-                .background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 24))
-                .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 16)
-
-                // Info text
-                Text("This is how your profile appears to others in Discover")
-                    .font(.system(size: 13))
-                    .foregroundColor(charcoalColor.opacity(0.5))
-                    .padding(.bottom, 24)
-            }
-        }
-    }
-
-    private var previewPlaceholderGradient: some View {
-        LinearGradient(
-            colors: [Color(red: 0.4, green: 0.5, blue: 0.6), Color(red: 0.3, green: 0.4, blue: 0.5)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
-    private func previewPromptSection(question: String, answer: String) -> some View {
-        let gray100 = Color(red: 0.95, green: 0.95, blue: 0.96)
-
-        return VStack(alignment: .leading, spacing: 6) {
-            Text(question)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(burntOrange)
-            Text(answer)
-                .font(.system(size: 18, weight: .medium))
-                .foregroundColor(charcoalColor)
-                .lineSpacing(4)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .background(Color.white)
-        .overlay(
-            Rectangle().frame(height: 1).foregroundColor(gray100),
-            alignment: .bottom
-        )
-    }
-
-    // MARK: - Interests Section
-    
-    private var interestsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Interests")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(charcoalColor.opacity(0.6))
-            
-            if interests.isEmpty {
-                Button(action: {
-                    showInterestEditor = true
-                }) {
-                    HStack {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .medium))
-                        Text("Add Interest")
-                            .font(.system(size: 14, weight: .medium))
-                    }
-                    .foregroundColor(charcoalColor.opacity(0.5))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [8]))
-                            .foregroundColor(Color.gray.opacity(0.3))
-                    )
-                }
-            } else {
-                FlowLayout(data: interests.map { InterestItem($0) }, spacing: 8) { item in
-                    ProfileInterestTag(interest: item.name)
-                }
-                
-                Button(action: {
-                    showInterestEditor = true
-                }) {
-                    HStack {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .medium))
-                        Text("Add Interest")
-                            .font(.system(size: 14, weight: .medium))
-                    }
-                    .foregroundColor(charcoalColor.opacity(0.5))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [8]))
-                            .foregroundColor(Color.gray.opacity(0.3))
-                    )
-                }
-            }
-        }
-        .padding(16)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
-    }
-    
     // MARK: - Helper Methods
     
     private func loadProfileData() {
@@ -1092,11 +392,17 @@ struct EditProfileScreen: View {
         homeBase = profile.homeBase ?? ""
         morningPerson = profile.morningPerson
 
-        // Load travel stops count
+        print("🟢 [LOAD] loadProfileData() called")
+        print("🟢 [LOAD] profile.workStyle: \(String(describing: profile.workStyle))")
+        print("🟢 [LOAD] profile.homeBase: \(String(describing: profile.homeBase))")
+        print("🟢 [LOAD] profile.morningPerson: \(String(describing: profile.morningPerson))")
+
+        // Load travel stops
         Task {
             do {
                 let stops = try await profileManager.fetchTravelSchedule()
                 await MainActor.run {
+                    travelStops = stops
                     travelStopsCount = stops.count
                 }
             } catch {
@@ -1115,7 +421,10 @@ struct EditProfileScreen: View {
             promptAnswers: promptAnswers,
             travelPace: travelPace,
             interests: interests,
-            photos: photos
+            photos: photos,
+            workStyle: workStyle,
+            homeBase: homeBase,
+            morningPerson: morningPerson
         )
     }
     
@@ -1124,7 +433,7 @@ struct EditProfileScreen: View {
             hasChanges = false
             return
         }
-        
+
         let current = ProfileSnapshot(
             name: name,
             age: age,
@@ -1135,10 +444,26 @@ struct EditProfileScreen: View {
             promptAnswers: promptAnswers,
             travelPace: travelPace,
             interests: interests,
-            photos: photos
+            photos: photos,
+            workStyle: workStyle,
+            homeBase: homeBase,
+            morningPerson: morningPerson
         )
-        
-        hasChanges = current != original
+
+        let changed = current != original
+        if changed != hasChanges {
+            print("🟡 [CHANGES] hasChanges: \(changed)")
+            if original.workStyle != current.workStyle {
+                print("🟡 [CHANGES] workStyle changed: \(String(describing: original.workStyle)) -> \(String(describing: current.workStyle))")
+            }
+            if original.homeBase != current.homeBase {
+                print("🟡 [CHANGES] homeBase changed: \(original.homeBase) -> \(current.homeBase)")
+            }
+            if original.morningPerson != current.morningPerson {
+                print("🟡 [CHANGES] morningPerson changed: \(String(describing: original.morningPerson)) -> \(String(describing: current.morningPerson))")
+            }
+        }
+        hasChanges = changed
     }
     
     private func uploadPhoto(_ item: PhotosPickerItem, at index: Int) {
@@ -1199,7 +524,7 @@ struct EditProfileScreen: View {
         }
     }
     
-    private func removePhoto(at index: Int) {
+    func removePhoto(at index: Int) {
         guard index < photos.count else { return }
         
         let photoUrl = photos[index]
@@ -1250,7 +575,12 @@ struct EditProfileScreen: View {
 
     private func saveChanges() {
         isSaving = true
-        
+
+        print("🔵 [SAVE] saveChanges() called")
+        print("🔵 [SAVE] workStyle: \(String(describing: workStyle))")
+        print("🔵 [SAVE] homeBase: \(homeBase)")
+        print("🔵 [SAVE] morningPerson: \(String(describing: morningPerson))")
+
         Task {
             do {
                 let cappedPrompts = Array(promptAnswers.prefix(Self.maxPrompts))
@@ -1268,7 +598,9 @@ struct EditProfileScreen: View {
                     homeBase: homeBase.isEmpty ? nil : homeBase,
                     morningPerson: morningPerson
                 )
+                print("🔵 [SAVE] Calling profileManager.updateProfile...")
                 try await profileManager.updateProfile(updates)
+                print("🔵 [SAVE] updateProfile succeeded!")
                 await MainActor.run {
                     if promptAnswers.count > Self.maxPrompts {
                         promptAnswers = cappedPrompts
@@ -1281,7 +613,7 @@ struct EditProfileScreen: View {
                     onBack()
                 }
             } catch {
-                print("Failed to save profile: \(error)")
+                print("🔴 [SAVE] Failed to save profile: \(error)")
                 await MainActor.run {
                     isSaving = false
                 }
@@ -1290,23 +622,21 @@ struct EditProfileScreen: View {
     }
 }
 
-// MARK: - Private Helpers
+// MARK: - Helpers
 
-private struct InterestItem: Identifiable {
+struct EditProfileInterestItem: Identifiable {
     let id: String
     let name: String
-    
+
     init(_ name: String) {
         self.id = name
         self.name = name
     }
 }
 
-private let forestGreen = Color("ForestGreen")
-
 // MARK: - Photo Drop Delegate
 
-private struct EditProfilePhotoDropDelegate: DropDelegate {
+struct EditProfilePhotoDropDelegate: DropDelegate {
     let sourceIndex: Int
     let destinationIndex: Int
     @Binding var photos: [String]
@@ -1382,56 +712,11 @@ private struct EditProfilePhotoDropDelegate: DropDelegate {
     }
 }
 
-// MARK: - Preview Wrapping HStack Layout
-
-private struct PreviewWrappingHStack: Layout {
-    var alignment: HorizontalAlignment = .leading
-    var horizontalSpacing: CGFloat = 8
-    var verticalSpacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let containerWidth = proposal.width ?? .infinity
-        var currentX: CGFloat = 0
-        var currentY: CGFloat = 0
-        var lineHeight: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if currentX + size.width > containerWidth && currentX > 0 {
-                currentX = 0
-                currentY += lineHeight + verticalSpacing
-                lineHeight = 0
-            }
-            currentX += size.width + horizontalSpacing
-            lineHeight = max(lineHeight, size.height)
-        }
-
-        return CGSize(width: containerWidth, height: currentY + lineHeight)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var currentX: CGFloat = bounds.minX
-        var currentY: CGFloat = bounds.minY
-        var lineHeight: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if currentX + size.width > bounds.maxX && currentX > bounds.minX {
-                currentX = bounds.minX
-                currentY += lineHeight + verticalSpacing
-                lineHeight = 0
-            }
-            subview.place(at: CGPoint(x: currentX, y: currentY), proposal: .unspecified)
-            currentX += size.width + horizontalSpacing
-            lineHeight = max(lineHeight, size.height)
-        }
-    }
-}
-
 // MARK: - Safe Array Subscript
 
-private extension Array {
+extension Array {
     subscript(safe index: Int) -> Element? {
         return indices.contains(index) ? self[index] : nil
     }
 }
+

@@ -23,6 +23,7 @@ struct MessageDetailScreen: View {
     @State private var lastTypingSentAt: Date?
     @State private var profileToShowFromMessage: UserProfile?
     @State private var isLoadingProfileForMessage: Bool = false
+    @State private var pollingTask: Task<Void, Never>?
 
     private var currentUserId: UUID? {
         supabaseManager.currentUser?.id
@@ -350,6 +351,7 @@ struct MessageDetailScreen: View {
             }
         }
         .onDisappear {
+            stopPolling()
             messagingManager.sendStoppedTypingIndicator()
             Task {
                 await messagingManager.unsubscribeFromMessages()
@@ -394,10 +396,28 @@ struct MessageDetailScreen: View {
             do {
                 try await messagingManager.fetchMessages(for: conversation.id)
                 await messagingManager.subscribeToMessages(conversationId: conversation.id)
+                // Start polling as fallback for realtime (quota exceeded workaround)
+                startPolling()
             } catch {
                 print("Failed to load messages: \(error)")
             }
         }
+    }
+
+    private func startPolling() {
+        pollingTask?.cancel()
+        pollingTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+                guard !Task.isCancelled else { break }
+                try? await messagingManager.fetchMessages(for: conversation.id)
+            }
+        }
+    }
+
+    private func stopPolling() {
+        pollingTask?.cancel()
+        pollingTask = nil
     }
 
     private func handleSend() {

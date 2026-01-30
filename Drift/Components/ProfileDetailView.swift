@@ -21,6 +21,7 @@ struct ProfileDetailView: View {
     @State private var imageIndex: Int = 0
     @State private var profileScrollOffset: CGFloat = 0
     @State private var profileScrollInitialY: CGFloat?
+    @State private var travelStops: [DriftBackend.TravelStop] = []
     @Environment(\.dismiss) var dismiss
 
     private let profileHeaderCollapseThreshold: CGFloat = 72
@@ -156,96 +157,56 @@ struct ProfileDetailView: View {
                     // ==========================================
                     // ABOUT ME SECTION
                     // ==========================================
-                    VStack(alignment: .leading, spacing: 20) {
-                        Text("About me")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(inkMain)
+                    if let bio = profile.bio, !bio.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("About me")
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundColor(inkMain)
 
-                        if let bio = profile.bio, !bio.isEmpty {
                             Text(bio)
                                 .font(.system(size: 18))
                                 .foregroundColor(inkMain)
                                 .lineSpacing(6)
                         }
-
-                        // Interests (when we have them)
-                        if !profile.interests.isEmpty {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("Interests")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(inkSub)
-                                WrappingHStack(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
-                                    ForEach(profile.interests, id: \.self) { interest in
-                                        HStack(spacing: 4) {
-                                            if let emoji = DriftUI.emoji(for: interest) {
-                                                Text(emoji)
-                                                    .font(.system(size: 14))
-                                            }
-                                            Text(interest)
-                                                .font(.system(size: 14, weight: .medium))
-                                                .foregroundColor(inkMain)
-                                        }
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 6)
-                                        .background(gray100)
-                                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                                    }
-                                }
-                            }
-                        }
-
-                        // Lifestyle
-                        if profile.lifestyle != nil || profile.workStyle != nil || profile.homeBase != nil || profile.morningPerson != nil {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("Lifestyle")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(inkSub)
-
-                                LazyVGrid(columns: [
-                                    GridItem(.flexible(), spacing: 12),
-                                    GridItem(.flexible(), spacing: 12)
-                                ], spacing: 12) {
-                                    if let lifestyle = profile.lifestyle {
-                                        LifestyleGridItemView(
-                                            icon: lifestyleIcon(for: lifestyle),
-                                            label: "Van Life",
-                                            value: lifestyle.displayName
-                                        )
-                                    }
-
-                                    if let workStyle = profile.workStyle {
-                                        LifestyleGridItemView(
-                                            icon: "briefcase",
-                                            label: "Work Style",
-                                            value: workStyle.displayName
-                                        )
-                                    }
-
-                                    if let homeBase = profile.homeBase, !homeBase.isEmpty {
-                                        LifestyleGridItemView(
-                                            icon: "house",
-                                            label: "Home Base",
-                                            value: homeBase
-                                        )
-                                    }
-
-                                    if let morningPerson = profile.morningPerson {
-                                        LifestyleGridItemView(
-                                            icon: morningPerson ? "sun.max" : "moon.stars",
-                                            label: "Morning Person",
-                                            value: morningPerson ? "Yes" : "No"
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        .padding(24)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: showBackButton ? 20 : 0))
+                        .padding(.horizontal, showBackButton ? 16 : 0)
+                        .padding(.top, showBackButton ? 16 : 0)
                     }
-                    .padding(24)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: showBackButton ? 20 : 0))
-                    .padding(.horizontal, showBackButton ? 16 : 0)
-                    .padding(.top, showBackButton ? 16 : 0)
+
+                    // ==========================================
+                    // TRAVEL PLANS CARD
+                    // ==========================================
+                    if !travelStops.isEmpty {
+                        TravelPlansCard(travelStops: travelStops)
+                            .padding(.horizontal, showBackButton ? 16 : 0)
+                            .padding(.top, showBackButton ? 12 : 0)
+                    }
+
+                    // ==========================================
+                    // LIFESTYLE CARD
+                    // ==========================================
+                    if profile.lifestyle != nil || profile.workStyle != nil || profile.homeBase != nil || profile.morningPerson != nil {
+                        LifestyleCard(
+                            lifestyle: profile.lifestyle,
+                            workStyle: profile.workStyle,
+                            homeBase: profile.homeBase,
+                            morningPerson: profile.morningPerson
+                        )
+                        .padding(.horizontal, showBackButton ? 16 : 0)
+                        .padding(.top, showBackButton ? 12 : 0)
+                    }
+
+                    // ==========================================
+                    // INTERESTS CARD
+                    // ==========================================
+                    if !profile.interests.isEmpty {
+                        InterestsCard(interests: profile.interests)
+                            .padding(.horizontal, showBackButton ? 16 : 0)
+                            .padding(.top, showBackButton ? 12 : 0)
+                    }
 
                     // ==========================================
                     // PROMPT SECTION 1 - "My simple pleasure"
@@ -566,6 +527,14 @@ struct ProfileDetailView: View {
                     .opacity(compactOpacity)
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
+            }
+        }
+        .task {
+            // Load travel stops for this profile
+            do {
+                travelStops = try await ProfileManager.shared.fetchTravelSchedule(for: profile.id)
+            } catch {
+                print("Failed to load travel stops: \(error)")
             }
         }
     }
