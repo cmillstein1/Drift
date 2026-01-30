@@ -498,9 +498,18 @@ public class MessagingManager: ObservableObject {
         await messageChannel?.unsubscribe()
         messageChannel = nil
 
+        // Ensure realtime client has the current auth token for RLS
+        do {
+            let accessToken = try await client.auth.session.accessToken
+            await client.realtimeV2.setAuth(accessToken)
+        } catch {
+            print("[Messages] Could not set realtime auth: \(error)")
+        }
+
         let channel = client.realtimeV2.channel("messages:\(conversationId)")
         messageChannel = channel
 
+        // Listen for postgres INSERT changes
         let insertions = channel.postgresChange(
             InsertAction.self,
             schema: "public",
@@ -512,8 +521,17 @@ public class MessagingManager: ObservableObject {
         let subTyping = channel.onBroadcast(event: "typing") { [weak self] json in
             Task { @MainActor in
                 guard let self else { return }
-                let userIdString = json["user_id"]?.stringValue ?? (json["payload"]?.objectValue?["user_id"]?.stringValue)
-                guard let uid = userIdString.flatMap({ UUID(uuidString: $0) }), uid != currentUserId else { return }
+                // Try multiple paths to find user_id
+                var userIdString: String?
+                if case .string(let str) = json["user_id"] {
+                    userIdString = str
+                } else if case .object(let obj) = json["payload"],
+                          case .string(let str) = obj["user_id"] {
+                    userIdString = str
+                }
+                guard let uid = userIdString.flatMap({ UUID(uuidString: $0) }), uid != currentUserId else {
+                    return
+                }
                 self.typingClearTask?.cancel()
                 self.typingUserId = uid
                 self.typingClearTask = Task { @MainActor in
@@ -527,7 +545,13 @@ public class MessagingManager: ObservableObject {
         let subStopped = channel.onBroadcast(event: "stopped_typing") { [weak self] json in
             Task { @MainActor in
                 guard let self else { return }
-                let userIdString = json["user_id"]?.stringValue ?? (json["payload"]?.objectValue?["user_id"]?.stringValue)
+                var userIdString: String?
+                if case .string(let str) = json["user_id"] {
+                    userIdString = str
+                } else if case .object(let obj) = json["payload"],
+                          case .string(let str) = obj["user_id"] {
+                    userIdString = str
+                }
                 guard let uid = userIdString.flatMap({ UUID(uuidString: $0) }) else { return }
                 if self.typingUserId == uid {
                     self.typingUserId = nil
@@ -541,7 +565,6 @@ public class MessagingManager: ObservableObject {
 
         Task {
             for await insertion in insertions {
-                // Fetch the new message with sender info
                 let record = insertion.record
                 if let idString = record["id"]?.stringValue,
                    let id = UUID(uuidString: idString) {
@@ -555,13 +578,12 @@ public class MessagingManager: ObservableObject {
                             .value
 
                         await MainActor.run {
-                            // Avoid duplicates
                             if !self.currentMessages.contains(where: { $0.id == message.id }) {
                                 self.currentMessages.append(message)
                             }
                         }
                     } catch {
-                        print("Failed to fetch new message: \(error)")
+                        print("[Messages] Failed to fetch new message: \(error)")
                     }
                 }
             }
@@ -594,9 +616,16 @@ public class MessagingManager: ObservableObject {
     /// Call this when the user is editing the message field (debounce in UI).
     public func sendTypingIndicator() {
         guard let channel = messageChannel,
-              let userId = SupabaseManager.shared.currentUser?.id else { return }
+              let userId = SupabaseManager.shared.currentUser?.id else {
+            // Channel not ready yet - this is expected if user types before subscription completes
+            return
+        }
         Task {
-            try? await channel.broadcast(event: "typing", message: TypingPayload(userId: userId.uuidString))
+            do {
+                try await channel.broadcast(event: "typing", message: TypingPayload(userId: userId.uuidString))
+            } catch {
+                print("[Typing] Broadcast failed: \(error)")
+            }
         }
     }
 
