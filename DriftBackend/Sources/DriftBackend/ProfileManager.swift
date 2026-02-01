@@ -50,6 +50,8 @@ public class ProfileManager: ObservableObject {
             avatarUrl: profile.avatarUrl,
             photos: profile.photos,
             location: profile.location,
+            latitude: profile.latitude,
+            longitude: profile.longitude,
             verified: profile.verified,
             lifestyle: profile.lifestyle,
             travelPace: profile.travelPace,
@@ -182,10 +184,14 @@ public class ProfileManager: ObservableObject {
     ///   - lookingFor: Filter by what users are looking for (dating, friends, or both).
     ///   - excludeIds: User IDs to exclude (e.g., already swiped).
     ///   - limit: Maximum number of profiles to return.
+    ///   - currentUserLat: Current user's latitude for distance filter (e.g. from device location); nil = use profile's stored coords.
+    ///   - currentUserLon: Current user's longitude for distance filter; nil = use profile's stored coords.
     public func fetchDiscoverProfiles(
         lookingFor: LookingFor = .both,
         excludeIds: [UUID] = [],
-        limit: Int = 20
+        limit: Int = 20,
+        currentUserLat: Double? = nil,
+        currentUserLon: Double? = nil
     ) async throws {
         guard let userId = SupabaseManager.shared.currentUser?.id else {
             throw ProfileError.notAuthenticated
@@ -224,13 +230,27 @@ public class ProfileManager: ObservableObject {
             // Filter out excluded IDs
             profiles = profiles.filter { !excludeIds.contains($0.id) }
 
-            // Apply dating preferences (age range) when in dating mode
+            // Apply dating preferences (age range and distance) when in dating mode
             if lookingFor == .dating, let current = currentProfile {
                 let minAge = current.preferredMinAge ?? 18
                 let maxAge = current.preferredMaxAge ?? 80
+                let maxDistanceMiles = current.preferredMaxDistanceMiles
+                // Prefer device location for distance; fall back to profile's stored coords
+                let userLat = currentUserLat ?? current.latitude
+                let userLon = currentUserLon ?? current.longitude
+
                 profiles = profiles.filter { p in
                     let age = p.displayAge
-                    return age >= minAge && age <= maxAge
+                    let ageOk = age == 0 || (age >= minAge && age <= maxAge)
+                    guard ageOk else { return false }
+
+                    // Distance: only filter when both user and profile have coordinates
+                    if let ulat = userLat, let ulon = userLon, let maxMi = maxDistanceMiles, maxMi > 0,
+                       let plat = p.latitude, let plon = p.longitude {
+                        let miles = Self.haversineMiles(lat1: ulat, lon1: ulon, lat2: plat, lon2: plon)
+                        if miles > Double(maxMi) { return false }
+                    }
+                    return true
                 }
             }
 
@@ -253,6 +273,17 @@ public class ProfileManager: ObservableObject {
             errorMessage = error.localizedDescription
             throw error
         }
+    }
+
+    /// Distance in miles between two points (Haversine formula). Used for dating and friends distance filtering.
+    private static func haversineMiles(lat1: Double, lon1: Double, lat2: Double, lon2: Double) -> Double {
+        let R = 3959.0 // Earth radius in miles
+        let dLat = (lat2 - lat1) * .pi / 180
+        let dLon = (lon2 - lon1) * .pi / 180
+        let a = sin(dLat / 2) * sin(dLat / 2) +
+            cos(lat1 * .pi / 180) * cos(lat2 * .pi / 180) * sin(dLon / 2) * sin(dLon / 2)
+        let c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        return R * c
     }
 
     /// Fetches nearby profiles for the friends tab.

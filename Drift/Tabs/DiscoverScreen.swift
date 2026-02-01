@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreLocation
 import DriftBackend
 import Auth
 
@@ -26,6 +27,7 @@ struct DiscoverScreen: View {
     @State private var likeMessage: String = ""
     @State private var swipeProgress: CGFloat = 0
     @State private var showFilters: Bool = false
+    @State private var friendsFilterPreferences = NearbyFriendsFilterPreferences.default
     @State private var showDatingSettings: Bool = false
     @State private var lastScrollOffset: CGFloat = 0
     @State private var headerOpacity: Double = 1.0
@@ -68,6 +70,10 @@ struct DiscoverScreen: View {
     }
 
     private func loadProfiles() {
+        // Use device location for distance filter when available (dating & friends)
+        DiscoveryLocationProvider.shared.requestLocation()
+        let coord = DiscoveryLocationProvider.shared.lastCoordinate
+
         Task {
             do {
                 let (swiped, blocked) = try await (
@@ -78,7 +84,9 @@ struct DiscoverScreen: View {
                 let lookingFor: LookingFor = mode == .dating ? .dating : .friends
                 try await profileManager.fetchDiscoverProfiles(
                     lookingFor: lookingFor,
-                    excludeIds: swipedIds + blocked
+                    excludeIds: swipedIds + blocked,
+                    currentUserLat: coord?.latitude,
+                    currentUserLon: coord?.longitude
                 )
                 currentIndex = 0
             } catch {
@@ -172,13 +180,16 @@ struct DiscoverScreen: View {
         swipedIds = []
         currentIndex = 0
 
-        // Reload profiles without excluding any
+        // Reload profiles without excluding any (use device location for distance when available)
+        let coord = DiscoveryLocationProvider.shared.lastCoordinate
         Task {
             do {
                 let lookingFor: LookingFor = mode == .dating ? .dating : .friends
                 try await profileManager.fetchDiscoverProfiles(
                     lookingFor: lookingFor,
-                    excludeIds: []
+                    excludeIds: [],
+                    currentUserLat: coord?.latitude,
+                    currentUserLon: coord?.longitude
                 )
             } catch {
                 print("Failed to recycle profiles: \(error)")
@@ -301,6 +312,9 @@ struct DiscoverScreen: View {
             }
         }
         .onAppear {
+            // Request device location for distance filtering (dating & friends)
+            DiscoveryLocationProvider.shared.requestLocation()
+
             // When Messages "Find friends" requested Discover in friends mode, switch to it
             if tabBarVisibility.discoverStartInFriendsMode {
                 mode = .friends
@@ -1167,9 +1181,9 @@ struct DiscoverScreen: View {
                             .font(.system(size: 24, weight: .heavy))
                             .foregroundColor(inkMain)
 
-                        Text("Connect instantly - no matching required!")
-                            .font(.system(size: 14))
-                            .foregroundColor(inkSub)
+//                        Text("Connect instantly - no matching required!")
+//                            .font(.system(size: 14))
+//                            .foregroundColor(inkSub)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 24)
@@ -1177,7 +1191,7 @@ struct DiscoverScreen: View {
                 }
                 .background(softGray)
 
-                FriendsListContent()
+                FriendsListContent(filterPreferences: friendsFilterPreferences)
             }
             .background(softGray)
             .navigationDestination(for: UserProfile.self) { profile in
@@ -1193,6 +1207,12 @@ struct DiscoverScreen: View {
                     onMessage: { profileId in
                         // Handle message action if needed
                     }
+                )
+            }
+            .sheet(isPresented: $showFilters) {
+                NearbyFriendsFilterSheet(
+                    isPresented: $showFilters,
+                    preferences: $friendsFilterPreferences
                 )
             }
         }

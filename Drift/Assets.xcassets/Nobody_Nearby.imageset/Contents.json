@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "Nobody_Nearby.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

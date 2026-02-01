@@ -85,6 +85,8 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
     public var avatarUrl: String?
     public var photos: [String]
     public var location: String?
+    public var latitude: Double?
+    public var longitude: Double?
     public var verified: Bool
 
     public var lifestyle: Lifestyle?
@@ -121,7 +123,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id, name, birthday, age, bio
         case avatarUrl = "avatar_url"
-        case photos, location, verified, lifestyle
+        case photos, location, latitude, longitude, verified, lifestyle
         case travelPace = "travel_pace"
         case nextDestination = "next_destination"
         case travelDates = "travel_dates"
@@ -154,6 +156,8 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         avatarUrl: String? = nil,
         photos: [String] = [],
         location: String? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
         verified: Bool = false,
         lifestyle: Lifestyle? = nil,
         travelPace: TravelPace? = nil,
@@ -186,6 +190,8 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         self.avatarUrl = avatarUrl
         self.photos = photos
         self.location = location
+        self.latitude = latitude
+        self.longitude = longitude
         self.verified = verified
         self.lifestyle = lifestyle
         self.travelPace = travelPace
@@ -238,6 +244,8 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         avatarUrl = try container.decodeIfPresent(String.self, forKey: .avatarUrl)
         photos = try container.decodeIfPresent([String].self, forKey: .photos) ?? []
         location = try container.decodeIfPresent(String.self, forKey: .location)
+        latitude = try container.decodeIfPresent(Double.self, forKey: .latitude)
+        longitude = try container.decodeIfPresent(Double.self, forKey: .longitude)
         verified = try container.decodeIfPresent(Bool.self, forKey: .verified) ?? false
         lifestyle = try container.decodeIfPresent(Lifestyle.self, forKey: .lifestyle)
         travelPace = try container.decodeIfPresent(TravelPace.self, forKey: .travelPace)
@@ -410,6 +418,8 @@ public struct ProfileUpdateRequest: Encodable {
     public var avatarUrl: String?
     public var photos: [String]?
     public var location: String?
+    public var latitude: Double?
+    public var longitude: Double?
     public var verified: Bool?
     public var lifestyle: Lifestyle?
     public var travelPace: TravelPace?
@@ -434,7 +444,7 @@ public struct ProfileUpdateRequest: Encodable {
     enum CodingKeys: String, CodingKey {
         case name, birthday, bio
         case avatarUrl = "avatar_url"
-        case photos, location, verified, lifestyle
+        case photos, location, latitude, longitude, verified, lifestyle
         case travelPace = "travel_pace"
         case nextDestination = "next_destination"
         case travelDates = "travel_dates"
@@ -462,6 +472,8 @@ public struct ProfileUpdateRequest: Encodable {
         avatarUrl: String? = nil,
         photos: [String]? = nil,
         location: String? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
         verified: Bool? = nil,
         lifestyle: Lifestyle? = nil,
         travelPace: TravelPace? = nil,
@@ -489,6 +501,8 @@ public struct ProfileUpdateRequest: Encodable {
         self.avatarUrl = avatarUrl
         self.photos = photos
         self.location = location
+        self.latitude = latitude
+        self.longitude = longitude
         self.verified = verified
         self.lifestyle = lifestyle
         self.travelPace = travelPace
@@ -520,6 +534,8 @@ public struct ProfileUpdateRequest: Encodable {
         try container.encodeIfPresent(avatarUrl, forKey: .avatarUrl)
         try container.encodeIfPresent(photos, forKey: .photos)
         try container.encodeIfPresent(location, forKey: .location)
+        try container.encodeIfPresent(latitude, forKey: .latitude)
+        try container.encodeIfPresent(longitude, forKey: .longitude)
         try container.encodeIfPresent(verified, forKey: .verified)
         try container.encodeIfPresent(lifestyle, forKey: .lifestyle)
         try container.encodeIfPresent(travelPace, forKey: .travelPace)
