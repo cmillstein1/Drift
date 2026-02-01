@@ -8,6 +8,7 @@
 import SwiftUI
 import DriftBackend
 import Combine
+import Auth
 
 // Observable object for tab bar visibility and cross-tab navigation
 class TabBarVisibility: ObservableObject {
@@ -48,8 +49,10 @@ enum AppTab: String, CaseIterable {
 }
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
+    @ObservedObject private var messagingManager = MessagingManager.shared
     @State private var selectedTab: AppTab = .discover
 
     private let burntOrange = Color("BurntOrange")
@@ -80,6 +83,22 @@ struct ContentView: View {
                 .allowsHitTesting(tabBarVisibility.isVisible)
         }
         .ignoresSafeArea(.keyboard)
+        .task(id: supabaseManager.currentUser?.id) {
+            guard supabaseManager.currentUser != nil else { return }
+            await FriendsManager.shared.subscribeToFriendRequests()
+        }
+        .onDisappear {
+            Task {
+                await FriendsManager.shared.unsubscribe()
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                Task {
+                    try? await FriendsManager.shared.fetchPendingRequests(silent: true)
+                }
+            }
+        }
         .onChange(of: tabBarVisibility.switchToDiscoverInFriendsMode) { _, requested in
             if requested {
                 selectedTab = .discover
@@ -96,21 +115,34 @@ struct ContentView: View {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             selectedTab = tab
                         }
-                    } label: {
+                    }                     label: {
                         VStack(spacing: 4) {
-                            Group {
-                                if tab == .discover {
-                                    Image("discover_rv")
-                                        .resizable()
-                                        .renderingMode(.template)
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 24, height: 24)
-                                } else {
-                                    Image(systemName: tab.systemImage)
-                                        .font(.system(size: 20))
+                            ZStack(alignment: .topTrailing) {
+                                Group {
+                                    if tab == .discover {
+                                        Image("discover_rv")
+                                            .resizable()
+                                            .renderingMode(.template)
+                                            .aspectRatio(contentMode: .fit)
+                                            .frame(width: 24, height: 24)
+                                    } else {
+                                        Image(systemName: tab.systemImage)
+                                            .font(.system(size: 20))
+                                    }
+                                }
+                                .foregroundColor(selectedTab == tab ? burntOrange : charcoal.opacity(0.5))
+
+                                if tab == .messages && messagingManager.unreadCount > 0 {
+                                    Circle()
+                                        .fill(burntOrange)
+                                        .frame(width: 8, height: 8)
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color.white, lineWidth: 1)
+                                        )
+                                        .offset(x: 6, y: -6)
                                 }
                             }
-                            .foregroundColor(selectedTab == tab ? burntOrange : charcoal.opacity(0.5))
 
                             Text(tab.title)
                                 .font(.system(size: 10, weight: selectedTab == tab ? .semibold : .regular))

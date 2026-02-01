@@ -93,11 +93,11 @@ struct PrivacySafetySupportScreen: View {
                     }
                     .padding(16)
                     .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .buttonStyle(PlainButtonStyle())
                 .disabled(isDeletingAccount)
                 .padding(.top, 16)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
                 .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
             }
             .padding(.horizontal, 24)
@@ -108,7 +108,7 @@ struct PrivacySafetySupportScreen: View {
         .toolbarBackground(softGray, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .tint(.black)
-        .confirmationDialog("Delete account?", isPresented: $showDeleteAccountConfirmation, titleVisibility: .visible) {
+        .alert("Delete account?", isPresented: $showDeleteAccountConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete account", role: .destructive) {
                 Task { await confirmDeleteAccount() }

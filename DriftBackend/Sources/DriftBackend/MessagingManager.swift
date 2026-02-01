@@ -49,6 +49,7 @@ public class MessagingManager: ObservableObject {
             print("[Messages] fetchConversations skipped: no current user (not authenticated)")
             throw MessagingError.notAuthenticated
         }
+        guard !isLoading else { return }
 
         print("[Messages] fetchConversations started (userId: \(userId.uuidString.prefix(8))...)")
         isLoading = true
@@ -67,21 +68,25 @@ public class MessagingManager: ObservableObject {
                     .execute()
                     .value
             } catch {
-                if let decodingError = error as? DecodingError {
-                    switch decodingError {
-                    case .keyNotFound(let key, let context):
-                        print("[Messages] Decode failed: keyNotFound '\(key.stringValue)' at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
-                    case .typeMismatch(let type, let context):
-                        print("[Messages] Decode failed: typeMismatch \(type) at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
-                    case .valueNotFound(let type, let context):
-                        print("[Messages] Decode failed: valueNotFound \(type) at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
-                    case .dataCorrupted(let context):
-                        print("[Messages] Decode failed: dataCorrupted at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
-                    @unknown default:
-                        print("[Messages] Decode failed: \(decodingError)")
+                let nsError = error as NSError
+                let isCancelled = nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+                if !isCancelled {
+                    if let decodingError = error as? DecodingError {
+                        switch decodingError {
+                        case .keyNotFound(let key, let context):
+                            print("[Messages] Decode failed: keyNotFound '\(key.stringValue)' at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
+                        case .typeMismatch(let type, let context):
+                            print("[Messages] Decode failed: typeMismatch \(type) at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
+                        case .valueNotFound(let type, let context):
+                            print("[Messages] Decode failed: valueNotFound \(type) at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
+                        case .dataCorrupted(let context):
+                            print("[Messages] Decode failed: dataCorrupted at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
+                        @unknown default:
+                            print("[Messages] Decode failed: \(decodingError)")
+                        }
+                    } else {
+                        print("[Messages] fetchConversations request/parse error: \(error)")
                     }
-                } else {
-                    print("[Messages] fetchConversations request/parse error: \(error)")
                 }
                 throw error
             }
@@ -563,28 +568,26 @@ public class MessagingManager: ObservableObject {
 
         await channel.subscribe()
 
-        Task {
+        Task { @MainActor in
             for await insertion in insertions {
                 let record = insertion.record
-                if let idString = record["id"]?.stringValue,
-                   let id = UUID(uuidString: idString) {
-                    do {
-                        let message: Message = try await self.client
-                            .from("messages")
-                            .select("*, sender:profiles!sender_id(*)")
-                            .eq("id", value: id)
-                            .single()
-                            .execute()
-                            .value
+                guard let idString = record["id"]?.stringValue,
+                      let id = UUID(uuidString: idString) else { continue }
+                do {
+                    let message: Message = try await self.client
+                        .from("messages")
+                        .select("*, sender:profiles!sender_id(*)")
+                        .eq("id", value: id)
+                        .single()
+                        .execute()
+                        .value
 
-                        await MainActor.run {
-                            if !self.currentMessages.contains(where: { $0.id == message.id }) {
-                                self.currentMessages.append(message)
-                            }
-                        }
-                    } catch {
-                        print("[Messages] Failed to fetch new message: \(error)")
+                    if !self.currentMessages.contains(where: { $0.id == message.id }) {
+                        self.currentMessages.append(message)
+                        self.currentMessages.sort { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
                     }
+                } catch {
+                    print("[Messages] Failed to fetch new message: \(error)")
                 }
             }
         }
