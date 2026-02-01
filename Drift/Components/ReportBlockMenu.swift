@@ -8,10 +8,11 @@
 import SwiftUI
 import DriftBackend
 
-/// A 3-dot menu that shows "Report" and "Block". Block asks for confirmation (native alert), then calls the backend and shows success. Report is a no-op for now.
+/// A 3-dot menu that shows "Report" and "Block". Block asks for confirmation (native alert), then calls the backend and shows success. Report opens the ReportSheet.
 struct ReportBlockMenu: View {
     let userId: UUID?
     var displayName: String? = nil
+    var profile: UserProfile? = nil  // For report snapshot
     var onReport: () -> Void = {}
     var onBlockComplete: (() -> Void)? = nil
 
@@ -24,6 +25,7 @@ struct ReportBlockMenu: View {
     @State private var pendingBlockDisplayName: String = "this user"
     @State private var showBlockSuccess = false
     @State private var successBlockName: String = ""
+    @State private var showReportSheet = false
 
     private let charcoalColor = Color("Charcoal")
     private var resolvedDisplayName: String { displayName ?? "this user" }
@@ -31,10 +33,11 @@ struct ReportBlockMenu: View {
     var body: some View {
         Menu {
             Button {
-                onReport()
+                showReportSheet = true
             } label: {
                 Label("Report", systemImage: "exclamationmark.triangle")
             }
+            .disabled(userId == nil)
 
             Button(role: .destructive) {
                 guard let userId else { return }
@@ -54,6 +57,20 @@ struct ReportBlockMenu: View {
                 .clipShape(Circle())
         }
         .disabled(userId == nil || isBlocking)
+        .sheet(isPresented: $showReportSheet) {
+            if let userId = userId {
+                ReportSheet(
+                    targetName: resolvedDisplayName,
+                    targetUserId: userId,
+                    profile: profile,
+                    onComplete: { didBlock in
+                        if didBlock {
+                            onBlockComplete?()
+                        }
+                    }
+                )
+            }
+        }
         .alert("Block \(pendingBlockDisplayName)?", isPresented: $showBlockConfirm) {
             Button("Cancel", role: .cancel) {
                 pendingBlockUserId = nil
@@ -111,6 +128,7 @@ struct ReportBlockMenu: View {
 struct ReportBlockMenuButton: View {
     let userId: UUID?
     var displayName: String? = nil
+    var profile: UserProfile? = nil  // For report snapshot
     var onReport: () -> Void = {}
     var onBlockComplete: (() -> Void)? = nil
     /// When true, use light foreground for dark backgrounds (e.g. profile hero).
@@ -127,6 +145,7 @@ struct ReportBlockMenuButton: View {
     @State private var pendingBlockDisplayName: String = "this user"
     @State private var showBlockSuccess = false
     @State private var successBlockName: String = ""
+    @State private var showReportSheet = false
 
     private let inkMain = Color(red: 0.07, green: 0.09, blue: 0.15)
     private var resolvedDisplayName: String { displayName ?? "this user" }
@@ -134,10 +153,11 @@ struct ReportBlockMenuButton: View {
     var body: some View {
         Menu {
             Button {
-                onReport()
+                showReportSheet = true
             } label: {
                 Label("Report", systemImage: "exclamationmark.triangle")
             }
+            .disabled(userId == nil)
 
             Button(role: .destructive) {
                 guard let userId else { return }
@@ -159,6 +179,20 @@ struct ReportBlockMenuButton: View {
                 .shadow(color: plainStyle ? .clear : .black.opacity(darkStyle ? 0.2 : 0.05), radius: darkStyle ? 4 : 4, x: 0, y: 2)
         }
         .disabled(userId == nil || isBlocking)
+        .sheet(isPresented: $showReportSheet) {
+            if let userId = userId {
+                ReportSheet(
+                    targetName: resolvedDisplayName,
+                    targetUserId: userId,
+                    profile: profile,
+                    onComplete: { didBlock in
+                        if didBlock {
+                            onBlockComplete?()
+                        }
+                    }
+                )
+            }
+        }
         .alert("Block \(pendingBlockDisplayName)?", isPresented: $showBlockConfirm) {
             Button("Cancel", role: .cancel) {
                 pendingBlockUserId = nil

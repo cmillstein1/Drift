@@ -24,6 +24,8 @@ struct MessageDetailScreen: View {
     @State private var profileToShowFromMessage: UserProfile?
     @State private var isLoadingProfileForMessage: Bool = false
     @State private var pollingTask: Task<Void, Never>?
+    @State private var messageToReport: Message?
+    @State private var showMessageReportSheet = false
 
     private var currentUserId: UUID? {
         supabaseManager.currentUser?.id
@@ -229,6 +231,7 @@ struct MessageDetailScreen: View {
                     ReportBlockMenu(
                         userId: otherUserId,
                         displayName: conversation.displayName,
+                        profile: conversation.otherUser,
                         onBlockComplete: onClose
                     )
                 }
@@ -263,6 +266,17 @@ struct MessageDetailScreen: View {
                                     conversationType: conversation.type
                                 )
                                 .id(message.id)
+                                .contextMenu {
+                                    // Only show report option for messages from other users
+                                    if message.senderId != currentUserId {
+                                        Button {
+                                            messageToReport = message
+                                            showMessageReportSheet = true
+                                        } label: {
+                                            Label("Report Message", systemImage: "exclamationmark.triangle")
+                                        }
+                                    }
+                                }
                             }
                         }
                         .padding(.horizontal, 16)
@@ -368,6 +382,22 @@ struct MessageDetailScreen: View {
                 onPass: { profileToShowFromMessage = nil },
                 showBackButton: true
             )
+        }
+        .sheet(isPresented: $showMessageReportSheet) {
+            if let message = messageToReport {
+                ReportSheet(
+                    targetName: conversation.displayName,
+                    targetUserId: message.senderId,
+                    message: message,
+                    senderProfile: conversation.otherUser,
+                    onComplete: { didBlock in
+                        messageToReport = nil
+                        if didBlock {
+                            onClose()
+                        }
+                    }
+                )
+            }
         }
         .onChange(of: messageText) { _, newValue in
             if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

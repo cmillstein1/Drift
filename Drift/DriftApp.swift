@@ -94,7 +94,13 @@ extension AppDelegate: MessagingDelegate {
             print("[FCM] Registration token is nil – check APNs and internet")
         }
         #endif
-        // TODO: Send token to your app server (e.g. Supabase) for targeting
+
+        // Store FCM token in Supabase for server-side push notification targeting
+        if let token = fcmToken {
+            Task { @MainActor in
+                await PushNotificationManager.shared.updateFCMToken(token)
+            }
+        }
     }
 }
 

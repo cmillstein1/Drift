@@ -53,6 +53,7 @@ struct ContentView: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
     @ObservedObject private var messagingManager = MessagingManager.shared
+    @ObservedObject private var appDataManager = AppDataManager.shared
     @State private var selectedTab: AppTab = .discover
 
     private let burntOrange = Color("BurntOrange")
@@ -85,17 +86,22 @@ struct ContentView: View {
         .ignoresSafeArea(.keyboard)
         .task(id: supabaseManager.currentUser?.id) {
             guard supabaseManager.currentUser != nil else { return }
-            await FriendsManager.shared.subscribeToFriendRequests()
+            // Initialize all app data (conversations, friends, matches, etc.)
+            await appDataManager.initializeAppData()
         }
         .onDisappear {
             Task {
                 await FriendsManager.shared.unsubscribe()
+                await MessagingManager.shared.unsubscribe()
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 Task {
+                    // Refresh data when app becomes active
+                    try? await MessagingManager.shared.fetchConversations()
                     try? await FriendsManager.shared.fetchPendingRequests(silent: true)
+                    await NotificationsManager.shared.fetchNotifications()
                 }
             }
         }
@@ -114,6 +120,12 @@ struct ContentView: View {
                     Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             selectedTab = tab
+                        }
+                        // Mark messages as read when tapping Messages tab
+                        if tab == .messages {
+                            Task {
+                                await messagingManager.markAllAsRead()
+                            }
                         }
                     }                     label: {
                         VStack(spacing: 4) {

@@ -359,6 +359,11 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
+# Function-specific configuration
+[functions.send-report]
+# Disable gateway-level JWT verification (function handles auth manually)
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

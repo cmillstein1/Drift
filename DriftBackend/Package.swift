@@ -17,6 +17,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/supabase/supabase-swift.git", from: "2.0.0"),
         .package(url: "https://github.com/RevenueCat/purchases-ios-spm.git", from: "5.0.0"),
+        .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "12.0.0"),
     ],
     targets: [
         .target(
@@ -24,6 +25,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Supabase", package: "supabase-swift"),
                 .product(name: "RevenueCat", package: "purchases-ios-spm"),
+                .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
             ]
         ),
     ]

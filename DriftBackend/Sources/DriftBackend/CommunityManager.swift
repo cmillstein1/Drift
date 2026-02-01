@@ -16,6 +16,8 @@ public class CommunityManager: ObservableObject {
     @Published public var currentReplies: [PostReply] = []
     /// User's own posts.
     @Published public var myPosts: [CommunityPost] = []
+    /// Count of new interactions on user's posts since last viewed.
+    @Published public var newInteractionCount: Int = 0
     /// Whether data is currently loading.
     @Published public var isLoading = false
     /// The last error message, if any.
@@ -157,7 +159,7 @@ public class CommunityManager: ObservableObject {
             throw CommunityError.notAuthenticated
         }
 
-        let posts: [CommunityPost] = try await client
+        var posts: [CommunityPost] = try await client
             .from("community_posts")
             .select("""
                 *,
@@ -169,7 +171,91 @@ public class CommunityManager: ObservableObject {
             .execute()
             .value
 
+        // Check for pending join requests on user's events
+        let eventPostIds = posts.filter { $0.type == .event }.map { $0.id }
+        if !eventPostIds.isEmpty {
+            let pendingRequests: [EventAttendee] = try await client
+                .from("event_attendees")
+                .select()
+                .eq("status", value: "pending")
+                .in("post_id", values: eventPostIds.map { $0.uuidString })
+                .execute()
+                .value
+
+            // Group pending requests by post_id
+            let pendingByPost = Dictionary(grouping: pendingRequests) { $0.postId }
+
+            for i in posts.indices {
+                if posts[i].type == .event {
+                    let pendingCount = pendingByPost[posts[i].id]?.count ?? 0
+                    posts[i].pendingRequestCount = pendingCount
+                }
+            }
+        }
+
         self.myPosts = posts
+    }
+
+    /// Fetches the count of new interactions on user's posts since last viewed.
+    public func fetchNewInteractionCount() async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        let lastViewedKey = "myPostsLastViewed_\(userId.uuidString)"
+        let lastViewed = UserDefaults.standard.object(forKey: lastViewedKey) as? Date ?? Date.distantPast
+
+        // Fetch user's post IDs
+        struct PostIdRecord: Decodable {
+            let id: UUID
+        }
+
+        let postRecords: [PostIdRecord] = try await client
+            .from("community_posts")
+            .select("id")
+            .eq("author_id", value: userId)
+            .is("deleted_at", value: nil)
+            .execute()
+            .value
+
+        let myPostIds = postRecords.map { $0.id }
+
+        guard !myPostIds.isEmpty else {
+            self.newInteractionCount = 0
+            return
+        }
+
+        let postIdStrings = myPostIds.map { $0.uuidString }
+
+        // Count new replies on user's posts since last viewed
+        let newReplies: [PostReply] = try await client
+            .from("post_replies")
+            .select()
+            .in("post_id", values: postIdStrings)
+            .neq("author_id", value: userId) // Exclude user's own replies
+            .is("deleted_at", value: nil)
+            .gt("created_at", value: ISO8601DateFormatter().string(from: lastViewed))
+            .execute()
+            .value
+
+        // Count new pending join requests on user's events
+        let pendingRequests: [EventAttendee] = try await client
+            .from("event_attendees")
+            .select()
+            .in("post_id", values: postIdStrings)
+            .eq("status", value: "pending")
+            .execute()
+            .value
+
+        self.newInteractionCount = newReplies.count + pendingRequests.count
+    }
+
+    /// Marks user's posts as viewed, resetting the interaction count.
+    public func markMyPostsAsViewed() {
+        guard let userId = SupabaseManager.shared.currentUser?.id else { return }
+        let lastViewedKey = "myPostsLastViewed_\(userId.uuidString)"
+        UserDefaults.standard.set(Date(), forKey: lastViewedKey)
+        self.newInteractionCount = 0
     }
 
     /// Fetches a single post by ID with full details.
