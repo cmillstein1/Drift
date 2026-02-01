@@ -66,13 +66,16 @@ public class FriendsManager: ObservableObject {
     }
 
     /// Fetches pending incoming friend requests.
-    public func fetchPendingRequests() async throws {
+    /// - Parameter silent: When true, does not set `isLoading` (e.g. for realtime background refresh).
+    public func fetchPendingRequests(silent: Bool = false) async throws {
         guard let userId = SupabaseManager.shared.currentUser?.id else {
             throw FriendsError.notAuthenticated
         }
 
-        isLoading = true
-        errorMessage = nil
+        if !silent {
+            isLoading = true
+            errorMessage = nil
+        }
 
         do {
             let requests: [Friend] = try await client
@@ -84,9 +87,9 @@ public class FriendsManager: ObservableObject {
                 .value
 
             self.pendingRequests = requests
-            isLoading = false
+            if !silent { isLoading = false }
         } catch {
-            isLoading = false
+            if !silent { isLoading = false }
             if isURLCancelled(error) { return }
             errorMessage = error.localizedDescription
             throw error
@@ -126,10 +129,39 @@ public class FriendsManager: ObservableObject {
     ///   - userId: The ID of the user to send a request to.
     ///   - message: Optional message to include with the request (becomes first message when accepted).
     /// - Returns: The created Friend request.
+    /// - Note: If a previous request was declined, the old row is removed so a new request can be sent.
     @discardableResult
     public func sendFriendRequest(to userId: UUID, message: String? = nil) async throws -> Friend {
         guard let currentUserId = SupabaseManager.shared.currentUser?.id else {
             throw FriendsError.notAuthenticated
+        }
+
+        // Check for existing row (unique constraint on requester_id, addressee_id)
+        let existing: [Friend] = try await client
+            .from("friends")
+            .select()
+            .eq("requester_id", value: currentUserId)
+            .eq("addressee_id", value: userId)
+            .execute()
+            .value
+
+        if let row = existing.first {
+            switch row.status {
+            case .accepted:
+                throw FriendsError.alreadyFriends
+            case .pending:
+                throw FriendsError.requestAlreadySent
+            case .blocked:
+                throw FriendsError.requestFailed
+            case .declined:
+                // Remove declined row so we can send a new request
+                try await client
+                    .from("friends")
+                    .delete()
+                    .eq("id", value: row.id)
+                    .execute()
+                sentRequests.removeAll { $0.id == row.id }
+            }
         }
 
         let request = FriendRequest(requesterId: currentUserId, addresseeId: userId)
@@ -168,39 +200,42 @@ public class FriendsManager: ObservableObject {
     ///   - requestId: The ID of the friend request.
     ///   - accept: Whether to accept or decline the request.
     /// - Returns: The created conversation if accepted, nil otherwise.
+    /// - Note: When declining, the request row is deleted so the requester can send a new request later.
     @discardableResult
     public func respondToFriendRequest(_ requestId: UUID, accept: Bool) async throws -> Conversation? {
         // First fetch the request to get the requester's ID
         let request: Friend? = pendingRequests.first { $0.id == requestId }
 
-        let newStatus: FriendStatus = accept ? .accepted : .declined
-
-        try await client
-            .from("friends")
-            .update(["status": newStatus.rawValue, "updated_at": ISO8601DateFormatter().string(from: Date())])
-            .eq("id", value: requestId)
-            .execute()
-
-        // Refresh lists
-        try await fetchPendingRequests()
-
-        var conversation: Conversation? = nil
-
         if accept {
+            try await client
+                .from("friends")
+                .update(["status": FriendStatus.accepted.rawValue, "updated_at": ISO8601DateFormatter().string(from: Date())])
+                .eq("id", value: requestId)
+                .execute()
+
+            try await fetchPendingRequests()
             try await fetchFriends()
 
-            // Create a conversation with the new friend
+            var conversation: Conversation? = nil
             if let requesterId = request?.requesterId {
                 conversation = try await MessagingManager.shared.fetchOrCreateConversation(
                     with: requesterId,
                     type: .friends
                 )
-                // Refresh conversations
                 try await MessagingManager.shared.fetchConversations()
             }
-        }
+            return conversation
+        } else {
+            // Decline: delete the row so the requester can send another friend request later
+            try await client
+                .from("friends")
+                .delete()
+                .eq("id", value: requestId)
+                .execute()
 
-        return conversation
+            try await fetchPendingRequests()
+            return nil
+        }
     }
 
     /// Removes a friend connection.
@@ -573,18 +608,20 @@ public class FriendsManager: ObservableObject {
 
         Task {
             for await _ in insertions {
-                try? await self.fetchPendingRequests()
+                try? await self.fetchPendingRequests(silent: true)
             }
         }
 
         Task {
             for await _ in updates {
                 try? await self.fetchFriends()
-                try? await self.fetchPendingRequests()
+                try? await self.fetchPendingRequests(silent: true)
             }
         }
 
         await channel.subscribe()
+        // Initial fetch so we have pending count immediately and catch any missed events
+        try? await fetchPendingRequests(silent: true)
     }
 
     /// Subscribes to realtime updates for matches. If already subscribed, returns immediately.
@@ -667,6 +704,7 @@ public enum FriendsError: LocalizedError {
     case notAuthenticated
     case requestFailed
     case alreadyFriends
+    case requestAlreadySent
 
     public var errorDescription: String? {
         switch self {
@@ -676,6 +714,8 @@ public enum FriendsError: LocalizedError {
             return "Failed to send friend request."
         case .alreadyFriends:
             return "You are already friends with this user."
+        case .requestAlreadySent:
+            return "A friend request has already been sent."
         }
     }
 }

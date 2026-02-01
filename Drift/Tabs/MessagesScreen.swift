@@ -40,15 +40,18 @@ struct MessagesScreen: View {
         friendsManager.friends
     }
 
-    // Friends who don't have a conversation yet (only count visible conversations)
+    // Friends who don't have a conversation yet — match by participant user IDs so we
+    // don't show "Tap to start chatting" when a conversation exists but otherUser (profile) is nil.
     private var friendsWithoutConversation: [Friend] {
-        let conversationUserIds = Set(
-            visibleConversations.compactMap { $0.otherUser?.id }
+        guard let currentUserId = supabaseManager.currentUser?.id else { return [] }
+        let conversationOtherUserIds = Set(
+            visibleConversations.compactMap { conv in
+                conv.participants?.first(where: { $0.userId != currentUserId })?.userId
+            }
         )
         return acceptedFriends.filter { friend in
-            guard let currentUserId = supabaseManager.currentUser?.id else { return false }
             let friendUserId = friend.requesterId == currentUserId ? friend.addresseeId : friend.requesterId
-            return !conversationUserIds.contains(friendUserId)
+            return !conversationOtherUserIds.contains(friendUserId)
         }
     }
 
@@ -235,17 +238,29 @@ struct MessagesScreen: View {
                                 Button {
                                     showMyFriendsSheet = true
                                 } label: {
-                                    Image(systemName: "person.2.fill")
-                                        .font(.system(size: 18))
-                                        .foregroundColor(charcoalColor)
-                                        .frame(width: 40, height: 40)
-                                        .background(Color.white)
-                                        .clipShape(Circle())
-                                        .overlay(
+                                    ZStack(alignment: .topTrailing) {
+                                        Image(systemName: "person.2.fill")
+                                            .font(.system(size: 18))
+                                            .foregroundColor(charcoalColor)
+                                            .frame(width: 40, height: 40)
+                                            .background(Color.white)
+                                            .clipShape(Circle())
+                                            .overlay(
+                                                Circle()
+                                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                            )
+                                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                                        if !pendingFriendRequests.isEmpty {
                                             Circle()
-                                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                        )
-                                        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                                                .fill(burntOrange)
+                                                .frame(width: 10, height: 10)
+                                                .overlay(
+                                                    Circle()
+                                                        .stroke(Color.white, lineWidth: 1.5)
+                                                )
+                                                .offset(x: 4, y: -4)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -577,7 +592,6 @@ struct MessagesScreen: View {
         .onDisappear {
             Task {
                 await MessagingManager.shared.unsubscribe()
-                await FriendsManager.shared.unsubscribe()
             }
         }
         .sheet(isPresented: $showLikesYouScreen) {

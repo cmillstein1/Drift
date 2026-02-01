@@ -21,6 +21,8 @@ struct ProfileDetailView: View {
     var distanceMiles: Int? = nil
 
     @State private var imageIndex: Int = 0
+    @State private var showFullScreenPhoto = false
+    @State private var fullScreenPhotoIndex: Int = 0
     /// UIScrollView contentOffset.y: 0 at top, positive when scrolled down. Used to fade header.
     @State private var scrollContentOffsetY: CGFloat = 0
     @State private var travelStops: [DriftBackend.TravelStop] = []
@@ -36,11 +38,16 @@ struct ProfileDetailView: View {
     private let gray700 = Color(red: 0.37, green: 0.37, blue: 0.42)
     private let softGray = Color("SoftGray")
 
+    /// Profile photos only, deduplicated by URL (no avatar fallback mixed in; no duplicates).
     private var images: [String] {
         if profile.photos.isEmpty {
-            return [profile.avatarUrl ?? ""]
+            return (profile.avatarUrl.map { [$0] } ?? []).filter { !$0.isEmpty }
         }
-        return profile.photos
+        var seen = Set<String>()
+        return profile.photos.filter { url in
+            guard !url.isEmpty else { return false }
+            return seen.insert(url).inserted
+        }
     }
 
     var body: some View {
@@ -85,12 +92,16 @@ struct ProfileDetailView: View {
                                         .tag(index)
                                     }
                                 }
-                                .tabViewStyle(.page(indexDisplayMode: images.count > 1 ? .automatic : .never))
+                                .tabViewStyle(.page(indexDisplayMode: .never))
                                 .frame(width: w, height: 500)
                                 .clipped()
                                 .id(images.count)
+                                .onTapGesture {
+                                    fullScreenPhotoIndex = imageIndex
+                                    showFullScreenPhoto = true
+                                }
 
-                                // Gradient overlay
+                                // Gradient and name overlay — fade out as user swipes to next photo
                                 LinearGradient(
                                     stops: [
                                         .init(color: .black.opacity(0.8), location: 0.0),
@@ -100,15 +111,16 @@ struct ProfileDetailView: View {
                                     endPoint: .top
                                 )
                                 .frame(width: w, height: 500)
+                                .opacity(imageIndex == 0 ? 1 : 0)
+                                .animation(.easeInOut(duration: 0.25), value: imageIndex)
+                                .allowsHitTesting(false)
 
-                                // Overlay: name, mappin + location + distance, 2 interest chips + last active
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("\(profile.displayName), \(profile.displayAge)")
                                         .font(.system(size: 36, weight: .heavy))
                                         .tracking(-0.5)
                                         .foregroundColor(.white)
 
-                                    // White mappin + location + optional "X miles away"
                                     if let location = profile.location {
                                         HStack(spacing: 6) {
                                             Image("map_pin_white")
@@ -125,7 +137,6 @@ struct ProfileDetailView: View {
                                         .foregroundColor(.white.opacity(0.9))
                                     }
 
-                                    // 2 interest segments + last active segment
                                     HStack(spacing: 8) {
                                         ForEach(Array(profile.interests.prefix(2)), id: \.self) { interest in
                                             HStack(spacing: 4) {
@@ -154,6 +165,28 @@ struct ProfileDetailView: View {
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(24)
+                                .opacity(imageIndex == 0 ? 1 : 0)
+                                .animation(.easeInOut(duration: 0.25), value: imageIndex)
+                                .allowsHitTesting(false)
+                            }
+
+                            // Custom pagination at top — capsule segments (active = opaque white, inactive = semi-transparent)
+                            if images.count > 1 {
+                                VStack {
+                                    HStack(spacing: 6) {
+                                        ForEach(Array(images.enumerated()), id: \.offset) { index, _ in
+                                            RoundedRectangle(cornerRadius: 2)
+                                                .fill(index == imageIndex ? Color.white : Color.white.opacity(0.4))
+                                                .frame(height: 4)
+                                                .frame(maxWidth: .infinity)
+                                        }
+                                    }
+                                    .padding(.horizontal, 24)
+                                    .padding(.top, 16)
+                                    Spacer()
+                                }
+                                .frame(maxWidth: .infinity, alignment: .top)
+                                .allowsHitTesting(false)
                             }
 
                             HStack(alignment: .top) {
@@ -369,6 +402,13 @@ struct ProfileDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .top)
             }
         }
+        .fullScreenCover(isPresented: $showFullScreenPhoto) {
+            ProfilePhotoFullScreenView(
+                imageUrls: images,
+                initialIndex: fullScreenPhotoIndex,
+                onDismiss: { showFullScreenPhoto = false }
+            )
+        }
         .task {
             // Load travel stops for this profile
             do {
@@ -478,6 +518,81 @@ struct ProfileDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
             .background(desertSand.opacity(0.5))
+        }
+    }
+}
+
+// MARK: - Full-screen photo viewer
+private struct ProfilePhotoFullScreenView: View {
+    let imageUrls: [String]
+    let initialIndex: Int
+    let onDismiss: () -> Void
+
+    @State private var currentIndex: Int
+
+    init(imageUrls: [String], initialIndex: Int, onDismiss: @escaping () -> Void) {
+        self.imageUrls = imageUrls
+        self.initialIndex = initialIndex
+        self.onDismiss = onDismiss
+        _currentIndex = State(initialValue: initialIndex)
+    }
+
+    private var placeholderGradient: some View {
+        LinearGradient(
+            colors: [Color(red: 0.2, green: 0.2, blue: 0.25), Color(red: 0.15, green: 0.15, blue: 0.2)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            TabView(selection: $currentIndex) {
+                ForEach(Array(imageUrls.enumerated()), id: \.offset) { index, photoUrl in
+                    Group {
+                        if !photoUrl.isEmpty, let url = URL(string: photoUrl) {
+                            AsyncImage(url: url) { phase in
+                                if let image = phase.image {
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                } else if phase.error != nil {
+                                    placeholderGradient
+                                } else {
+                                    placeholderGradient
+                                        .overlay(ProgressView().tint(.white))
+                                }
+                            }
+                        } else {
+                            placeholderGradient
+                        }
+                    }
+                    .tag(index)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: imageUrls.count > 1 ? .automatic : .never))
+            .ignoresSafeArea()
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        onDismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 36, height: 36)
+                            .background(Color.black.opacity(0.5))
+                            .clipShape(Circle())
+                    }
+                    .padding(.trailing, 20)
+                    .padding(.top, 16)
+                }
+                Spacer()
+            }
         }
     }
 }
