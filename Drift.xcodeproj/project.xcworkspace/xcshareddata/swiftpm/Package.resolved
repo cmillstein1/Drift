@@ -1,5 +1,5 @@
 {
-  "originHash" : "94cd9e66227772ff61378c598dfe4e574a4da885c7edefc798ae98cf56f58149",
+  "originHash" : "ac3381a261fd83f3435b61ac8a404838e02c1a62257eb1b914eac01e65f4f221",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -123,8 +123,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/RevenueCat/purchases-ios-spm.git",
       "state" : {
-        "revision" : "a0ab2cac1995202f9b554de5e3573f28eb30edab",
-        "version" : "5.54.1"
+        "revision" : "6676da5c4c6a61e53b3139216a775d1224bf056e",
+        "version" : "5.56.1"
       }
     },
     {
@@ -132,8 +132,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/supabase/supabase-swift.git",
       "state" : {
-        "revision" : "7a6f6554ce030d8733b3ba32d4255278450e5328",
-        "version" : "2.40.0"
+        "revision" : "75f4ab992dfbcef4a22c75ec1ec9dba95a36efca",
+        "version" : "2.41.0"
       }
     },
     {

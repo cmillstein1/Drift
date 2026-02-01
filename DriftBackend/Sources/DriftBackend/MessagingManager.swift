@@ -357,6 +357,31 @@ public class MessagingManager: ObservableObject {
         updateUnreadCount(userId: userId)
     }
 
+    /// Marks all conversations as read.
+    public func markAllAsRead() async {
+        guard let userId = SupabaseManager.shared.currentUser?.id else { return }
+
+        let now = Date()
+
+        // Update all participant records for this user
+        try? await client
+            .from("conversation_participants")
+            .update(["last_read_at": ISO8601DateFormatter().string(from: now)])
+            .eq("user_id", value: userId)
+            .execute()
+
+        // Update local state
+        for i in conversations.indices {
+            if var participants = conversations[i].participants,
+               let pIdx = participants.firstIndex(where: { $0.userId == userId }) {
+                participants[pIdx].lastReadAt = now
+                conversations[i].participants = participants
+            }
+        }
+
+        unreadCount = 0
+    }
+
     /// Soft deletes a message.
     ///
     /// - Parameter messageId: The message's ID.

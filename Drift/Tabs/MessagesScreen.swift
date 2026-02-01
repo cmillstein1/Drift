@@ -547,21 +547,10 @@ struct MessagesScreen: View {
                 selectedMode = .friends
                 segmentIndex = 1
             }
-            // Load conversations first so the list appears; then friends/likes/matches
-            loadConversations()
-            loadFriendRequests()
-            loadFriends()
-            if isDatingEnabled {
-                loadLikesYou()
-                loadMatches()
-            }
-
-            // Subscribe to real-time updates (single subscription path)
-            Task {
-                await MessagingManager.shared.subscribeToConversations()
-                await FriendsManager.shared.subscribeToFriendRequests()
-                await FriendsManager.shared.subscribeToSwipes()
-                await FriendsManager.shared.subscribeToMatches()
+            // AppDataManager handles initial data loading and realtime subscriptions.
+            // Only fetch here if data hasn't been loaded yet (fallback).
+            if messagingManager.conversations.isEmpty && !messagingManager.isLoading {
+                loadConversations()
             }
         }
         .onChange(of: selectedMode) { _, newMode in
@@ -589,11 +578,7 @@ struct MessagesScreen: View {
             let typeBreakdown = Dictionary(grouping: messagingManager.conversations, by: { $0.type.rawValue }).mapValues(\.count)
             print("[Messages] conversations.count changed → total: \(newCount) | selectedMode: \(selectedMode) | afterModeFilter: \(afterModeFilter.count) | visible: \(vis), hidden: \(hid) | types in list: \(typeBreakdown) | currentUser: \(uid != nil ? "yes" : "no")")
         }
-        .onDisappear {
-            Task {
-                await MessagingManager.shared.unsubscribe()
-            }
-        }
+        // Note: Realtime subscriptions are managed by AppDataManager at the ContentView level
         .sheet(isPresented: $showLikesYouScreen) {
             LikesYouScreen()
         }

@@ -142,6 +142,8 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
     public var isLikedByCurrentUser: Bool?
     public var isAttendingEvent: Bool?
     public var hasPendingRequest: Bool?
+    /// Number of pending join requests (for event hosts)
+    public var pendingRequestCount: Int?
 
     enum CodingKeys: String, CodingKey {
         case id

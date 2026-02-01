@@ -354,10 +354,19 @@ struct NotificationsSettingsSheet: View {
 
     private func requestPermission() {
         isRequesting = true
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { _, _ in
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
             DispatchQueue.main.async {
                 isRequesting = false
                 fetchNotificationStatus()
+
+                // If permission granted, ensure FCM token is synced to Supabase
+                if granted {
+                    Task {
+                        if let token = fcmToken {
+                            await PushNotificationManager.shared.updateFCMToken(token)
+                        }
+                    }
+                }
             }
         }
     }
@@ -387,6 +396,12 @@ struct NotificationsSettingsSheet: View {
             }
         }
         initialCategoryEnabled = categoryEnabled
+
+        // Sync preferences to Supabase for server-side push notification filtering
+        Task {
+            await PushNotificationManager.shared.syncPreferences(categoryEnabled)
+        }
+
         dismiss()
     }
 }

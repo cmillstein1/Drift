@@ -23,7 +23,9 @@ struct ProfileScreen: View {
     @State private var showPaywall = false
     @State private var showGenerateInvite = false
     @State private var showNotificationsSheet = false
+    @State private var showMyPostsSheet = false
     @State private var navigationPath: [String] = []
+    @StateObject private var communityManager = CommunityManager.shared
 
     private var profile: UserProfile? {
         profileManager.currentProfile
@@ -69,7 +71,10 @@ struct ProfileScreen: View {
                         VStack(spacing: 16) {
                             // Discovery Mode
                             discoveryModeButton
-                            
+
+                            // My Posts
+                            myPostsButton
+
                             // Settings Menu
                             settingsMenuSection
                             
@@ -143,6 +148,11 @@ struct ProfileScreen: View {
                     .presentationDetents([.height(560), .large])
                     .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $showMyPostsSheet) {
+                MyPostsSheet()
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
             .onAppear {
                 Task {
                     do {
@@ -152,6 +162,8 @@ struct ProfileScreen: View {
                     }
                     // Refresh subscription status so Drift Pro badge and menu stay in sync
                     await revenueCatManager.loadCustomerInfo()
+                    // Fetch new interaction count for My Posts badge
+                    try? await communityManager.fetchNewInteractionCount()
                 }
             }
         }
@@ -366,8 +378,59 @@ struct ProfileScreen: View {
         }
     }
     
+    // MARK: - My Posts Button
+
+    private var myPostsButton: some View {
+        Button(action: {
+            showMyPostsSheet = true
+        }) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(burntOrange.opacity(0.1))
+                        .frame(width: 40, height: 40)
+
+                    Image(systemName: "doc.text")
+                        .font(.system(size: 16))
+                        .foregroundColor(burntOrange)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("My Posts")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(charcoalColor)
+                    Text("Events and help requests you've created")
+                        .font(.system(size: 13))
+                        .foregroundColor(charcoalColor.opacity(0.5))
+                }
+
+                Spacer()
+
+                // Interaction badge
+                if communityManager.newInteractionCount > 0 {
+                    Text("\(communityManager.newInteractionCount)")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(burntOrange)
+                        .clipShape(Capsule())
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(charcoalColor.opacity(0.4))
+            }
+            .padding(16)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
     // MARK: - Settings Menu Section
-    
+
     private var settingsMenuSection: some View {
         VStack(spacing: 0) {
             // Drift Pro
