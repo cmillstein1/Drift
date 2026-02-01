@@ -33,6 +33,8 @@ struct FriendDetailView: View {
     var isFromFriendsGrid: Bool = false
     
     @State private var imageIndex: Int = 0
+    @State private var showFullScreenPhoto = false
+    @State private var fullScreenPhotoIndex: Int = 0
     
     // Colors
     private let charcoalColor = Color("Charcoal")
@@ -42,27 +44,32 @@ struct FriendDetailView: View {
     private let desertSand = Color("DesertSand")
     private let softGray = Color("SoftGray")
     
-    // Mock additional images (in a real app, profile would have multiple images)
+    /// All profile photos, deduplicated by URL (same logic as ProfileDetailView). No placeholder slots.
     private var images: [String] {
-        var imageList = [String]()
-        if let firstPhoto = profile.photos.first {
-            imageList.append(firstPhoto)
-        } else if let avatarUrl = profile.avatarUrl {
-            imageList.append(avatarUrl)
+        if profile.photos.isEmpty {
+            return (profile.avatarUrl.map { [$0] } ?? []).filter { !$0.isEmpty }
         }
-        // Add placeholder images if we have less than 4
-        while imageList.count < 4 {
-            imageList.append("")
+        var seen = Set<String>()
+        return profile.photos.filter { url in
+            guard !url.isEmpty else { return false }
+            return seen.insert(url).inserted
         }
-        return imageList
     }
     
     private var hasMultipleImages: Bool {
-        images.count > 1 && !images[1].isEmpty
+        images.count > 1
     }
     
     private var imageHeight: CGFloat {
         UIScreen.main.bounds.height * 0.5 // 50vh
+    }
+    
+    private var placeholderGradient: some View {
+        LinearGradient(
+            colors: [Color(red: 0.4, green: 0.5, blue: 0.6), Color(red: 0.3, green: 0.4, blue: 0.5)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
     
     var body: some View {
@@ -73,71 +80,51 @@ struct FriendDetailView: View {
             // Scrollable Content
             ScrollView {
                 VStack(spacing: 0) {
-                    // Image Carousel - 50vh
+                    // Image Carousel - all photos (same as ProfileDetailView)
                     ZStack(alignment: .bottom) {
-                        if hasMultipleImages {
+                        if !images.isEmpty {
                             TabView(selection: $imageIndex) {
-                                ForEach(Array(images.enumerated()), id: \.offset) { index, imageUrl in
-                                    if !imageUrl.isEmpty {
-                                        AsyncImage(url: URL(string: imageUrl)) { phase in
-                                            switch phase {
-                                            case .empty:
-                                                Rectangle()
-                                                    .fill(Color.gray.opacity(0.2))
-                                            case .success(let image):
-                                                image
-                                                    .resizable()
-                                                    .aspectRatio(contentMode: .fill)
-                                            case .failure:
-                                                Rectangle()
-                                                    .fill(Color.gray.opacity(0.2))
-                                                    .overlay(
-                                                        Image(systemName: "person.fill")
-                                                            .font(.system(size: 48))
-                                                            .foregroundColor(.gray)
-                                                    )
-                                            @unknown default:
-                                                EmptyView()
+                                ForEach(Array(images.enumerated()), id: \.offset) { index, photoUrl in
+                                    Group {
+                                        if let url = URL(string: photoUrl), !photoUrl.isEmpty {
+                                            AsyncImage(url: url) { phase in
+                                                switch phase {
+                                                case .empty:
+                                                    placeholderGradient
+                                                case .success(let image):
+                                                    image
+                                                        .resizable()
+                                                        .aspectRatio(contentMode: .fill)
+                                                case .failure:
+                                                    placeholderGradient
+                                                        .overlay(
+                                                            Image(systemName: "person.fill")
+                                                                .font(.system(size: 48))
+                                                                .foregroundColor(.gray)
+                                                        )
+                                                @unknown default:
+                                                    placeholderGradient
+                                                }
                                             }
+                                        } else {
+                                            placeholderGradient
                                         }
-                                        .frame(width: UIScreen.main.bounds.width, height: imageHeight)
-                                        .clipped()
-                                        .tag(index)
-                                    } else {
-                                        Rectangle()
-                                            .fill(Color.gray.opacity(0.2))
-                                            .frame(width: UIScreen.main.bounds.width, height: imageHeight)
-                                            .tag(index)
                                     }
+                                    .frame(width: UIScreen.main.bounds.width, height: imageHeight)
+                                    .clipped()
+                                    .tag(index)
                                 }
                             }
                             .tabViewStyle(.page(indexDisplayMode: .never))
                             .frame(height: imageHeight)
-                        } else {
-                            // Single image
-                            AsyncImage(url: URL(string: images.first ?? "")) { phase in
-                                switch phase {
-                                case .empty:
-                                    Rectangle()
-                                        .fill(Color.gray.opacity(0.2))
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                case .failure:
-                                    Rectangle()
-                                        .fill(Color.gray.opacity(0.2))
-                                        .overlay(
-                                            Image(systemName: "person.fill")
-                                                .font(.system(size: 48))
-                                                .foregroundColor(.gray)
-                                        )
-                                @unknown default:
-                                    EmptyView()
-                                }
+                            .id(images.count)
+                            .onTapGesture {
+                                fullScreenPhotoIndex = imageIndex
+                                showFullScreenPhoto = true
                             }
-                            .frame(width: UIScreen.main.bounds.width, height: imageHeight)
-                            .clipped()
+                        } else {
+                            placeholderGradient
+                                .frame(width: UIScreen.main.bounds.width, height: imageHeight)
                         }
                         
                         // Gradient Overlay
@@ -153,21 +140,23 @@ struct FriendDetailView: View {
                         .frame(height: imageHeight)
                         .allowsHitTesting(false)
                         
-                        // Image Indicators
-                        if hasMultipleImages {
+                        // Pagination dots (capsule segments, same as ProfileDetailView)
+                        if images.count > 1 {
                             VStack {
-                                HStack(spacing: 4) {
-                                    ForEach(0..<min(images.count, 4), id: \.self) { index in
-                                        Capsule()
-                                            .fill(index == imageIndex ? Color.white : Color.white.opacity(0.3))
-                                            .frame(height: 2)
+                                HStack(spacing: 6) {
+                                    ForEach(Array(images.enumerated()), id: \.offset) { index, _ in
+                                        RoundedRectangle(cornerRadius: 2)
+                                            .fill(index == imageIndex ? Color.white : Color.white.opacity(0.4))
+                                            .frame(height: 4)
+                                            .frame(maxWidth: .infinity)
                                     }
                                 }
-                                .padding(.horizontal, 16)
+                                .padding(.horizontal, 24)
                                 .padding(.top, 16)
-                                
                                 Spacer()
                             }
+                            .frame(maxWidth: .infinity, alignment: .top)
+                            .allowsHitTesting(false)
                         }
                         
                         // Verified Badge
@@ -447,24 +436,7 @@ struct FriendDetailView: View {
                                     .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                                 }
                             }
-                            
-                            Button(action: {
-                                if let onMessage = onMessage {
-                                    onMessage(profile.id)
-                                }
-                                dismiss()
-                            }) {
-                                Image(systemName: "message.fill")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(charcoalColor)
-                                    .frame(width: 50, height: 50)
-                                    .background(Color.white)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.gray.opacity(0.2), lineWidth: 2)
-                                    )
-                                    .clipShape(Circle())
-                            }
+                            // Message button only shown when already connected (showConnectButton == false)
                         }
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
@@ -522,6 +494,88 @@ struct FriendDetailView: View {
         .onDisappear {
             withAnimation {
                 tabBarVisibility.isVisible = true
+            }
+        }
+        .fullScreenCover(isPresented: $showFullScreenPhoto) {
+            FriendDetailPhotoFullScreenView(
+                imageUrls: images,
+                initialIndex: fullScreenPhotoIndex,
+                onDismiss: { showFullScreenPhoto = false }
+            )
+        }
+    }
+}
+
+// Full-screen photo viewer (same pattern as ProfileDetailView)
+private struct FriendDetailPhotoFullScreenView: View {
+    let imageUrls: [String]
+    let initialIndex: Int
+    let onDismiss: () -> Void
+
+    @State private var currentIndex: Int
+
+    init(imageUrls: [String], initialIndex: Int, onDismiss: @escaping () -> Void) {
+        self.imageUrls = imageUrls
+        self.initialIndex = initialIndex
+        self.onDismiss = onDismiss
+        _currentIndex = State(initialValue: initialIndex)
+    }
+
+    private var placeholderGradient: some View {
+        LinearGradient(
+            colors: [Color(red: 0.2, green: 0.2, blue: 0.25), Color(red: 0.15, green: 0.15, blue: 0.2)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            TabView(selection: $currentIndex) {
+                ForEach(Array(imageUrls.enumerated()), id: \.offset) { index, photoUrl in
+                    Group {
+                        if !photoUrl.isEmpty, let url = URL(string: photoUrl) {
+                            AsyncImage(url: url) { phase in
+                                if let image = phase.image {
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                } else if phase.error != nil {
+                                    placeholderGradient
+                                } else {
+                                    placeholderGradient
+                                        .overlay(ProgressView().tint(.white))
+                                }
+                            }
+                        } else {
+                            placeholderGradient
+                        }
+                    }
+                    .tag(index)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: imageUrls.count > 1 ? .automatic : .never))
+            .ignoresSafeArea()
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        onDismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 36, height: 36)
+                            .background(Color.black.opacity(0.5))
+                            .clipShape(Circle())
+                    }
+                    .padding(.trailing, 20)
+                    .padding(.top, 16)
+                }
+                Spacer()
             }
         }
     }

@@ -386,8 +386,16 @@ struct HometownScreen: View {
         isSaving = true
         Task {
             do {
+                // Geocode so we store coordinates for distance filtering (Nearby Friends)
+                var lat: Double?
+                var lon: Double?
+                let placemarks = try? await CLGeocoder().geocodeAddressString(selectedLocation)
+                if let coord = placemarks?.first?.location?.coordinate {
+                    lat = coord.latitude
+                    lon = coord.longitude
+                }
                 try await profileManager.updateProfile(
-                    ProfileUpdateRequest(location: selectedLocation)
+                    ProfileUpdateRequest(location: selectedLocation, latitude: lat, longitude: lon)
                 )
             } catch {
                 print("Failed to save location: \(error)")

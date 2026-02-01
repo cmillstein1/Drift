@@ -13,6 +13,7 @@ struct FriendsScreen: View {
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var friendsManager = FriendsManager.shared
     @ObservedObject private var supabaseManager = SupabaseManager.shared
+    @ObservedObject private var discoveryLocation = DiscoveryLocationProvider.shared
 
     @State private var isLoading = true
     @State private var swipedIds: [UUID] = []
@@ -20,9 +21,15 @@ struct FriendsScreen: View {
     @State private var selectedProfileForMessage: UserProfile? = nil
     @State private var friendRequestMessage = ""
     @State private var selectedProfile: UserProfile? = nil
+    @State private var showFilterSheet = false
+    @State private var filterPreferences = NearbyFriendsFilterPreferences.default
 
     private var profiles: [UserProfile] {
-        profileManager.discoverProfiles
+        let raw = profileManager.discoverProfiles
+        // Prefer device location for distance filter; fall back to profile's stored coords
+        let lat = DiscoveryLocationProvider.shared.latitudeForFilter ?? profileManager.currentProfile?.latitude
+        let lon = DiscoveryLocationProvider.shared.longitudeForFilter ?? profileManager.currentProfile?.longitude
+        return raw.filter { filterPreferences.matches($0, currentUserInterests: currentUserInterests, currentUserLat: lat, currentUserLon: lon) }
     }
 
     private var currentUserInterests: [String] {
@@ -106,14 +113,24 @@ struct FriendsScreen: View {
             ScrollView {
                 VStack(spacing: 0) {
                     // Header
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Nearby Friends")
-                            .font(.campfire(.regular, size: 24))
-                            .foregroundColor(charcoalColor)
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Nearby Friends")
+                                .font(.campfire(.regular, size: 24))
+                                .foregroundColor(charcoalColor)
 
-                        Text("Connect instantly - no matching required!")
-                            .font(.system(size: 14))
-                            .foregroundColor(charcoalColor.opacity(0.6))
+//                            Text("Connect instantly - no matching required!")
+//                                .font(.system(size: 14))
+//                                .foregroundColor(charcoalColor.opacity(0.6))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Button(action: { showFilterSheet = true }) {
+                            Image(systemName: "line.3.horizontal.decrease.circle")
+                                .font(.system(size: 24))
+                                .foregroundColor(charcoalColor)
+                                .symbolVariant(filterPreferences.hasActiveFilters ? .fill : .none)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
@@ -163,24 +180,36 @@ struct FriendsScreen: View {
                         .animation(.easeOut(duration: 0.3), value: profiles.count)
                     }
 
-                    // Empty state
+                    // Empty state — Nobody_Nearby asset, campfire font, centered (like Messages empty state)
                     if profiles.isEmpty && !isLoading {
-                        VStack(spacing: 8) {
-                            Text("No friends nearby")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(charcoalColor)
+                        VStack(spacing: 0) {
+                            Spacer()
 
-                            Text("Check back later or expand your search radius")
-                                .font(.system(size: 14))
-                                .foregroundColor(charcoalColor.opacity(0.6))
+                            VStack(spacing: 24) {
+                                Image("Nobody_Nearby")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(maxWidth: 280, maxHeight: 280)
+
+                                VStack(spacing: 10) {
+                                    Text(filterPreferences.hasActiveFilters ? "No one matches your filters" : "No friends nearby")
+                                        .font(.campfire(.regular, size: 24))
+                                        .foregroundColor(charcoalColor)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 32)
+
+                                    Text(filterPreferences.hasActiveFilters ? "Try adjusting your filters" : "Check back later or expand your search radius")
+                                        .font(.campfire(.regular, size: 16))
+                                        .foregroundColor(charcoalColor.opacity(0.7))
+                                        .multilineTextAlignment(.center)
+                                        .lineSpacing(4)
+                                        .padding(.horizontal, 32)
+                                }
+                            }
+
+                            Spacer()
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(24)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.white)
-                        )
-                        .padding(.horizontal, 16)
                     }
 
                     // Load More Button
@@ -221,8 +250,15 @@ struct FriendsScreen: View {
                 )
             }
             .onAppear {
+                DiscoveryLocationProvider.shared.requestLocation()
                 loadProfiles()
             }
+        }
+        .sheet(isPresented: $showFilterSheet) {
+            NearbyFriendsFilterSheet(
+                isPresented: $showFilterSheet,
+                preferences: $filterPreferences
+            )
         }
         .sheet(isPresented: $showMessageSheet) {
             FriendRequestMessageSheet(

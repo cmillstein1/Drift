@@ -8,14 +8,21 @@ import DriftBackend
 import Auth
 
 struct FriendsListContent: View {
+    var filterPreferences: NearbyFriendsFilterPreferences = .default
+
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var friendsManager = FriendsManager.shared
     @ObservedObject private var supabaseManager = SupabaseManager.shared
+    @ObservedObject private var discoveryLocation = DiscoveryLocationProvider.shared
     @State private var isLoading = true
     @State private var swipedIds: [UUID] = []
 
     private var profiles: [UserProfile] {
-        profileManager.discoverProfiles
+        let raw = profileManager.discoverProfiles
+        // Prefer device location for distance filter; fall back to profile's stored coords
+        let lat = DiscoveryLocationProvider.shared.latitudeForFilter ?? profileManager.currentProfile?.latitude
+        let lon = DiscoveryLocationProvider.shared.longitudeForFilter ?? profileManager.currentProfile?.longitude
+        return raw.filter { filterPreferences.matches($0, currentUserInterests: currentUserInterests, currentUserLat: lat, currentUserLon: lon) }
     }
 
     private var currentUserInterests: [String] {
@@ -81,20 +88,36 @@ struct FriendsListContent: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 60)
                 } else if profiles.isEmpty {
-                    VStack(spacing: 8) {
-                        Text("No friends nearby")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(DriftUI.charcoal)
+                    // Empty state — Nobody_Nearby asset, campfire font, centered (like Messages empty state)
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 40)
 
-                        Text("Check back later or expand your search radius")
-                            .font(.system(size: 14))
-                            .foregroundColor(.gray)
+                        VStack(spacing: 24) {
+                            Image("Nobody_Nearby")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: 280, maxHeight: 280)
+
+                            VStack(spacing: 10) {
+                                Text(filterPreferences.hasActiveFilters ? "No one matches your filters" : "No friends nearby")
+                                    .font(.campfire(.regular, size: 24))
+                                    .foregroundColor(DriftUI.charcoal)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 32)
+
+                                Text(filterPreferences.hasActiveFilters ? "Try adjusting your filters" : "Check back later or expand your search radius")
+                                    .font(.campfire(.regular, size: 16))
+                                    .foregroundColor(DriftUI.charcoal.opacity(0.7))
+                                    .multilineTextAlignment(.center)
+                                    .lineSpacing(4)
+                                    .padding(.horizontal, 32)
+                            }
+                        }
+
+                        Spacer(minLength: 40)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(24)
-                    .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .padding(.horizontal, 16)
+                    .frame(minHeight: 420)
                 } else {
                     ForEach(profiles) { profile in
                         NavigationLink(value: profile) {
@@ -116,6 +139,7 @@ struct FriendsListContent: View {
             .padding(.bottom, LayoutConstants.tabBarBottomPadding)
         }
         .onAppear {
+            DiscoveryLocationProvider.shared.requestLocation()
             loadProfiles()
             Task {
                 await FriendsManager.shared.subscribeToFriendRequests()

@@ -152,12 +152,14 @@ struct LocationMapPickerView: View {
                     Button("Save") {
                         let savedLocation = cityName.isEmpty ? locationName : cityName
                         location = savedLocation
+                        let lat = selectedCoordinate?.latitude
+                        let lon = selectedCoordinate?.longitude
                         // Update the profile immediately and wait for completion
                         Task {
                             do {
                                 let profileManager = ProfileManager.shared
                                 try await profileManager.updateProfile(
-                                    ProfileUpdateRequest(location: savedLocation)
+                                    ProfileUpdateRequest(location: savedLocation, latitude: lat, longitude: lon)
                                 )
                                 // Refresh the profile to get updated data
                                 try await profileManager.fetchCurrentProfile()
