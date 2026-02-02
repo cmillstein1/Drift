@@ -30,6 +30,7 @@ struct ScrollViewWithOffset<Content: View>: UIViewRepresentable {
         scrollView.showsHorizontalScrollIndicator = false
         scrollView.bounces = true
         scrollView.alwaysBounceVertical = true
+        scrollView.backgroundColor = .clear
 
         let hosting = UIHostingController(rootView: content)
         hosting.view.backgroundColor = .clear

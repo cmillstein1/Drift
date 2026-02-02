@@ -69,16 +69,26 @@ struct ProfileDetailView: View {
 
     /// Single section divider height for even spacing (dating, friends, messages).
     private let sectionDividerHeight: CGFloat = 12
+    /// Vertical padding inside each section for even spacing.
+    private let sectionVerticalPadding: CGFloat = 20
+
+    /// When false (e.g. opened from message), layout is identical to discover; only the bottom bar is hidden.
+    private var showsBottomBar: Bool { !showBackButton || showLikeAndPassButtons }
+
+    /// Bottom padding total so "Looking for" scrolls fully into view; same scroll content height in all contexts.
+    private let scrollBottomPaddingTotal: CGFloat = 96
 
     var body: some View {
         GeometryReader { geometry in
             let topInset = geometry.safeAreaInsets.top
-            // Tighter top when from messages/Likes You (back button only); full when dating/friends fullscreen
-            let topSpacerHeight = showBackButton ? (topInset + 44) : (topInset + 56)
+            // More space above photo so it isn’t cut off by status bar/Dynamic Island.
+            // When opened from message (showBackButton), pull content up so top matches profile detail view.
+            let extraAbovePhoto: CGFloat = showBackButton ? -28 : 28
+            let topSpacerHeight = max(0, topInset + extraAbovePhoto)
 
             ZStack {
-                // Extend softGray under status bar so top safe area matches (same UI in dating, friends, messages)
-                softGray
+                // When no bottom bar (message), use white so no softgray strip at bottom; otherwise softGray
+                (showsBottomBar ? softGray : Color.white)
                     .ignoresSafeArea()
 
                 // Main scrollable content; ScrollViewWithOffset reports contentOffset.y so header fade works
@@ -204,23 +214,22 @@ struct ProfileDetailView: View {
                                 .allowsHitTesting(false)
                             }
 
-                            // Top bar: back/close (left when fullscreen) + capsule indicators (center-right)
+                            // Top bar on photo (same layout for discover and message): back/close left + dots + report (message only) right
                             VStack {
                                 HStack(spacing: 12) {
-                                    // Back / close (left) — only when fullscreen; otherwise spacer so capsules center
-                                    if !showBackButton {
-                                        Button {
-                                            dismiss()
-                                        } label: {
-                                            Image(systemName: "chevron.left")
-                                                .font(.system(size: 18, weight: .semibold))
-                                                .foregroundColor(.white)
-                                                .frame(width: 40, height: 40)
-                                                .background(Color.black.opacity(0.4))
-                                                .clipShape(Circle())
+                                    // Back / close (left) — same circular style in all contexts
+                                    Button {
+                                        if showBackButton {
+                                            isOpen = false
                                         }
-                                    } else {
-                                        Color.clear.frame(width: 40, height: 40)
+                                        dismiss()
+                                    } label: {
+                                        Image(systemName: "chevron.left")
+                                            .font(.system(size: 18, weight: .semibold))
+                                            .foregroundColor(.white)
+                                            .frame(width: 40, height: 40)
+                                            .background(Color.black.opacity(0.4))
+                                            .clipShape(Circle())
                                     }
                                     Spacer()
                                     // Photo page indicators — subtle dots (tappable)
@@ -243,7 +252,18 @@ struct ProfileDetailView: View {
                                         .padding(.vertical, 5)
                                         .background(Capsule().fill(Color.black.opacity(0.18)))
                                     }
-                                    if images.count <= 1 {
+                                    // Report/menu when from message (same row as dots; circular style to match chevron on photo)
+                                    if showBackButton {
+                                        ReportBlockMenuButton(
+                                            userId: profile.id,
+                                            displayName: profile.displayName,
+                                            onBlockComplete: { isOpen = false },
+                                            darkStyle: true,
+                                            plainStyle: false
+                                        )
+                                        .padding(.leading, 8)
+                                    }
+                                    if images.count <= 1, !showBackButton {
                                         Color.clear.frame(width: 40, height: 40)
                                     }
                                 }
@@ -274,8 +294,8 @@ struct ProfileDetailView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 24)
-                        .padding(.top, 24)
-                        .padding(.bottom, 24)
+                        .padding(.top, sectionVerticalPadding)
+                        .padding(.bottom, sectionVerticalPadding)
                         .background(Color.white)
                         if !travelStops.isEmpty || profile.lifestyle != nil || profile.nextDestination != nil || profile.workStyle != nil || profile.homeBase != nil || profile.morningPerson != nil || !profile.interests.isEmpty {
                             softGray.frame(height: sectionDividerHeight)
@@ -350,7 +370,7 @@ struct ProfileDetailView: View {
                             }
                         }
                         .padding(.horizontal, 24)
-                        .padding(.vertical, 24)
+                        .padding(.vertical, sectionVerticalPadding)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.white)
 
@@ -394,7 +414,7 @@ struct ProfileDetailView: View {
                             }
                         }
                         .padding(.horizontal, 24)
-                        .padding(.vertical, 24)
+                        .padding(.vertical, sectionVerticalPadding)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.white)
 
@@ -429,10 +449,17 @@ struct ProfileDetailView: View {
                             .frame(maxWidth: .infinity)
                     }
                     lookingForSection
-
-                    // When from messages (no bottom bar), extend white to bottom to avoid gray band
-                    if showBackButton {
-                        Color.white.frame(height: 60)
+                    
+                    // Bottom: with bar = padding above bar; without bar = minimal white footer (no softgray strip)
+                    if showsBottomBar {
+                        Color.clear.frame(height: scrollBottomPaddingTotal - 26)
+                        Color.white.frame(height: 2)
+                        Spacer().frame(height: 24)
+                    } else {
+                        // Enough white to avoid softgray strip; not so much it feels like "longer Looking for"
+                        Color.white
+                            .frame(height: 48)
+                            .ignoresSafeArea(edges: .bottom)
                     }
 
                     // ==========================================
@@ -464,15 +491,10 @@ struct ProfileDetailView: View {
 //                        .background(Color.white)
 //                    }
 
-                    // Bottom padding only when we show the action bar (so last section clears the bar)
-                    if !showBackButton || showLikeAndPassButtons {
-                        Spacer().frame(height: 24)
-                    }
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                // Bar content as inset (no separate overlay) so there is no line between content and button
-                if !showBackButton || showLikeAndPassButtons {
+                if showsBottomBar {
                     VStack(spacing: 0) {
                         if detailMode == .friends, let onConnect = onConnect {
                             Button {
@@ -539,47 +561,18 @@ struct ProfileDetailView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 10)
-                    .padding(.bottom, 12)
-                    .background(Color.white.ignoresSafeArea(edges: .bottom))
+//                    .background(
+//                        Color.white
+//                            .frame(minHeight: 200)
+//                            .offset(y: -2)
+//                            .ignoresSafeArea(edges: .bottom)
+//                    )
                 }
             }
 
             }
             .opacity(likeTriggered ? 0 : 1)
             .animation(.easeOut(duration: 0.3), value: likeTriggered)
-            .overlay(alignment: .top) {
-                // PARALLAX HEADER (when opened from message or Likes You): back + menu below status bar
-                if showBackButton {
-                    ZStack(alignment: .top) {
-                        let headerOffset = max(-80, min(0, -scrollContentOffsetY))
-                        let headerOpacity = scrollContentOffsetY <= 0 ? 1.0 : max(0, 1.0 - Double(scrollContentOffsetY) / Double(profileHeaderCollapseThreshold))
-                        HStack {
-                            Button {
-                                isOpen = false
-                            } label: {
-                                Image(systemName: "chevron.left")
-                                    .font(.system(size: 20, weight: .medium))
-                                    .foregroundColor(.black)
-                            }
-                            .padding(.leading, 24)
-                            .padding(.vertical, 12)
-                            .padding(.trailing, 8)
-                            Spacer()
-                            ReportBlockMenuButton(
-                                userId: profile.id,
-                                displayName: profile.displayName,
-                                onBlockComplete: { isOpen = false },
-                                plainStyle: true
-                            )
-                            .padding(.trailing, 24)
-                        }
-                        .padding(.top, topInset)
-                        .offset(y: headerOffset)
-                        .opacity(headerOpacity)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .top)
-                }
-            }
             .fullScreenCover(isPresented: $showFullScreenPhoto) {
                 ProfilePhotoFullScreenView(
                     imageUrls: images,
@@ -689,7 +682,7 @@ struct ProfileDetailView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 24)
-        .padding(.vertical, 24)
+        .padding(.vertical, sectionVerticalPadding)
     }
 
     /// Looking For section (onboarding).
@@ -706,7 +699,8 @@ struct ProfileDetailView: View {
                 .lineSpacing(4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(24)
+        .padding(.horizontal, 24)
+        .padding(.vertical, sectionVerticalPadding)
         .background(Color.white)
     }
 
@@ -900,6 +894,32 @@ private struct ProfilePhotoFullScreenView: View {
                 }
                 Spacer()
             }
+        }
+    }
+}
+
+// MARK: - Message profile (same layout as ProfileDetailView; no bottom bar)
+
+/// Profile detail when opened from a message. Hides tab bar, uses minimal top space, no bottom Like/Connect bar.
+struct MessageProfileDetailView: View {
+    let profile: UserProfile
+    @Binding var isOpen: Bool
+    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
+
+    var body: some View {
+        ProfileDetailView(
+            profile: profile,
+            isOpen: $isOpen,
+            onLike: {},
+            onPass: {},
+            showBackButton: true,
+            showLikeAndPassButtons: false
+        )
+        .onAppear {
+            tabBarVisibility.isVisible = false
+        }
+        .onDisappear {
+            tabBarVisibility.isVisible = true
         }
     }
 }
