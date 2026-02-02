@@ -9,6 +9,8 @@ import Auth
 
 struct FriendsListContent: View {
     var filterPreferences: NearbyFriendsFilterPreferences = .default
+    /// Called when user taps "View Profile" on a card; use to push the profile (e.g. path.append(profile)).
+    var onViewProfile: ((UserProfile) -> Void)? = nil
 
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var friendsManager = FriendsManager.shared
@@ -74,69 +76,56 @@ struct FriendsListContent: View {
         }
     }
 
+    private func distanceMiles(for profile: UserProfile) -> Int? {
+        let lat = DiscoveryLocationProvider.shared.latitudeForFilter ?? profileManager.currentProfile?.latitude
+        let lon = DiscoveryLocationProvider.shared.longitudeForFilter ?? profileManager.currentProfile?.longitude
+        return DistanceHelper.miles(from: lat, lon, to: profile.latitude, profile.longitude)
+    }
+
+    private var scrollContent: some View {
+        LazyVStack(spacing: 16) {
+            if isLoading {
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.2)
+                    Text("Finding friends nearby...")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 60)
+            } else if profiles.isEmpty {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 40)
+                    DiscoverEndOfFeedView()
+                    Spacer(minLength: 40)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 420)
+            } else {
+                ForEach(profiles) { profile in
+                    DiscoverCard(
+                        profile: profile,
+                        mode: .friends,
+                        lastActiveAt: profile.lastActiveAt,
+                        distanceMiles: distanceMiles(for: profile),
+                        onPrimaryAction: { handleConnect(profileId: profile.id) },
+                        onViewProfile: { onViewProfile?(profile) },
+                        onBlockComplete: { loadProfiles() }
+                    )
+                }
+                DiscoverEndOfFeedView()
+                    .padding(.top, 24)
+                    .padding(.bottom, 16)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, LayoutConstants.tabBarBottomPadding)
+    }
+
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
-                if isLoading {
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .scaleEffect(1.2)
-                        Text("Finding friends nearby...")
-                            .font(.system(size: 14))
-                            .foregroundColor(.gray)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 60)
-                } else if profiles.isEmpty {
-                    // Empty state — Nobody_Nearby asset, campfire font, centered (like Messages empty state)
-                    VStack(spacing: 0) {
-                        Spacer(minLength: 40)
-
-                        VStack(spacing: 24) {
-                            Image("Nobody_Nearby")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(maxWidth: 280, maxHeight: 280)
-
-                            VStack(spacing: 10) {
-                                Text(filterPreferences.hasActiveFilters ? "No one matches your filters" : "No friends nearby")
-                                    .font(.campfire(.regular, size: 24))
-                                    .foregroundColor(DriftUI.charcoal)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 32)
-
-                                Text(filterPreferences.hasActiveFilters ? "Try adjusting your filters" : "Check back later or expand your search radius")
-                                    .font(.campfire(.regular, size: 16))
-                                    .foregroundColor(DriftUI.charcoal.opacity(0.7))
-                                    .multilineTextAlignment(.center)
-                                    .lineSpacing(4)
-                                    .padding(.horizontal, 32)
-                            }
-                        }
-
-                        Spacer(minLength: 40)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 420)
-                } else {
-                    ForEach(profiles) { profile in
-                        NavigationLink(value: profile) {
-                            FriendCard(
-                                profile: profile,
-                                mutualInterests: getMutualInterests(for: profile),
-                                requestSent: friendsManager.hasSentRequest(to: profile.id),
-                                onConnect: { profileId in
-                                    handleConnect(profileId: profileId)
-                                },
-                                onTap: nil
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, LayoutConstants.tabBarBottomPadding)
+            scrollContent
         }
         .onAppear {
             DiscoveryLocationProvider.shared.requestLocation()

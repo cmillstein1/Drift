@@ -77,11 +77,8 @@ struct ContentView: View {
                 }
             }
 
-            // Custom floating tab bar
+            // Custom floating tab bar (always visible)
             floatingTabBar
-                .offset(y: tabBarVisibility.isVisible ? 0 : LayoutConstants.tabBarHeight + 40)
-                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: tabBarVisibility.isVisible)
-                .allowsHitTesting(tabBarVisibility.isVisible)
         }
         .ignoresSafeArea(.keyboard)
         .task(id: supabaseManager.currentUser?.id) {
