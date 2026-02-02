@@ -427,9 +427,8 @@ struct MessagesScreen: View {
                             mode: selectedMode,
                             onFindFriends: {
                                 tabBarVisibility.switchToDiscoverInFriendsMode = true
-                                if !supabaseManager.isFriendsOnly() {
-                                    tabBarVisibility.discoverStartInFriendsMode = true
-                                }
+                                // Find Matches (dating) → Discover dating; Find friends → Discover friends
+                                tabBarVisibility.discoverStartInFriendsMode = (selectedMode == .friends)
                             }
                         )
                         .frame(minHeight: UIScreen.main.bounds.height - 320)
