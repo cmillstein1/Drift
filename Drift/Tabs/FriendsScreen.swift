@@ -109,28 +109,27 @@ struct FriendsScreen: View {
     private let desertSand = Color("DesertSand")
     
     var body: some View {
-        NavigationStack {
+        let main = NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
                     // Header
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Nearby Friends")
-                                .font(.campfire(.regular, size: 24))
-                                .foregroundColor(charcoalColor)
+//                    HStack(alignment: .top) {
+//                        VStack(alignment: .leading, spacing: 8) {
+//                            Text("Nearby Friends")
+//                                .font(.campfire(.regular, size: 24))
+//                                .foregroundColor(charcoalColor)
+//
+////                            Text("Connect instantly - no matching required!")
+////                                .font(.system(size: 14))
+////                                .foregroundColor(charcoalColor.opacity(0.6))
+//                        }
+//                        .frame(maxWidth: .infinity, alignment: .leading)
 
-//                            Text("Connect instantly - no matching required!")
-//                                .font(.system(size: 14))
-//                                .foregroundColor(charcoalColor.opacity(0.6))
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                        Button(action: { showFilterSheet = true }) {
-                            Image(systemName: "line.3.horizontal.decrease.circle")
-                                .font(.system(size: 24))
-                                .foregroundColor(charcoalColor)
-                                .symbolVariant(filterPreferences.hasActiveFilters ? .fill : .none)
-                        }
+                    Button(action: { showFilterSheet = true }) {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                            .font(.system(size: 24))
+                            .foregroundColor(charcoalColor)
+                            .symbolVariant(filterPreferences.hasActiveFilters ? .fill : .none)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
@@ -254,30 +253,30 @@ struct FriendsScreen: View {
                 loadProfiles()
             }
         }
-        .sheet(isPresented: $showFilterSheet) {
-            NearbyFriendsFilterSheet(
-                isPresented: $showFilterSheet,
-                preferences: $filterPreferences
-            )
-        }
-        .sheet(isPresented: $showMessageSheet) {
-            FriendRequestMessageSheet(
-                profileName: selectedProfileForMessage?.displayName ?? "",
-                message: $friendRequestMessage,
-                onSend: sendFriendRequestWithMessage,
-                onSkip: {
-                    // Send without message
-                    if let profile = selectedProfileForMessage {
-                        handleConnect(profileId: profile.id)
+        return main
+            .sheet(isPresented: $showFilterSheet) {
+                NearbyFriendsFilterSheet(
+                    isPresented: $showFilterSheet,
+                    preferences: $filterPreferences
+                )
+            }
+            .sheet(isPresented: $showMessageSheet) {
+                FriendRequestMessageSheet(
+                    profileName: selectedProfileForMessage?.displayName ?? "",
+                    message: $friendRequestMessage,
+                    onSend: sendFriendRequestWithMessage,
+                    onSkip: {
+                        if let profile = selectedProfileForMessage {
+                            handleConnect(profileId: profile.id)
+                        }
+                        showMessageSheet = false
+                        selectedProfileForMessage = nil
+                        friendRequestMessage = ""
                     }
-                    showMessageSheet = false
-                    selectedProfileForMessage = nil
-                    friendRequestMessage = ""
-                }
-            )
-            .presentationDetents([.height(300)])
-            .presentationDragIndicator(.visible)
-        }
+                )
+                .presentationDetents([.height(300)])
+                .presentationDragIndicator(.visible)
+            }
     }
 }
 
