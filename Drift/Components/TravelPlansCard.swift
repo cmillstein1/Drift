@@ -10,6 +10,8 @@ import DriftBackend
 
 struct TravelPlansCard: View {
     let travelStops: [DriftBackend.TravelStop]
+    /// Corner radius for the card; use 0 for no rounded corners (e.g. profile detail).
+    var cornerRadius: CGFloat = 16
 
     private let charcoal = Color("Charcoal")
     private let desertSand = Color("DesertSand")
@@ -83,7 +85,7 @@ struct TravelPlansCard: View {
         }
         .padding(20)
         .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
     }
 }
 

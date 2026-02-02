@@ -32,10 +32,10 @@ struct DiscoverScreen: View {
     @State private var showDatingSettings: Bool = false
     @State private var zoomedPhotoURL: String? = nil
     @State private var friendsNavigationPath = NavigationPath()
+    @State private var selectedFriendProfile: UserProfile? = nil
 
-    /// Height of top nav bar (status padding + content) for scroll content offset.
-    /// Top spacer so first card clears the overlay (mode switcher + subtitle); extra space avoids card feeling cut off.
-    private let topNavBarHeight: CGFloat = 172
+    /// Top spacer so first card clears the overlay (safe area + mode switcher + subtitle + padding).
+    private let topNavBarHeight: CGFloat = 168
     /// Scroll offset past which expanded header is fully gone and compact (name) header is shown
     private let headerCollapseThreshold: CGFloat = 72
     /// Height of compact header (safe area + title row)
@@ -317,10 +317,28 @@ struct DiscoverScreen: View {
                     set: { if !$0 { selectedProfile = nil } }
                 ),
                 onLike: {
-                    handleSwipe(direction: .right)
+                    handleSwipe(profile: profile, direction: .right)
                 },
                 onPass: {
-                    handleSwipe(direction: .left)
+                    handleSwipe(profile: profile, direction: .left)
+                },
+                distanceMiles: distanceMiles(for: profile),
+                detailMode: .dating
+            )
+        }
+        .fullScreenCover(item: $selectedFriendProfile) { profile in
+            ProfileDetailView(
+                profile: profile,
+                isOpen: Binding(
+                    get: { selectedFriendProfile != nil },
+                    set: { if !$0 { selectedFriendProfile = nil } }
+                ),
+                onLike: {},
+                onPass: {},
+                distanceMiles: distanceMiles(for: profile),
+                detailMode: .friends,
+                onConnect: {
+                    handleConnect(profileId: profile.id)
                 }
             )
         }
@@ -558,26 +576,11 @@ struct DiscoverScreen: View {
                 FriendsListContent(
                     filterPreferences: friendsFilterPreferences,
                     onViewProfile: { profile in
-                        friendsNavigationPath.append(profile)
+                        selectedFriendProfile = profile
                     }
                 )
             }
             .background(softGray)
-            .navigationDestination(for: UserProfile.self) { profile in
-                FriendDetailView(
-                    profile: profile,
-                    mutualInterests: getMutualInterests(for: profile),
-                    requestSent: friendsManager.hasSentRequest(to: profile.id),
-                    showConnectButton: true,
-                    isFromFriendsGrid: false,
-                    onConnect: { profileId in
-                        handleConnect(profileId: profileId)
-                    },
-                    onMessage: { profileId in
-                        // Handle message action if needed
-                    }
-                )
-            }
             .sheet(isPresented: $showFilters) {
                 NearbyFriendsFilterSheet(
                     isPresented: $showFilters,
