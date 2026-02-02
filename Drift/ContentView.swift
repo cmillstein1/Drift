@@ -77,8 +77,10 @@ struct ContentView: View {
                 }
             }
 
-            // Custom floating tab bar (always visible)
+            // Tab bar hidden when full-screen context is shown (e.g. MessageDetailScreen, profile from message)
             floatingTabBar
+                .opacity(tabBarVisibility.isVisible ? 1 : 0)
+                .allowsHitTesting(tabBarVisibility.isVisible)
         }
         .ignoresSafeArea(.keyboard)
         .task(id: supabaseManager.currentUser?.id) {

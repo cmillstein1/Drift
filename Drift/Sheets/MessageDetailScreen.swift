@@ -372,15 +372,12 @@ struct MessageDetailScreen: View {
             }
         }
         .fullScreenCover(item: $profileToShowFromMessage) { profile in
-            ProfileDetailView(
+            MessageProfileDetailView(
                 profile: profile,
                 isOpen: Binding(
                     get: { profileToShowFromMessage != nil },
                     set: { if !$0 { profileToShowFromMessage = nil } }
-                ),
-                onLike: { profileToShowFromMessage = nil },
-                onPass: { profileToShowFromMessage = nil },
-                showBackButton: true
+                )
             )
         }
         .sheet(isPresented: $showMessageReportSheet) {

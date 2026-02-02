@@ -619,19 +619,19 @@ struct MessagesScreen: View {
                     set: { if !$0 { selectedProfileToView = nil } }
                 ),
                 onLike: {
-                    // Find the request for this profile and accept it
                     if let request = pendingFriendRequests.first(where: { $0.requesterProfile?.id == profile.id }) {
                         handleAcceptRequest(request)
                     }
                     selectedProfileToView = nil
                 },
                 onPass: {
-                    // Find the request for this profile and decline it
                     if let request = pendingFriendRequests.first(where: { $0.requesterProfile?.id == profile.id }) {
                         handleDeclineRequest(request)
                     }
                     selectedProfileToView = nil
-                }
+                },
+                showBackButton: true,
+                showLikeAndPassButtons: true
             )
         }
         }
