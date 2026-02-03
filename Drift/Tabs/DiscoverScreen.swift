@@ -325,6 +325,7 @@ struct DiscoverScreen: View {
                 distanceMiles: distanceMiles(for: profile),
                 detailMode: .dating
             )
+            .id(profile.id)
         }
         .fullScreenCover(item: $selectedFriendProfile) { profile in
             ProfileDetailView(
@@ -341,73 +342,108 @@ struct DiscoverScreen: View {
                     handleConnect(profileId: profile.id)
                 }
             )
+            .id(profile.id)
         }
         .sheet(isPresented: $showDatingSettings) {
             DatingSettingsSheet(isPresented: $showDatingSettings)
         }
     }
 
+    /// Current user's location: profile city/state (lat/lon) first, then device location as fallback.
+    /// Ensures the map can show people even when profile coords aren't saved yet (e.g. location text only).
+    private var currentUserMapCoordinate: CLLocationCoordinate2D? {
+        if let lat = profileManager.currentProfile?.latitude,
+           let lon = profileManager.currentProfile?.longitude {
+            return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        }
+        return DiscoveryLocationProvider.shared.lastCoordinate
+    }
+
     // MARK: - Dating View (Feed of DiscoverCards)
     @ViewBuilder
     private var datingView: some View {
-        ZStack {
-            softGray.ignoresSafeArea()
+        NavigationStack {
+            ZStack {
+                softGray.ignoresSafeArea()
 
-            if visibleDatingProfiles.isEmpty {
-                emptyState
-                    .onAppear {
-                        tabBarVisibility.isVisible = true
-                    }
-            } else {
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 16) {
-                        Color.clear.frame(height: topNavBarHeight)
-                        ForEach(visibleDatingProfiles) { profile in
-                            DiscoverCard(
-                                profile: profile,
-                                mode: .dating,
-                                lastActiveAt: profile.lastActiveAt,
-                                distanceMiles: distanceMiles(for: profile),
-                                onPrimaryAction: { handleSwipe(profile: profile, direction: .right) },
-                                onViewProfile: { selectedProfile = profile },
-                                onBlockComplete: { loadProfiles() }
-                            )
-                            .opacity(likedFadingId == profile.id ? 0 : 1)
-                            .animation(.easeOut(duration: 0.35), value: likedFadingId)
+                if visibleDatingProfiles.isEmpty {
+                    emptyState
+                        .onAppear {
+                            tabBarVisibility.isVisible = true
                         }
-                        DiscoverEndOfFeedView()
-                            .padding(.top, 24)
-                            .padding(.bottom, 16)
-                        Spacer().frame(height: LayoutConstants.tabBarBottomPadding)
-                    }
-                    .padding(.horizontal, 16)
-                }
-                .overlay(alignment: .top) {
-                    VStack(spacing: 0) {
-                        HStack {
-                            if supabaseManager.getDiscoveryMode() == .both {
-                                modeSwitcher(style: .light)
+                } else {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(spacing: 16) {
+                            Color.clear.frame(height: topNavBarHeight)
+                            ForEach(visibleDatingProfiles) { profile in
+                                DiscoverCard(
+                                    profile: profile,
+                                    mode: .dating,
+                                    lastActiveAt: profile.lastActiveAt,
+                                    distanceMiles: distanceMiles(for: profile),
+                                    onPrimaryAction: { handleSwipe(profile: profile, direction: .right) },
+                                    onViewProfile: { selectedProfile = profile },
+                                    onBlockComplete: { loadProfiles() }
+                                )
+                                .opacity(likedFadingId == profile.id ? 0 : 1)
+                                .animation(.easeOut(duration: 0.35), value: likedFadingId)
                             }
-                            Spacer()
+                            DiscoverEndOfFeedView()
+                                .padding(.top, 24)
+                                .padding(.bottom, 16)
+                            Spacer().frame(height: LayoutConstants.tabBarBottomPadding)
                         }
-                        .padding(.horizontal, 24)
-                        .padding(.top, 12)
-                        .padding(.bottom, 4)
-
-                        Text("Stories from travelers looking to date")
-                            .font(.system(size: 12))
-                            .foregroundColor(inkSub)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 16)
+                        .padding(.horizontal, 16)
                     }
-                    .frame(maxWidth: .infinity)
-                    .background(softGray.ignoresSafeArea(edges: .top))
-                    .padding(.top, 60)
+                    .overlay(alignment: .top) {
+                        VStack(spacing: 0) {
+                            HStack {
+                                if supabaseManager.getDiscoveryMode() == .both {
+                                    modeSwitcher(style: .light)
+                                }
+                                Spacer()
+                                // Map shows only dating discover profiles (correct category)
+                                NavigationLink {
+                                    DiscoverMapSheet(
+                                        profiles: profiles,
+                                        currentUserCoordinate: currentUserMapCoordinate,
+                                        isPushed: true,
+                                        onSelectProfile: { selectedProfile = $0 },
+                                        distanceMiles: distanceMiles(for:)
+                                    )
+                                } label: {
+                                    Image(systemName: "safari")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundColor(inkMain)
+                                        .frame(width: 40, height: 40)
+                                        .background(Color.white)
+                                        .clipShape(Circle())
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                        )
+                                        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                                }
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.top, 12)
+                            .padding(.bottom, 4)
+
+                            Text("Stories from travelers looking to date")
+                                .font(.system(size: 12))
+                                .foregroundColor(inkSub)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 16)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .background(softGray.ignoresSafeArea(edges: .top))
+                        .padding(.top, 60)
+                    }
                 }
             }
+            .ignoresSafeArea(edges: .top)
         }
-        .ignoresSafeArea(edges: .top)
     }
 
     // Placeholder gradient for missing images
@@ -547,7 +583,30 @@ struct DiscoverScreen: View {
                             modeSwitcher(style: .light)
                         }
                         Spacer()
-                        friendsFilterButton
+                        // friendsFilterButton — commented out per design; map button added instead
+                        // friendsFilterButton
+                        // Map shows only friends discover profiles (correct category)
+                        NavigationLink {
+                            DiscoverMapSheet(
+                                profiles: profiles,
+                                currentUserCoordinate: currentUserMapCoordinate,
+                                isPushed: true,
+                                onSelectProfile: { selectedFriendProfile = $0 },
+                                distanceMiles: distanceMiles(for:)
+                            )
+                        } label: {
+                            Image(systemName: "safari")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(inkMain)
+                                .frame(width: 40, height: 40)
+                                .background(Color.white)
+                                .clipShape(Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                )
+                                .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                        }
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 12)
