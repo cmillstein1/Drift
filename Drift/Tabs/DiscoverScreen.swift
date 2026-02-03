@@ -93,7 +93,7 @@ struct DiscoverScreen: View {
         loadProfiles(forMode: mode)
     }
 
-    /// Load profiles for a specific mode. Captures mode at call time to avoid race conditions.
+    /// Load profiles for a specific mode. Data is stored separately in ProfileManager so no race condition issues.
     private func loadProfiles(forMode targetMode: DiscoverMode) {
         // Use device location for distance filter when available (dating & friends)
         DiscoveryLocationProvider.shared.requestLocation()
@@ -106,8 +106,7 @@ struct DiscoverScreen: View {
                     friendsManager.fetchSwipedUserIds(),
                     friendsManager.fetchBlockedExclusionUserIds()
                 )
-                // Only update state if we're still on the same mode
-                guard mode == targetMode else { return }
+                // Always set swipedIds - it's shared across modes
                 swipedIds = swiped
                 try await profileManager.fetchDiscoverProfiles(
                     lookingFor: lookingFor,
@@ -115,8 +114,10 @@ struct DiscoverScreen: View {
                     currentUserLat: coord?.latitude,
                     currentUserLon: coord?.longitude
                 )
-                guard mode == targetMode else { return }
-                currentIndex = 0
+                // Reset index only if still on this mode
+                if mode == targetMode {
+                    currentIndex = 0
+                }
             } catch {
                 print("Failed to load profiles: \(error)")
             }
@@ -144,6 +145,34 @@ struct DiscoverScreen: View {
                 )
             } catch {
                 print("Failed to recycle profiles: \(error)")
+            }
+        }
+    }
+
+    /// Preload friends profiles in background for instant tab switching.
+    private func preloadFriendsProfiles() {
+        let coord = DiscoveryLocationProvider.shared.lastCoordinate
+        Task {
+            do {
+                let (swiped, blocked) = try await (
+                    friendsManager.fetchSwipedUserIds(),
+                    friendsManager.fetchBlockedExclusionUserIds()
+                )
+                guard let currentUserId = supabaseManager.currentUser?.id else { return }
+                try await friendsManager.fetchSentRequests()
+                try await friendsManager.fetchFriends()
+                let friendIds = friendsManager.friends.map { friend in
+                    friend.requesterId == currentUserId ? friend.addresseeId : friend.requesterId
+                }
+                let excludeIds = swiped + friendIds + blocked
+                try await profileManager.fetchDiscoverProfiles(
+                    lookingFor: .friends,
+                    excludeIds: excludeIds,
+                    currentUserLat: coord?.latitude,
+                    currentUserLon: coord?.longitude
+                )
+            } catch {
+                print("Failed to preload friends profiles: \(error)")
             }
         }
     }
@@ -275,16 +304,21 @@ struct DiscoverScreen: View {
                 tabBarVisibility.discoverStartInFriendsMode = false
             }
             let discoveryMode = supabaseManager.getDiscoveryMode()
-            // Load profiles based on discovery mode (load both for "both" so switching is instant)
+            // Preload both datasets for instant switching
             if discoveryMode == .both {
+                // Load both in parallel for instant tab switching
                 if profileManager.discoverProfiles.isEmpty {
                     loadProfiles(forMode: .dating)
                 }
-                // Friends will be loaded by FriendsListContent when needed
+                if profileManager.discoverProfilesFriends.isEmpty {
+                    preloadFriendsProfiles()
+                }
             } else if discoveryMode == .dating {
                 if profileManager.discoverProfiles.isEmpty {
                     loadProfiles(forMode: .dating)
                 }
+            } else if discoveryMode == .friends {
+                // Friends-only mode - FriendsListContent handles loading
             }
             tabBarVisibility.isVisible = true
 

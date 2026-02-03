@@ -39,7 +39,13 @@ struct FriendsListContent: View {
         } ?? []
     }
 
-    private func loadProfiles() {
+    private func loadProfiles(forceRefresh: Bool = false) {
+        // Skip loading if data already cached (preloaded by DiscoverScreen)
+        if !forceRefresh && !profileManager.discoverProfilesFriends.isEmpty {
+            isLoading = false
+            return
+        }
+
         guard let currentUserId = supabaseManager.currentUser?.id else {
             isLoading = false
             return
