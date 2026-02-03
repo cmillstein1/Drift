@@ -78,9 +78,13 @@ struct ProfileDetailView: View {
     /// Bottom padding total so "Looking for" scrolls fully into view; same scroll content height in all contexts.
     private let scrollBottomPaddingTotal: CGFloat = 96
 
+    /// Max top inset for spacer; avoids huge gap when presented from map (nav stack reports inflated safe area).
+    private let maxTopInsetForSpacer: CGFloat = 56
+
     var body: some View {
         GeometryReader { geometry in
-            let topInset = geometry.safeAreaInsets.top
+            let rawTop = geometry.safeAreaInsets.top
+            let topInset = min(rawTop, maxTopInsetForSpacer)
             // More space above photo so it isn’t cut off by status bar/Dynamic Island.
             // When opened from message (showBackButton), pull content up so top matches profile detail view.
             let extraAbovePhoto: CGFloat = showBackButton ? -28 : 28
