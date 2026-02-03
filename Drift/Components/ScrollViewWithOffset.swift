@@ -12,11 +12,23 @@ struct ScrollViewWithOffset<Content: View>: UIViewRepresentable {
     let content: Content
     @Binding var contentOffsetY: CGFloat
     var showsIndicators: Bool = false
+    /// When true, disables automatic safe area content insets so the caller controls top spacing (avoids double top inset).
+    var ignoresSafeAreaContentInset: Bool = false
+    /// Background color of the scroll view (e.g. .white to avoid showing softGray through gaps).
+    var scrollViewBackgroundColor: UIColor = .clear
 
-    init(contentOffsetY: Binding<CGFloat>, showsIndicators: Bool = false, @ViewBuilder content: () -> Content) {
+    init(
+        contentOffsetY: Binding<CGFloat>,
+        showsIndicators: Bool = false,
+        ignoresSafeAreaContentInset: Bool = false,
+        scrollViewBackgroundColor: UIColor = .clear,
+        @ViewBuilder content: () -> Content
+    ) {
         self.content = content()
         self._contentOffsetY = contentOffsetY
         self.showsIndicators = showsIndicators
+        self.ignoresSafeAreaContentInset = ignoresSafeAreaContentInset
+        self.scrollViewBackgroundColor = scrollViewBackgroundColor
     }
 
     func makeCoordinator() -> Coordinator {
@@ -30,7 +42,10 @@ struct ScrollViewWithOffset<Content: View>: UIViewRepresentable {
         scrollView.showsHorizontalScrollIndicator = false
         scrollView.bounces = true
         scrollView.alwaysBounceVertical = true
-        scrollView.backgroundColor = .clear
+        scrollView.backgroundColor = scrollViewBackgroundColor
+        if ignoresSafeAreaContentInset {
+            scrollView.contentInsetAdjustmentBehavior = .never
+        }
 
         let hosting = UIHostingController(rootView: content)
         hosting.view.backgroundColor = .clear
