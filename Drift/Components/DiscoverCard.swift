@@ -80,6 +80,7 @@ struct DiscoverCard: View {
                                     .aspectRatio(contentMode: .fill)
                             } else {
                                 placeholderCircle
+                                    .frame(width: 48, height: 48)
                             }
                         }
                         .frame(width: 48, height: 48)
@@ -144,7 +145,8 @@ struct DiscoverCard: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 24)
 
-            // Main photo (contained in card width)
+            // Main photo (contained in card width). Placeholder reserves height to reduce layout jump.
+            let mainPhotoHeight: CGFloat = 380
             if let urlString = mainPhotoURL, let url = URL(string: urlString) {
                 AsyncImage(url: url) { phase in
                     if let image = phase.image {
@@ -153,15 +155,16 @@ struct DiscoverCard: View {
                             .scaledToFill()
                     } else {
                         placeholderGradient
+                            .frame(maxWidth: .infinity, minHeight: mainPhotoHeight)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: 380)
+                .frame(maxWidth: .infinity, maxHeight: mainPhotoHeight)
                 .clipped()
                 .contentShape(Rectangle())
                 .onTapGesture { onViewProfile?() }
             } else {
                 placeholderGradient
-                    .frame(height: 380)
+                    .frame(height: mainPhotoHeight)
                     .overlay(
                         Image(systemName: "person.fill")
                             .font(.system(size: 48))

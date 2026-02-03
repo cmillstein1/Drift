@@ -214,7 +214,7 @@ struct ProfileDetailView: View {
                                 .allowsHitTesting(false)
                             }
 
-                            // Top bar on photo (same layout for discover and message): back/close left + dots + report (message only) right
+                            // Top bar on photo: back/close left + photo page dots (when multiple photos)
                             VStack {
                                 HStack(spacing: 12) {
                                     // Back / close (left) — same circular style in all contexts
@@ -251,20 +251,6 @@ struct ProfileDetailView: View {
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 5)
                                         .background(Capsule().fill(Color.black.opacity(0.18)))
-                                    }
-                                    // Report/menu when from message (same row as dots; circular style to match chevron on photo)
-                                    if showBackButton {
-                                        ReportBlockMenuButton(
-                                            userId: profile.id,
-                                            displayName: profile.displayName,
-                                            onBlockComplete: { isOpen = false },
-                                            darkStyle: true,
-                                            plainStyle: false
-                                        )
-                                        .padding(.leading, 8)
-                                    }
-                                    if images.count <= 1, !showBackButton {
-                                        Color.clear.frame(width: 40, height: 40)
                                     }
                                 }
                                 .padding(.horizontal, 16)
