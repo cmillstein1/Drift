@@ -2,7 +2,9 @@
 //  ProfileDetailView.swift
 //  Drift
 //
-//  Full profile view matching Discover page design (dating & friends parity).
+//  Shared profile detail layout used by Dating, Friends, and Message contexts.
+//  Use DatingProfileDetailView, FriendsProfileDetailView, or MessageProfileDetailView
+//  from their respective files so each context has a single, consistent presentation.
 //
 
 import SwiftUI
@@ -79,16 +81,15 @@ struct ProfileDetailView: View {
     private let scrollBottomPaddingTotal: CGFloat = 96
 
     /// Max top inset for spacer; avoids huge gap when presented from map (nav stack reports inflated safe area).
-    private let maxTopInsetForSpacer: CGFloat = 56
+    private let maxTopInsetForSpacer: CGFloat = 44
+    /// Fixed top spacer when opened from Discover; constant so every card (first, second, …) is identical.
+    private let discoverTopSpacerHeight: CGFloat = 16
 
     var body: some View {
         GeometryReader { geometry in
-            let rawTop = geometry.safeAreaInsets.top
-            let topInset = min(rawTop, maxTopInsetForSpacer)
-            // More space above photo so it isn’t cut off by status bar/Dynamic Island.
-            // When opened from message (showBackButton), pull content up so top matches profile detail view.
-            let extraAbovePhoto: CGFloat = showBackButton ? -28 : 28
-            let topSpacerHeight = max(0, topInset + extraAbovePhoto)
+            let topSpacerHeight: CGFloat = showBackButton
+                ? max(0, min(geometry.safeAreaInsets.top, maxTopInsetForSpacer) - 28)
+                : discoverTopSpacerHeight
 
             ZStack {
                 // When no bottom bar (message), use white so no softgray strip at bottom; otherwise softGray
@@ -440,11 +441,9 @@ struct ProfileDetailView: View {
                     }
                     lookingForSection
                     
-                    // Bottom: with bar = padding above bar; without bar = minimal white footer (no softgray strip)
+                    // Bottom: minimal padding above the bottom bar
                     if showsBottomBar {
-                        Color.clear.frame(height: scrollBottomPaddingTotal - 26)
-                        Color.white.frame(height: 2)
-                        Spacer().frame(height: 24)
+                        Color.clear.frame(height: 16)
                     } else {
                         // Enough white to avoid softgray strip; not so much it feels like "longer Looking for"
                         Color.white
@@ -559,7 +558,6 @@ struct ProfileDetailView: View {
 //                    )
                 }
             }
-
             }
             .opacity(likeTriggered ? 0 : 1)
             .animation(.easeOut(duration: 0.3), value: likeTriggered)
@@ -884,32 +882,6 @@ private struct ProfilePhotoFullScreenView: View {
                 }
                 Spacer()
             }
-        }
-    }
-}
-
-// MARK: - Message profile (same layout as ProfileDetailView; no bottom bar)
-
-/// Profile detail when opened from a message. Hides tab bar, uses minimal top space, no bottom Like/Connect bar.
-struct MessageProfileDetailView: View {
-    let profile: UserProfile
-    @Binding var isOpen: Bool
-    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
-
-    var body: some View {
-        ProfileDetailView(
-            profile: profile,
-            isOpen: $isOpen,
-            onLike: {},
-            onPass: {},
-            showBackButton: true,
-            showLikeAndPassButtons: false
-        )
-        .onAppear {
-            tabBarVisibility.isVisible = false
-        }
-        .onDisappear {
-            tabBarVisibility.isVisible = true
         }
     }
 }

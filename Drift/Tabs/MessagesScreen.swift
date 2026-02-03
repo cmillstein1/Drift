@@ -612,7 +612,7 @@ struct MessagesScreen: View {
             }
         }
         .fullScreenCover(item: $selectedProfileToView) { profile in
-            ProfileDetailView(
+            DatingProfileDetailView(
                 profile: profile,
                 isOpen: Binding(
                     get: { selectedProfileToView != nil },
