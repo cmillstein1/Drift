@@ -427,17 +427,20 @@ struct DiscoverScreen: View {
                 }
                 .onChange(of: discoverScrollOffsetY) { _, y in
                     let delta = y - lastDiscoverScrollOffsetY
-                    let minScrollThreshold: CGFloat = 5 // Minimum scroll to trigger change
+                    let minHideThreshold: CGFloat = 5 // Minimum scroll down to hide
+                    let minShowThreshold: CGFloat = 15 // Larger threshold for show to avoid bounce triggers
                     let minOffsetToHide: CGFloat = 50 // Don't hide until scrolled past this point
 
-                    if abs(delta) > minScrollThreshold {
-                        if delta > 0 && y > minOffsetToHide && tabBarVisibility.isVisible {
-                            // Scrolling down - hide tab bar
-                            withAnimation(.easeInOut(duration: 0.25)) { tabBarVisibility.isVisible = false }
-                        } else if delta < 0 && !tabBarVisibility.isVisible {
-                            // Scrolling up - show tab bar
-                            withAnimation(.easeInOut(duration: 0.25)) { tabBarVisibility.isVisible = true }
-                        }
+                    if delta > minHideThreshold && y > minOffsetToHide && tabBarVisibility.isVisible {
+                        // Scrolling down - hide tab bar
+                        withAnimation(.easeInOut(duration: 0.25)) { tabBarVisibility.isVisible = false }
+                        lastDiscoverScrollOffsetY = y
+                    } else if delta < -minShowThreshold && !tabBarVisibility.isVisible {
+                        // Scrolling up with enough intent - show tab bar
+                        withAnimation(.easeInOut(duration: 0.25)) { tabBarVisibility.isVisible = true }
+                        lastDiscoverScrollOffsetY = y
+                    } else if abs(delta) > minHideThreshold {
+                        // Update last position for significant movements
                         lastDiscoverScrollOffsetY = y
                     }
                 }
@@ -830,19 +833,21 @@ struct DiscoverScreen: View {
             .background(softGray)
             .onChange(of: friendsScrollOffsetY) { _, y in
                 let delta = y - lastFriendsScrollOffsetY
-                let minScrollThreshold: CGFloat = 5
+                let minHideThreshold: CGFloat = 5
+                let minShowThreshold: CGFloat = 15 // Larger threshold to avoid bounce triggers
                 let minOffsetToHide: CGFloat = 50
 
-                if abs(delta) > minScrollThreshold {
-                    if delta > 0 && y > minOffsetToHide && tabBarVisibility.isVisible {
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            tabBarVisibility.isVisible = false
-                        }
-                    } else if delta < 0 && !tabBarVisibility.isVisible {
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            tabBarVisibility.isVisible = true
-                        }
+                if delta > minHideThreshold && y > minOffsetToHide && tabBarVisibility.isVisible {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        tabBarVisibility.isVisible = false
                     }
+                    lastFriendsScrollOffsetY = y
+                } else if delta < -minShowThreshold && !tabBarVisibility.isVisible {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        tabBarVisibility.isVisible = true
+                    }
+                    lastFriendsScrollOffsetY = y
+                } else if abs(delta) > minHideThreshold {
                     lastFriendsScrollOffsetY = y
                 }
             }
