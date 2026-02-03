@@ -61,7 +61,7 @@ struct ContentView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Tab content
+            // Tab content — extend into bottom safe area so no visible bar above tab bar (Discover soft gray fills it)
             Group {
                 switch selectedTab {
                 case .discover:
@@ -76,13 +76,32 @@ struct ContentView: View {
                     ProfileScreen()
                 }
             }
+            .ignoresSafeArea(edges: .bottom)
 
-            // Tab bar hidden when full-screen context is shown (e.g. MessageDetailScreen, profile from message)
+            // Tab bar: slide away when user scrolls down, show when near top (or when full-screen context hides it)
             floatingTabBar
+                .offset(y: tabBarVisibility.isVisible ? 0 : LayoutConstants.tabBarHeight)
                 .opacity(tabBarVisibility.isVisible ? 1 : 0)
                 .allowsHitTesting(tabBarVisibility.isVisible)
+                .animation(.easeInOut(duration: 0.25), value: tabBarVisibility.isVisible)
         }
         .ignoresSafeArea(.keyboard)
+        .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offsetY in
+            // Slide tab bar away when scrolling down, show when near top (hysteresis to avoid flicker)
+            let hideThreshold: CGFloat = -50
+            let showThreshold: CGFloat = -20
+            let shouldHide = offsetY < hideThreshold
+            let shouldShow = offsetY > showThreshold
+            if shouldHide, tabBarVisibility.isVisible {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    tabBarVisibility.isVisible = false
+                }
+            } else if shouldShow, !tabBarVisibility.isVisible {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    tabBarVisibility.isVisible = true
+                }
+            }
+        }
         .task(id: supabaseManager.currentUser?.id) {
             guard supabaseManager.currentUser != nil else { return }
             // Initialize all app data (conversations, friends, matches, etc.)
@@ -108,6 +127,19 @@ struct ContentView: View {
             if requested {
                 selectedTab = .discover
                 tabBarVisibility.switchToDiscoverInFriendsMode = false
+            }
+        }
+        .onChange(of: selectedTab) { _, newTab in
+            // Tabs that don’t report scroll offset (Map, Community, Messages) should show tab bar when selected
+            switch newTab {
+            case .map, .community, .messages:
+                if !tabBarVisibility.isVisible {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        tabBarVisibility.isVisible = true
+                    }
+                }
+            case .discover, .profile:
+                break
             }
         }
     }

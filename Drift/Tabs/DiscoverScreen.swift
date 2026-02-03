@@ -33,6 +33,8 @@ struct DiscoverScreen: View {
     @State private var zoomedPhotoURL: String? = nil
     @State private var friendsNavigationPath = NavigationPath()
     @State private var selectedFriendProfile: UserProfile? = nil
+    /// Scroll offset (contentOffset.y) for tab bar hide-on-scroll.
+    @State private var discoverScrollOffsetY: CGFloat = 0
 
     /// Top spacer so first card clears the overlay (safe area + mode switcher + subtitle + padding).
     private let topNavBarHeight: CGFloat = 168
@@ -372,7 +374,12 @@ struct DiscoverScreen: View {
                             tabBarVisibility.isVisible = true
                         }
                 } else {
-                    ScrollView(.vertical, showsIndicators: false) {
+                    ScrollViewWithOffset(
+                        contentOffsetY: $discoverScrollOffsetY,
+                        showsIndicators: false,
+                        ignoresSafeAreaContentInset: true,
+                        scrollViewBackgroundColor: UIColor(named: "SoftGray") ?? UIColor(red: 0.96, green: 0.96, blue: 0.97, alpha: 1)
+                    ) {
                         VStack(spacing: 16) {
                             Color.clear.frame(height: topNavBarHeight)
                             ForEach(visibleDatingProfiles) { profile in
@@ -391,9 +398,23 @@ struct DiscoverScreen: View {
                             DiscoverEndOfFeedView()
                                 .padding(.top, 24)
                                 .padding(.bottom, 16)
-                            Spacer().frame(height: LayoutConstants.tabBarBottomPadding)
+                            // Minimal bottom space so no visible bar above tab bar; tab bar overlays content when needed
+                            Spacer().frame(height: 16)
                         }
                         .padding(.horizontal, 16)
+                    }
+                    .onChange(of: discoverScrollOffsetY) { _, y in
+                        let hideThreshold: CGFloat = 50
+                        let showThreshold: CGFloat = 20
+                        if y > hideThreshold, tabBarVisibility.isVisible {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                tabBarVisibility.isVisible = false
+                            }
+                        } else if y < showThreshold, !tabBarVisibility.isVisible {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                tabBarVisibility.isVisible = true
+                            }
+                        }
                     }
                     .overlay(alignment: .top) {
                         VStack(spacing: 0) {
@@ -442,7 +463,7 @@ struct DiscoverScreen: View {
                     }
                 }
             }
-            .ignoresSafeArea(edges: .top)
+            .ignoresSafeArea(edges: [.top, .bottom])
         }
     }
 
