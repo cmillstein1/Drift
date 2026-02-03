@@ -181,20 +181,20 @@ struct MyFriendsSheet: View {
             }
         }
         .fullScreenCover(item: $selectedProfileToView) { profile in
-            ProfileDetailView(
+            FriendsProfileDetailView(
                 profile: profile,
                 isOpen: Binding(
                     get: { selectedProfileToView != nil },
                     set: { if !$0 { selectedProfileToView = nil; selectedRequestForProfile = nil } }
                 ),
-                onLike: {
+                onAccept: {
                     if let request = selectedRequestForProfile {
                         handleAcceptRequest(request)
                     }
                     selectedProfileToView = nil
                     selectedRequestForProfile = nil
                 },
-                onPass: {
+                onDecline: {
                     if let request = selectedRequestForProfile {
                         handleDeclineRequest(request)
                     }

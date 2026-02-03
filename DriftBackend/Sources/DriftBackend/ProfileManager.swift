@@ -11,8 +11,10 @@ public class ProfileManager: ObservableObject {
 
     /// The current user's profile.
     @Published public var currentProfile: UserProfile?
-    /// Profiles for discovery (dating/friends).
+    /// Profiles for discovery (dating feed).
     @Published public var discoverProfiles: [UserProfile] = []
+    /// Profiles for discover friends feed (kept separate so switching segments doesn’t overwrite dating).
+    @Published public var discoverProfilesFriends: [UserProfile] = []
     /// Nearby friend profiles.
     @Published public var nearbyProfiles: [UserProfile] = []
     /// Whether data is currently loading.
@@ -266,7 +268,15 @@ public class ProfileManager: ObservableObject {
                 return profile
             }
             
-            self.discoverProfiles = profiles
+            switch lookingFor {
+            case .dating:
+                self.discoverProfiles = profiles
+            case .friends:
+                self.discoverProfilesFriends = profiles
+            case .both:
+                self.discoverProfiles = profiles
+                self.discoverProfilesFriends = profiles
+            }
             isLoading = false
         } catch {
             isLoading = false

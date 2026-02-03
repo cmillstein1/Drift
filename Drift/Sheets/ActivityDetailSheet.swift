@@ -495,7 +495,7 @@ struct ActivityDetailSheet: View {
             .presentationDragIndicator(.visible)
         }
         .fullScreenCover(item: $selectedHostProfile) { host in
-            ProfileDetailView(
+            DatingProfileDetailView(
                 profile: host,
                 isOpen: Binding(
                     get: { selectedHostProfile != nil },
