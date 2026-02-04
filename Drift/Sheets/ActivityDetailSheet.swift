@@ -254,6 +254,7 @@ struct ActivityDetailSheet: View {
                 .frame(height: 180)
             attendeesCard
                 .frame(maxWidth: .infinity)
+                .frame(height: 180)
         }
         .padding(.horizontal, 0)
         .padding(.top, 24)
@@ -550,10 +551,10 @@ struct ActivityDetailSheet: View {
                 Button(action: { handleMessage() }) {
                     Image(systemName: "message")
                         .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(forestGreen)
+                        .foregroundColor(burntOrange)
                         .frame(width: 48, height: 48)
                         .background(Color.clear)
-                        .overlay(Circle().stroke(forestGreen, lineWidth: 2))
+                        .overlay(Circle().stroke(burntOrange, lineWidth: 2))
                 }
                 if isHost {
                     Button(action: { showEditSheet = true }) {
@@ -573,7 +574,7 @@ struct ActivityDetailSheet: View {
                             endPoint: .trailing
                         )
                     )
-                    .clipShape(Capsule())
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                     .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                 } else {
                     Button(action: { handleJoin() }) {
@@ -603,7 +604,7 @@ struct ActivityDetailSheet: View {
                                 endPoint: .trailing
                             )
                     )
-                    .clipShape(Capsule())
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                     .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     .disabled(isLoading)
                 }

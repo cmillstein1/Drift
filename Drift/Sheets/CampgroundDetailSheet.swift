@@ -400,7 +400,7 @@ struct CampgroundDetailSheet: View {
                                 endPoint: .trailing
                             )
                         )
-                        .clipShape(Capsule())
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                         .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
                     .disabled(isBooking)

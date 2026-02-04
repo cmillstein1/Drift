@@ -653,6 +653,7 @@ struct EventDetailSheet: View {
             .clipShape(RoundedRectangle(cornerRadius: 24))
             .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 2)
             .frame(maxWidth: .infinity)
+            .frame(height: 180)
         }
     }
 
@@ -987,12 +988,12 @@ struct EventDetailSheet: View {
                     } label: {
                         Image(systemName: "bubble.left.and.bubble.right")
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(forestGreen)
+                            .foregroundColor(burntOrange)
                             .frame(width: 48, height: 48)
                             .background(Color.clear)
                             .overlay(
                                 Circle()
-                                    .stroke(forestGreen, lineWidth: 2)
+                                    .stroke(burntOrange, lineWidth: 2)
                             )
                     }
                 } else {
@@ -1027,7 +1028,7 @@ struct EventDetailSheet: View {
                                 endPoint: .trailing
                             )
                         )
-                        .clipShape(Capsule())
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                         .shadow(color: burntOrange.opacity(0.3), radius: 8, x: 0, y: 4)
                     }
                 } else {
@@ -1062,7 +1063,7 @@ struct EventDetailSheet: View {
                             .frame(maxWidth: .infinity)
                             .frame(height: 52)
                             .background(joinButtonBackground)
-                            .clipShape(Capsule())
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                             .shadow(color: joinButtonShadowColor.opacity(0.3), radius: 8, x: 0, y: 4)
                     }
                     .disabled(isJoinDisabled)
