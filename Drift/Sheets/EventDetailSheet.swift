@@ -308,17 +308,17 @@ struct EventDetailSheet: View {
     private var eventPlaceholderGradient: some View {
         LinearGradient(
             gradient: Gradient(colors: [
-                Color.purple.opacity(0.8),
-                Color.purple.opacity(0.5),
-                Color.blue.opacity(0.4)
+                burntOrange.opacity(0.35),
+                sunsetRose.opacity(0.25),
+                warmWhite
             ]),
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
         .overlay(
             Image(systemName: "tent.fill")
-                .font(.system(size: 60))
-                .foregroundColor(.white.opacity(0.3))
+                .font(.system(size: 56))
+                .foregroundColor(burntOrange.opacity(0.25))
         )
     }
 
@@ -568,131 +568,200 @@ struct EventDetailSheet: View {
     }
 
     private var infoCardsGrid: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 16) {
             // Date & Time Card
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 14))
-                    Text("Date & Time")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .foregroundColor(charcoal.opacity(0.5))
-
-                Text(post.formattedEventDate ?? "TBD")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(charcoal)
-
-                Text("2 hours")
-                    .font(.system(size: 12))
-                    .foregroundColor(charcoal.opacity(0.5))
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .background(softGray)
-            .clipShape(RoundedRectangle(cornerRadius: 20))
+            eventInfoCard(
+                icon: "calendar",
+                iconGradient: [burntOrange.opacity(0.1), sunsetRose.opacity(0.1)],
+                iconColor: burntOrange,
+                label: "DATE & TIME",
+                title: post.formattedEventDate ?? "TBD",
+                subtitle: "2 hours"
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: 180)
 
             // Attendees Card
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: canSeePrivateDetails ? "person.2" : "lock.fill")
-                        .font(.system(size: 14))
-                    Text("Attendees")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .foregroundColor(charcoal.opacity(0.5))
-
-                if canSeePrivateDetails {
-                    if let max = post.maxAttendees, max > 0 {
-                        Text("\(nonHostAttendees.count)/\(max) joined")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(charcoal)
-
-                        // Progress bar
-                        GeometryReader { geometry in
-                            ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.white)
-                                    .frame(height: 6)
-
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(
-                                        LinearGradient(
+            ZStack(alignment: .topTrailing) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(LinearGradient(
+                                gradient: Gradient(colors: [forestGreen.opacity(0.1), skyBlue.opacity(0.1)]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ))
+                            .frame(width: 36, height: 36)
+                        Image(systemName: canSeePrivateDetails ? "person.2" : "lock.fill")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(forestGreen)
+                    }
+                    .padding(.bottom, 12)
+                    Text("ATTENDEES")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(charcoal.opacity(0.5))
+                        .tracking(0.5)
+                        .padding(.bottom, 6)
+                    if canSeePrivateDetails {
+                        if let max = post.maxAttendees, max > 0 {
+                            Text("\(nonHostAttendees.count) joined")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(charcoal)
+                                .padding(.bottom, 8)
+                            GeometryReader { geometry in
+                                ZStack(alignment: .leading) {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.gray.opacity(0.1))
+                                        .frame(height: 8)
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(LinearGradient(
                                             gradient: Gradient(colors: [forestGreen, skyBlue]),
                                             startPoint: .leading,
                                             endPoint: .trailing
-                                        )
-                                    )
-                                    .frame(width: geometry.size.width * attendeeProgress, height: 6)
+                                        ))
+                                        .frame(width: geometry.size.width * attendeeProgress, height: 8)
+                                }
                             }
+                            .frame(height: 8)
+                        } else {
+                            Text("\(nonHostAttendees.count) joined")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(charcoal)
                         }
-                        .frame(height: 6)
                     } else {
-                        Text("\(nonHostAttendees.count) joined")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(charcoal)
+                        Text("Hidden")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(charcoal.opacity(0.5))
+                        Text("Join to see")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(charcoal.opacity(0.6))
                     }
-                } else {
-                    Text("Hidden")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(charcoal.opacity(0.5))
-
-                    Text("Join to see")
-                        .font(.system(size: 12))
-                        .foregroundColor(charcoal.opacity(0.4))
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(20)
+                Circle()
+                    .fill(LinearGradient(
+                        gradient: Gradient(colors: [forestGreen.opacity(0.05), .clear]),
+                        startPoint: .topTrailing,
+                        endPoint: .bottomLeading
+                    ))
+                    .frame(width: 80, height: 80)
+                    .blur(radius: 20)
+                    .offset(x: 20, y: -20)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .background(softGray)
-            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 2)
+            .frame(maxWidth: .infinity)
         }
     }
 
-    private var locationCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                // Gradient icon background
+    private func eventInfoCard(
+        icon: String,
+        iconGradient: [Color],
+        iconColor: Color,
+        label: String,
+        title: String,
+        subtitle: String
+    ) -> some View {
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 0) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(
-                            LinearGradient(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(LinearGradient(
+                            gradient: Gradient(colors: iconGradient),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(iconColor)
+                }
+                .padding(.bottom, 12)
+                Text(label)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(charcoal.opacity(0.5))
+                    .tracking(0.5)
+                    .padding(.bottom, 6)
+                Text(title)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(charcoal)
+                    .padding(.bottom, 2)
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(charcoal.opacity(0.6))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            Circle()
+                .fill(LinearGradient(
+                    gradient: Gradient(colors: [burntOrange.opacity(0.05), .clear]),
+                    startPoint: .topTrailing,
+                    endPoint: .bottomLeading
+                ))
+                .frame(width: 80, height: 80)
+                .blur(radius: 20)
+                .offset(x: 20, y: -20)
+        }
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 2)
+    }
+
+    private var locationCard: some View {
+        ZStack(alignment: .bottomTrailing) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(LinearGradient(
                                 gradient: Gradient(colors: [burntOrange, sunsetRose]),
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 36, height: 36)
-
-                    Image(systemName: "mappin")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
+                            ))
+                            .frame(width: 48, height: 48)
+                            .shadow(color: burntOrange.opacity(0.2), radius: 8, x: 0, y: 4)
+                        Image(systemName: "mappin")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+                    Text("Location")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(charcoal)
                 }
-
-                Text("Location")
+                Text(post.eventLocation ?? "Location TBD")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(charcoal)
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(burntOrange.opacity(0.4))
+                        .frame(width: 6, height: 6)
+                    Text(post.isAttendingEvent == true
+                         ? (post.eventExactLocation ?? "Exact location shared")
+                         : "Exact location shared after joining")
+                        .font(.system(size: 14))
+                        .foregroundColor(charcoal.opacity(0.6))
+                }
+                if let lat = post.eventLatitude, let lng = post.eventLongitude {
+                    eventMapPreview(latitude: lat, longitude: lng)
+                }
             }
-
-            Text(post.eventLocation ?? "Location TBD")
-                .font(.system(size: 15))
-                .foregroundColor(charcoal)
-
-            Text(post.isAttendingEvent == true
-                 ? (post.eventExactLocation ?? "Exact location shared")
-                 : "Exact location shared after joining")
-                .font(.system(size: 13))
-                .foregroundColor(charcoal.opacity(0.5))
-
-            // Map preview when coordinates are available
-            if let lat = post.eventLatitude, let lng = post.eventLongitude {
-                eventMapPreview(latitude: lat, longitude: lng)
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(24)
+            Circle()
+                .fill(LinearGradient(
+                    gradient: Gradient(colors: [burntOrange.opacity(0.05), .clear]),
+                    startPoint: .bottomTrailing,
+                    endPoint: .topLeading
+                ))
+                .frame(width: 128, height: 128)
+                .blur(radius: 30)
+                .offset(x: 40, y: 40)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(softGray)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 2)
     }
 
     private func eventMapPreview(latitude: Double, longitude: Double) -> some View {
@@ -753,90 +822,119 @@ struct EventDetailSheet: View {
 
     private var aboutSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("About This Activity")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(charcoal)
-
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(LinearGradient(
+                        gradient: Gradient(colors: [burntOrange, sunsetRose]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ))
+                    .frame(width: 4, height: 24)
+                Text("About This Activity")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(charcoal)
+            }
             Text(post.content)
                 .font(.system(size: 15))
                 .foregroundColor(charcoal.opacity(0.7))
                 .lineSpacing(6)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 8)
     }
 
     private var whosGoingSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Who's Going")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(charcoal)
-
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(LinearGradient(
+                            gradient: Gradient(colors: [forestGreen, skyBlue]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ))
+                        .frame(width: 4, height: 24)
+                    Text("Who's Going")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(charcoal)
+                }
                 Spacer()
-
                 Text("\(attendees.count) \(attendees.count == 1 ? "person" : "people")")
-                    .font(.system(size: 14))
-                    .foregroundColor(charcoal.opacity(0.5))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(charcoal.opacity(0.6))
             }
 
-            // Attendee avatars from fetched data
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(attendees, id: \.id) { attendee in
-                        attendeeChip(
-                            name: attendee.name ?? "Traveler",
-                            avatarUrl: attendee.avatarUrl,
-                            isHost: attendee.id == post.authorId
-                        )
-                    }
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 12),
+                GridItem(.flexible(), spacing: 12)
+            ], alignment: .leading, spacing: 12) {
+                ForEach(attendees, id: \.id) { attendee in
+                    attendeeCard(
+                        name: attendee.name ?? "Traveler",
+                        avatarUrl: attendee.avatarUrl,
+                        isHost: attendee.id == post.authorId
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    private func attendeeChip(name: String, avatarUrl: String?, isHost: Bool) -> some View {
-        HStack(spacing: 8) {
-            if let avatarUrl = avatarUrl, let url = URL(string: avatarUrl) {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
+    private func attendeeCard(name: String, avatarUrl: String?, isHost: Bool) -> some View {
+        HStack(spacing: 12) {
+            ZStack(alignment: .bottomTrailing) {
+                if let avatarUrl = avatarUrl, let url = URL(string: avatarUrl) {
+                    AsyncImage(url: url) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Circle()
+                            .fill(Color.gray.opacity(0.2))
+                    }
+                    .frame(width: 40, height: 40)
+                    .clipShape(Circle())
+                } else {
                     Circle()
-                        .fill(Color.gray.opacity(0.3))
-                }
-                .frame(width: 32, height: 32)
-                .clipShape(Circle())
-            } else {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [burntOrange, sunsetRose]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [burntOrange, sunsetRose]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .frame(width: 32, height: 32)
-                    .overlay(
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(.white)
-                    )
+                        .frame(width: 40, height: 40)
+                        .overlay(
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(.white)
+                        )
+                }
+                if isHost {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 18, height: 18)
+                        .overlay(
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 16))
+                                .foregroundColor(forestGreen)
+                        )
+                        .offset(x: 2, y: 2)
+                }
             }
+            .overlay(Circle().stroke(Color.white, lineWidth: 2))
+            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
 
             Text(name)
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(charcoal)
-
-            if isHost {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 14))
-                    .foregroundColor(forestGreen)
-            }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(softGray)
-        .clipShape(Capsule())
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
     }
 
     private var addToCalendarButton: some View {
@@ -888,21 +986,20 @@ struct EventDetailSheet: View {
                         showingGroupChat = true
                     } label: {
                         Image(systemName: "bubble.left.and.bubble.right")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(burntOrange)
-                            .frame(width: 52, height: 52)
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(forestGreen)
+                            .frame(width: 48, height: 48)
                             .background(Color.clear)
                             .overlay(
                                 Circle()
-                                    .stroke(burntOrange, lineWidth: 2)
+                                    .stroke(forestGreen, lineWidth: 2)
                             )
                     }
                 } else {
-                    // Disabled chat button for non-attendees
                     Image(systemName: "bubble.left.and.bubble.right")
-                        .font(.system(size: 18, weight: .medium))
+                        .font(.system(size: 20, weight: .medium))
                         .foregroundColor(Color.gray.opacity(0.4))
-                        .frame(width: 52, height: 52)
+                        .frame(width: 48, height: 48)
                         .background(Color.clear)
                         .overlay(
                             Circle()
