@@ -11,14 +11,21 @@ import Auth
 
 /// Pushed screen from Profile (Privacy, Safety & Support). Use as navigation destination.
 struct PrivacySafetySupportScreen: View {
+    @StateObject private var profileManager = ProfileManager.shared
     @State private var showDeleteAccountConfirmation = false
     @State private var isDeletingAccount = false
     @State private var deleteAccountError: String?
     @State private var showDeleteError = false
+    @State private var isUpdatingLocationPrivacy = false
+    @State private var locationPrivacyError: String?
+    @State private var showLocationPrivacyError = false
+    /// Local value for optimistic toggle so it slides smoothly; synced from profile on appear and on error revert.
+    @State private var hideLocationOnMapLocal: Bool = false
 
     private let charcoalColor = Color("Charcoal")
     private let softGray = Color("SoftGray")
     private let forestGreen = Color("ForestGreen")
+    private let skyBlue = Color("SkyBlue")
 
     var body: some View {
         ScrollView {
@@ -30,7 +37,53 @@ struct PrivacySafetySupportScreen: View {
                     .padding(.top, 8)
                     .padding(.bottom, 16)
 
-                VStack(spacing: 0) {
+                VStack(spacing: 16) {
+                    // Hide my location on the map
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(skyBlue.opacity(0.15))
+                                .frame(width: 40, height: 40)
+                            Image(systemName: "mappin.slash")
+                                .font(.system(size: 18))
+                                .foregroundColor(skyBlue)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Hide my location on the map")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(charcoalColor)
+                            Text("Your pin won't appear on the Nearby map for you or others")
+                                .font(.system(size: 12))
+                                .foregroundColor(charcoalColor.opacity(0.6))
+                        }
+                        Spacer()
+                        Toggle("", isOn: $hideLocationOnMapLocal)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .tint(forestGreen)
+                            .onChange(of: hideLocationOnMapLocal) { _, newValue in
+                                Task { await updateHideLocationOnMap(newValue) }
+                            }
+                    }
+                    .padding(16)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+                    .onAppear {
+                        hideLocationOnMapLocal = profileManager.currentProfile?.hideLocationOnMap ?? false
+                    }
+                    .onChange(of: profileManager.currentProfile?.hideLocationOnMap) { _, newValue in
+                        if let value = newValue {
+                            hideLocationOnMapLocal = value
+                        }
+                    }
+                    .onChange(of: showLocationPrivacyError) { _, show in
+                        if show {
+                            hideLocationOnMapLocal = profileManager.currentProfile?.hideLocationOnMap ?? false
+                        }
+                    }
+
+                    // Blocked users (own card with rounded corners)
                     NavigationLink {
                         BlockedUsersView()
                     } label: {
@@ -57,48 +110,50 @@ struct PrivacySafetySupportScreen: View {
                                 .foregroundColor(charcoalColor.opacity(0.4))
                         }
                         .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.white)
                     }
                     .buttonStyle(PlainButtonStyle())
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
-
-                // Delete account
-                Button {
-                    showDeleteAccountConfirmation = true
-                } label: {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.red.opacity(0.12))
-                                .frame(width: 40, height: 40)
-                            Image(systemName: "trash")
-                                .font(.system(size: 18))
-                                .foregroundColor(.red)
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Delete account")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.red)
-                            Text("Permanently delete your account and all data")
-                                .font(.system(size: 12))
-                                .foregroundColor(charcoalColor.opacity(0.6))
-                        }
-                        Spacer()
-                        if isDeletingAccount {
-                            ProgressView()
-                                .scaleEffect(0.9)
-                        }
-                    }
-                    .padding(16)
-                    .background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+
+                    // Delete account
+                    Button {
+                        showDeleteAccountConfirmation = true
+                    } label: {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.red.opacity(0.12))
+                                    .frame(width: 40, height: 40)
+                                Image(systemName: "trash")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.red)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Delete account")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.red)
+                                Text("Permanently delete your account and all data")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(charcoalColor.opacity(0.6))
+                            }
+                            Spacer()
+                            if isDeletingAccount {
+                                ProgressView()
+                                    .scaleEffect(0.9)
+                            }
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.white)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .disabled(isDeletingAccount)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
                 }
-                .buttonStyle(PlainButtonStyle())
-                .disabled(isDeletingAccount)
                 .padding(.top, 16)
-                .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
             }
             .padding(.horizontal, 24)
         }
@@ -123,6 +178,13 @@ struct PrivacySafetySupportScreen: View {
                 Text(error)
             }
         }
+        .alert("Couldn't update setting", isPresented: $showLocationPrivacyError) {
+            Button("OK") { showLocationPrivacyError = false; locationPrivacyError = nil }
+        } message: {
+            if let error = locationPrivacyError {
+                Text(error)
+            }
+        }
     }
 
     private func confirmDeleteAccount() async {
@@ -134,6 +196,17 @@ struct PrivacySafetySupportScreen: View {
         } catch {
             deleteAccountError = error.localizedDescription
             showDeleteError = true
+        }
+    }
+
+    private func updateHideLocationOnMap(_ hide: Bool) async {
+        isUpdatingLocationPrivacy = true
+        defer { isUpdatingLocationPrivacy = false }
+        do {
+            try await profileManager.updateProfile(ProfileUpdateRequest(hideLocationOnMap: hide))
+        } catch {
+            locationPrivacyError = error.localizedDescription
+            showLocationPrivacyError = true
         }
     }
 }

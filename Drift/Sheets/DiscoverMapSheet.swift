@@ -30,6 +30,8 @@ struct DiscoverMapSheet: View {
     let profiles: [UserProfile]
     /// Current user's location (profile city/state or device). Used for centering and "You" pin only.
     let currentUserCoordinate: CLLocationCoordinate2D?
+    /// When true, current user has chosen to hide their location on the map (no "You" pin, no recenter).
+    let hideCurrentUserLocation: Bool
     /// When true, view is pushed (no dismiss button; back button pops).
     let isPushed: Bool
     var onDismiss: (() -> Void)? = nil
@@ -49,9 +51,10 @@ struct DiscoverMapSheet: View {
     private let inkMain = Color(red: 0.07, green: 0.09, blue: 0.15)
     private let inkSub = Color(red: 0.42, green: 0.44, blue: 0.50)
 
-    /// Best available user location: profile first, then device (updates when location arrives).
+    /// Best available user location: profile first, then device (updates when location arrives). Nil when user has hidden location.
     private var effectiveUserCoordinate: CLLocationCoordinate2D? {
-        currentUserCoordinate ?? locationProvider.lastCoordinate
+        guard !hideCurrentUserLocation else { return nil }
+        return currentUserCoordinate ?? locationProvider.lastCoordinate
     }
 
     /// Profiles that have stored coordinates (shown at fuzzed position).
@@ -75,8 +78,8 @@ struct DiscoverMapSheet: View {
     var body: some View {
         ZStack {
             Map(position: $cameraPosition) {
-                // "You" at profile or device location
-                if let userCoord = effectiveUserCoordinate {
+                // "You" at profile or device location (hidden when user has hide location on map)
+                if !hideCurrentUserLocation, let userCoord = effectiveUserCoordinate {
                     Annotation("You", coordinate: userCoord) {
                         ZStack {
                             Circle()
@@ -329,6 +332,7 @@ struct DiscoverMapPin: View {
     DiscoverMapSheet(
         profiles: [],
         currentUserCoordinate: nil,
+        hideCurrentUserLocation: false,
         isPushed: true,
         onSelectProfile: { _ in },
         distanceMiles: { _ in nil }
