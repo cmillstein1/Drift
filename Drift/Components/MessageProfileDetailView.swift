@@ -27,8 +27,7 @@ struct MessageProfileDetailView: View {
         .onAppear {
             tabBarVisibility.isVisible = false
         }
-        .onDisappear {
-            tabBarVisibility.isVisible = true
-        }
+        // Do not set isVisible = true on disappear: we're returning to the message thread
+        // where the tab bar should stay hidden; it will show again when the user leaves the thread.
     }
 }

@@ -2,8 +2,8 @@
 //  DiscoverCard.swift
 //  Drift
 //
-//  Reusable discover card: header (photo, name, age, last online, location, distance),
-//  main photo, about me, 3 interests, next stop, travel pace, and Connect/Like + View Profile.
+//  Reusable discover card: main photo (full-bleed to top) with name/location overlay on bottom-left,
+//  about me, 3 interests, next stop, travel pace, and Connect/interested + Pass + View Profile.
 //
 
 import SwiftUI
@@ -18,6 +18,8 @@ struct DiscoverCard: View {
     /// Distance in miles from current user; nil hides.
     var distanceMiles: Int? = nil
     var onPrimaryAction: (() -> Void)? = nil
+    /// Pass action (dating only); when set, card shows Pass button to the right of interested.
+    var onPass: (() -> Void)? = nil
     var onViewProfile: (() -> Void)? = nil
     /// When set, the card shows a report/block menu in the header; callback after block.
     var onBlockComplete: (() -> Void)? = nil
@@ -29,6 +31,7 @@ struct DiscoverCard: View {
     private let burntOrange = Color("BurntOrange")
     private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
     private let gray100 = Color(red: 0.95, green: 0.95, blue: 0.96)
+    private let actionButtonCornerRadius: CGFloat = 12
 
     /// Same green gradient as the Friends segment in the mode switcher.
     private static let friendsGradient = LinearGradient(
@@ -52,11 +55,11 @@ struct DiscoverCard: View {
     }
 
     private var primaryButtonTitle: String {
-        mode == .dating ? "Like" : "Connect"
+        mode == .dating ? "interested" : "Connect"
     }
 
     private var primaryButtonIcon: String {
-        mode == .dating ? "heart.fill" : "person.badge.plus"
+        mode == .dating ? "leaf.fill" : "person.badge.plus"
     }
 
     private var mainPhotoURL: String? {
@@ -69,113 +72,117 @@ struct DiscoverCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header: profile photo, name, age, last online, location, distance, more
-            HStack(alignment: .center, spacing: 12) {
-                ZStack(alignment: .bottomTrailing) {
-                    if let urlString = profile.avatarUrl ?? profile.photos.first, let url = URL(string: urlString) {
+            // Main photo extends to top with name/location overlay on bottom-left
+            let mainPhotoHeight: CGFloat = 420
+            ZStack(alignment: .bottomLeading) {
+                if let urlString = mainPhotoURL, let url = URL(string: urlString) {
+                    GeometryReader { geo in
                         AsyncImage(url: url) { phase in
                             if let image = phase.image {
                                 image
                                     .resizable()
-                                    .aspectRatio(contentMode: .fill)
+                                    .scaledToFill()
+                                    .frame(width: geo.size.width, height: mainPhotoHeight)
+                                    .clipped()
                             } else {
-                                placeholderCircle
-                                    .frame(width: 48, height: 48)
+                                placeholderGradient
+                                    .frame(width: geo.size.width, height: mainPhotoHeight)
                             }
                         }
-                        .frame(width: 48, height: 48)
-                        .clipShape(Circle())
-                    } else {
-                        placeholderCircle
-                            .frame(width: 48, height: 48)
                     }
-                    if profile.verified {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(forestGreen)
-                            .background(Circle().fill(Color.white))
-                            .offset(x: 2, y: 2)
-                    }
+                    .frame(height: mainPhotoHeight)
+                    .clipped()
+                } else {
+                    placeholderGradient
+                        .frame(height: mainPhotoHeight)
+                        .overlay(
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 48))
+                                .foregroundColor(.white.opacity(0.6))
+                        )
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
+                // Bottom gradient for text readability
+                LinearGradient(
+                    stops: [
+                        .init(color: .black.opacity(0.7), location: 0.0),
+                        .init(color: .clear, location: 0.5)
+                    ],
+                    startPoint: .bottom,
+                    endPoint: .top
+                )
+                .frame(height: mainPhotoHeight)
+                .allowsHitTesting(false)
+
+                // Name, age, last online, location, miles away on bottom-left
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .center, spacing: 6) {
                         Text("\(profile.displayName), \(profile.displayAge)")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(charcoal)
-                        if lastActiveString != nil {
+                            .font(.system(size: 28, weight: .heavy))
+                            .tracking(-0.5)
+                            .foregroundColor(.white)
+                        if let lastActive = lastActiveString {
                             Text("•")
-                                .font(.system(size: 12))
-                                .foregroundColor(charcoal.opacity(0.5))
-                            Text(lastActiveString ?? "")
-                                .font(.system(size: 12))
-                                .foregroundColor(charcoal.opacity(0.6))
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(.white.opacity(0.8))
+                            Text(lastActive)
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+                        if profile.verified {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(forestGreen)
+                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
                         }
                     }
-                    HStack(spacing: 4) {
-                        Image("map_pin")
+                    HStack(spacing: 6) {
+                        Image("map_pin_white")
                             .resizable()
-                            .scaledToFit()
-                            .frame(width: 10, height: 10)
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 14, height: 14)
                         if let loc = profile.location {
                             Text(loc)
-                                .font(.system(size: 12))
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white.opacity(0.95))
                         }
-                        if distanceMiles != nil {
-                            Text("•")
-                                .font(.system(size: 12))
-                            Text(distanceString)
-                                .font(.system(size: 12))
+                        if let miles = distanceMiles {
+                            if profile.location != nil {
+                                Text("•")
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            Text(miles == 1 ? "1 mi away" : "\(miles) mi away")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white.opacity(0.95))
                         }
                     }
-                    .foregroundColor(charcoal.opacity(0.6))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(24)
 
+                // Report/block menu at top-right over photo
                 if let onBlockComplete = onBlockComplete {
-                    ReportBlockMenuButton(
-                        userId: profile.id,
-                        displayName: profile.displayName,
-                        profile: profile,
-                        onBlockComplete: onBlockComplete,
-                        plainStyle: true
-                    )
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 24)
-
-            // Main photo (contained in card width). Placeholder reserves height to reduce layout jump.
-            let mainPhotoHeight: CGFloat = 380
-            if let urlString = mainPhotoURL, let url = URL(string: urlString) {
-                GeometryReader { geo in
-                    AsyncImage(url: url) { phase in
-                        if let image = phase.image {
-                            image
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: geo.size.width, height: mainPhotoHeight)
-                                .clipped()
-                        } else {
-                            placeholderGradient
-                                .frame(width: geo.size.width, height: mainPhotoHeight)
+                    VStack {
+                        HStack {
+                            Spacer()
+                            ReportBlockMenuButton(
+                                userId: profile.id,
+                                displayName: profile.displayName,
+                                profile: profile,
+                                onBlockComplete: onBlockComplete,
+                                plainStyle: true
+                            )
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        Spacer(minLength: 0)
                     }
-                }
-                .frame(height: mainPhotoHeight)
-                .clipped()
-                .contentShape(Rectangle())
-                .onTapGesture { onViewProfile?() }
-            } else {
-                placeholderGradient
                     .frame(height: mainPhotoHeight)
-                    .overlay(
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 48))
-                            .foregroundColor(.white.opacity(0.6))
-                    )
-                    .onTapGesture { onViewProfile?() }
+                }
             }
+            .frame(height: mainPhotoHeight)
+            .contentShape(Rectangle())
+            .onTapGesture { onViewProfile?() }
 
             // About me (bio)
             if let bio = profile.bio, !bio.isEmpty {
@@ -246,25 +253,46 @@ struct DiscoverCard: View {
             .padding(.horizontal, 16)
             .padding(.top, 16)
 
-            // Primary button: full-width Like (dating) or Connect (friends)
-            Button(action: {
-                let generator = UIImpactFeedbackGenerator(style: .medium)
-                generator.impactOccurred()
-                onPrimaryAction?()
-            }) {
-                HStack(spacing: 8) {
-                    Image(systemName: primaryButtonIcon)
-                        .font(.system(size: 16))
-                    Text(primaryButtonTitle)
-                        .font(.system(size: 14, weight: .semibold))
+            // Primary button: interested (dating) with leaf icon + Pass, or Connect (friends) full-width
+            HStack(spacing: 12) {
+                Button(action: {
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.impactOccurred()
+                    onPrimaryAction?()
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: primaryButtonIcon)
+                            .font(.system(size: 16))
+                        Text(primaryButtonTitle)
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(primaryAccentGradient)
+                    .clipShape(RoundedRectangle(cornerRadius: actionButtonCornerRadius))
                 }
-                .foregroundColor(.white)
+                .buttonStyle(PrimaryActionButtonStyle())
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(primaryAccentGradient)
-                .clipShape(RoundedRectangle(cornerRadius: 999))
+
+                if mode == .dating, onPass != nil {
+                    Button(action: {
+                        let generator = UIImpactFeedbackGenerator(style: .light)
+                        generator.impactOccurred()
+                        onPass?()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(charcoal)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(gray100)
+                            .clipShape(RoundedRectangle(cornerRadius: actionButtonCornerRadius))
+                    }
+                    .buttonStyle(PrimaryActionButtonStyle())
+                    .frame(maxWidth: .infinity)
+                }
             }
-            .buttonStyle(PrimaryActionButtonStyle())
             .padding(.horizontal, 16)
             .padding(.top, 32)
             .padding(.bottom, 20)

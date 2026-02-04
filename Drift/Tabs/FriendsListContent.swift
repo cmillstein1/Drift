@@ -102,11 +102,11 @@ struct FriendsListContent: View {
     private var scrollContent: some View {
         Group {
             if useVStackForScroll {
-                VStack(spacing: 16) {
+                VStack(spacing: 22) {
                     scrollContentBody
                 }
             } else {
-                LazyVStack(spacing: 16) {
+                LazyVStack(spacing: 22) {
                     scrollContentBody
                 }
             }

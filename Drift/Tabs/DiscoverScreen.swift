@@ -487,6 +487,7 @@ struct DiscoverScreen: View {
                                 DiscoverMapSheet(
                                     profiles: mode == .dating ? profiles : profileManager.discoverProfilesFriends,
                                     currentUserCoordinate: currentUserMapCoordinate,
+                                    hideCurrentUserLocation: profileManager.currentProfile?.hideLocationOnMap ?? false,
                                     isPushed: true,
                                     onSelectProfile: mode == .dating ? { selectedProfile = $0 } : { selectedFriendProfile = $0 },
                                     distanceMiles: distanceMiles(for:)
@@ -524,7 +525,7 @@ struct DiscoverScreen: View {
     private var unifiedDatingFeedContent: some View {
         VStack(spacing: 0) {
             Color.clear.frame(height: topNavBarHeight)
-            VStack(spacing: 16) {
+            VStack(spacing: 22) {
                 ForEach(visibleDatingProfiles) { profile in
                     DiscoverCard(
                         profile: profile,
@@ -532,6 +533,7 @@ struct DiscoverScreen: View {
                         lastActiveAt: profile.lastActiveAt,
                         distanceMiles: distanceMiles(for: profile),
                         onPrimaryAction: { handleSwipe(profile: profile, direction: .right) },
+                        onPass: { handleSwipe(profile: profile, direction: .left) },
                         onViewProfile: { selectedProfile = profile },
                         onBlockComplete: { loadProfiles() }
                     )
@@ -565,7 +567,7 @@ struct DiscoverScreen: View {
                     ) {
                         VStack(spacing: 0) {
                             Color.clear.frame(height: topNavBarHeight)
-                            VStack(spacing: 16) {
+                            VStack(spacing: 22) {
                                 ForEach(visibleDatingProfiles) { profile in
                                     DiscoverCard(
                                         profile: profile,
@@ -573,6 +575,7 @@ struct DiscoverScreen: View {
                                         lastActiveAt: profile.lastActiveAt,
                                         distanceMiles: distanceMiles(for: profile),
                                         onPrimaryAction: { handleSwipe(profile: profile, direction: .right) },
+                                        onPass: { handleSwipe(profile: profile, direction: .left) },
                                         onViewProfile: { selectedProfile = profile },
                                         onBlockComplete: { loadProfiles() }
                                     )
@@ -609,6 +612,7 @@ struct DiscoverScreen: View {
                                     DiscoverMapSheet(
                                         profiles: profiles,
                                         currentUserCoordinate: currentUserMapCoordinate,
+                                        hideCurrentUserLocation: profileManager.currentProfile?.hideLocationOnMap ?? false,
                                         isPushed: true,
                                         onSelectProfile: { selectedProfile = $0 },
                                         distanceMiles: distanceMiles(for:)
@@ -784,6 +788,7 @@ struct DiscoverScreen: View {
                                 DiscoverMapSheet(
                                     profiles: profileManager.discoverProfilesFriends,
                                     currentUserCoordinate: currentUserMapCoordinate,
+                                    hideCurrentUserLocation: profileManager.currentProfile?.hideLocationOnMap ?? false,
                                     isPushed: true,
                                     onSelectProfile: { selectedFriendProfile = $0 },
                                     distanceMiles: distanceMiles(for:)
@@ -813,6 +818,7 @@ struct DiscoverScreen: View {
                                 DiscoverMapSheet(
                                     profiles: profileManager.discoverProfilesFriends,
                                     currentUserCoordinate: currentUserMapCoordinate,
+                                    hideCurrentUserLocation: profileManager.currentProfile?.hideLocationOnMap ?? false,
                                     isPushed: true,
                                     onSelectProfile: { selectedFriendProfile = $0 },
                                     distanceMiles: distanceMiles(for:)

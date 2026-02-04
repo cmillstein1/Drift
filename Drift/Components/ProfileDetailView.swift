@@ -505,57 +505,73 @@ struct ProfileDetailView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
                                 .background(forestGreen)
-                                .clipShape(Capsule())
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
                             }
                             .buttonStyle(LikeButtonStyle())
                         } else {
-                            Button {
-                                guard !likeTriggered else { return }
-                                let generator = UIImpactFeedbackGenerator(style: .medium)
-                                generator.impactOccurred()
-                                likeTriggered = true
-                                withAnimation(.easeInOut(duration: 0.25)) { }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                                    onLike()
-                                    withAnimation(.easeOut(duration: 0.3)) {
+                            HStack(spacing: 12) {
+                                Button {
+                                    guard !likeTriggered else { return }
+                                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                                    generator.impactOccurred()
+                                    likeTriggered = true
+                                    withAnimation(.easeInOut(duration: 0.25)) { }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                        onLike()
+                                        withAnimation(.easeOut(duration: 0.3)) {
+                                            isOpen = false
+                                        }
+                                        dismiss()
+                                    }
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "leaf.fill")
+                                            .font(.system(size: 18))
+                                            .scaleEffect(likeTriggered ? 1.3 : 1.0)
+                                            .animation(.spring(response: 0.35, dampingFraction: 0.6), value: likeTriggered)
+                                        Text("interested")
+                                            .font(.system(size: 16, weight: .semibold))
+                                    }
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                                    .background(
+                                        LinearGradient(
+                                            colors: [burntOrange, sunsetRose],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .scaleEffect(likeTriggered ? 0.98 : 1.0)
+                                }
+                                .buttonStyle(LikeButtonStyle())
+                                .disabled(likeTriggered)
+
+                                Button {
+                                    let generator = UIImpactFeedbackGenerator(style: .light)
+                                    generator.impactOccurred()
+                                    onPass()
+                                    withAnimation(.easeOut(duration: 0.25)) {
                                         isOpen = false
                                     }
                                     dismiss()
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundColor(inkMain)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 16)
+                                        .background(gray100)
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
                                 }
-                            } label: {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "heart.fill")
-                                        .font(.system(size: 18))
-                                        .scaleEffect(likeTriggered ? 1.3 : 1.0)
-                                        .animation(.spring(response: 0.35, dampingFraction: 0.6), value: likeTriggered)
-                                    Text("Like")
-                                        .font(.system(size: 16, weight: .semibold))
-                                }
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(
-                                    LinearGradient(
-                                        colors: [burntOrange, sunsetRose],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .clipShape(Capsule())
-                                .scaleEffect(likeTriggered ? 0.98 : 1.0)
+                                .buttonStyle(LikeButtonStyle())
                             }
-                            .buttonStyle(LikeButtonStyle())
-                            .disabled(likeTriggered)
                         }
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 10)
-//                    .background(
-//                        Color.white
-//                            .frame(minHeight: 200)
-//                            .offset(y: -2)
-//                            .ignoresSafeArea(edges: .bottom)
-//                    )
+                    .background(Color.white)
                 }
             }
             }
