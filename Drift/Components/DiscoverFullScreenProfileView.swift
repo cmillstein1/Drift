@@ -320,9 +320,9 @@ struct DiscoverFullScreenProfileView: View {
     @ViewBuilder
     private var collapsedDrawerContent: some View {
         HStack(alignment: .top, spacing: 12) {
-            // Left: Name + location (full width so name can wrap, no truncation)
+            // Left: Name, age + badge (one line) + location; right column is fixedSize so buttons never truncate
             VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text("\(profile.displayName), \(profile.displayAge)")
                         .font(.system(size: 24, weight: .bold))
                         .foregroundColor(inkMain)
@@ -347,7 +347,7 @@ struct DiscoverFullScreenProfileView: View {
             }
             .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
 
-            // Right: Connect/heart/X only (aligned with name; Report is at bottom of sheet)
+            // Right: Connect/heart/X; fixed size so never truncated when name is long
             VStack(alignment: .trailing, spacing: 8) {
                 if mode == .dating {
                     HStack(spacing: 8) {
@@ -410,6 +410,7 @@ struct DiscoverFullScreenProfileView: View {
                     .disabled(connectPressed)
                 }
             }
+            .fixedSize(horizontal: true, vertical: false)
         }
     }
 
