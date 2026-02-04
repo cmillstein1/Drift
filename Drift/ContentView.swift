@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 import DriftBackend
 import Combine
 import Auth
@@ -203,17 +204,26 @@ struct ContentView: View {
         }
         .frame(height: LayoutConstants.tabBarHeight)
         .background(
-            Rectangle()
+            TabBarRoundedCorner(radius: 24, corners: [.topLeft, .topRight])
                 .fill(Color.white)
-                .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: -4)
+                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: -4)
                 .ignoresSafeArea(.all, edges: .bottom)
         )
-        .overlay(
-            Rectangle()
-                .fill(Color.gray.opacity(0.1))
-                .frame(height: 1),
-            alignment: .top
+    }
+}
+
+// MARK: - Tab Bar Rounded Corner Shape
+private struct TabBarRoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
         )
+        return Path(path.cgPath)
     }
 }
 

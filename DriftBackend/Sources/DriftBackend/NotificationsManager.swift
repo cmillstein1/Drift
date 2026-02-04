@@ -190,6 +190,23 @@ public class NotificationsManager: ObservableObject {
         unreadCount = 0
     }
 
+    /// Marks a single notification as read.
+    public func markAsRead(id: UUID) {
+        if let i = notifications.firstIndex(where: { $0.id == id }), !notifications[i].isRead {
+            notifications[i].isRead = true
+            unreadCount = max(0, unreadCount - 1)
+        }
+    }
+
+    /// Removes a notification from the list (e.g. after swipe to delete).
+    public func removeNotification(id: UUID) {
+        if let i = notifications.firstIndex(where: { $0.id == id }) {
+            let wasUnread = !notifications[i].isRead
+            notifications.remove(at: i)
+            if wasUnread { unreadCount = max(0, unreadCount - 1) }
+        }
+    }
+
     /// Returns notifications that are "new" (after last viewed).
     public var newNotifications: [NotificationItem] {
         notifications.filter { $0.createdAt > lastViewedAt }

@@ -28,7 +28,7 @@ struct DiscoverModeSwitcher: View {
         HStack(spacing: 0) {
             // Dating button
             Button {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
                     mode = .dating
                 }
             } label: {
@@ -61,7 +61,7 @@ struct DiscoverModeSwitcher: View {
 
             // Friends button
             Button {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
                     mode = .friends
                 }
             } label: {
