@@ -136,6 +136,8 @@ struct ReportBlockMenuButton: View {
     var darkStyle: Bool = false
     /// When true, show only the ellipsis in black with no circle/background (matches plain back button).
     var plainStyle: Bool = false
+    /// When true with plainStyle, show horizontal three dots (ellipsis) instead of vertical.
+    var horizontalEllipsis: Bool = false
 
     @StateObject private var friendsManager = FriendsManager.shared
     @State private var isBlocking = false
@@ -172,15 +174,21 @@ struct ReportBlockMenuButton: View {
         } label: {
             Group {
                 if plainStyle {
-                    // Card style: vertical dots, smaller, lighter gray
-                    VStack(spacing: 3) {
-                        ForEach(0..<3, id: \.self) { _ in
-                            Circle()
-                                .fill(Color.gray.opacity(0.45))
-                                .frame(width: 3, height: 3)
+                    if horizontalEllipsis {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(inkMain.opacity(0.6))
+                            .frame(width: 28, height: 28)
+                    } else {
+                        VStack(spacing: 3) {
+                            ForEach(0..<3, id: \.self) { _ in
+                                Circle()
+                                    .fill(Color.gray.opacity(0.45))
+                                    .frame(width: 3, height: 3)
+                            }
                         }
+                        .frame(width: 28, height: 28)
                     }
-                    .frame(width: 28, height: 28)
                 } else {
                     Image(systemName: "ellipsis")
                         .font(.system(size: darkStyle ? 18 : 20, weight: .regular))

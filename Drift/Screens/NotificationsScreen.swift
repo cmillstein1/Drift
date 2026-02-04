@@ -149,18 +149,37 @@ struct NotificationsScreen: View {
         .background(Color.white)
     }
 
-    // MARK: - Notifications List
+    // MARK: - Notifications List (swipe left = delete, swipe right = mark as read)
 
     private var notificationsList: some View {
-        ScrollView {
-            LazyVStack(spacing: 12) {
-                ForEach(filteredNotifications) { notification in
-                    notificationCard(notification)
-                }
+        List {
+            ForEach(filteredNotifications) { notification in
+                notificationCard(notification)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            notificationsManager.removeNotification(id: notification.id)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        if !notification.isRead {
+                            Button {
+                                notificationsManager.markAsRead(id: notification.id)
+                            } label: {
+                                Label("Read", systemImage: "checkmark.circle")
+                            }
+                            .tint(tealPrimary)
+                        }
+                    }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 16)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(softGray)
         .refreshable {
             await notificationsManager.fetchNotifications()
         }
@@ -322,29 +341,26 @@ struct NotificationsScreen: View {
             }
 
         case .friendRequest:
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 Button {
                     handleAcceptFriendRequest(notification)
                 } label: {
-                    Text("Accept")
-                        .font(.system(size: 13, weight: .bold))
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(charcoal)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .frame(width: 40, height: 40)
+                        .background(tealPrimary)
+                        .clipShape(Circle())
                 }
-
                 Button {
                     handleDeclineFriendRequest(notification)
                 } label: {
-                    Text("Ignore")
-                        .font(.system(size: 13, weight: .bold))
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(charcoal.opacity(0.6))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.gray.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .frame(width: 40, height: 40)
+                        .background(Color.gray.opacity(0.15))
+                        .clipShape(Circle())
                 }
             }
 
