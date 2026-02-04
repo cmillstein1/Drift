@@ -58,18 +58,15 @@
       buildConfiguration = "Release"
       selectedDebuggerIdentifier = ""
       selectedLauncherIdentifier = "Xcode.IDEFoundation.Launcher.PosixSpawn"
-      disableMainThreadChecker = "YES"
       launchStyle = "0"
       useCustomWorkingDirectory = "NO"
       ignoresPersistentStateOnLaunch = "NO"
       debugDocumentVersioning = "NO"
       debugXPCServices = "NO"
       debugServiceExtension = "internal"
-      enableGPUValidationMode = "1"
       allowLocationSimulation = "YES"
       viewDebuggingEnabled = "No"
-      queueDebuggingEnabled = "No"
-      disablePerformanceAntipatternChecker = "YES">
+      queueDebuggingEnabled = "No">
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
          <BuildableReference
