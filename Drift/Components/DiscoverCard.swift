@@ -148,17 +148,21 @@ struct DiscoverCard: View {
             // Main photo (contained in card width). Placeholder reserves height to reduce layout jump.
             let mainPhotoHeight: CGFloat = 380
             if let urlString = mainPhotoURL, let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        placeholderGradient
-                            .frame(maxWidth: .infinity, minHeight: mainPhotoHeight)
+                GeometryReader { geo in
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: geo.size.width, height: mainPhotoHeight)
+                                .clipped()
+                        } else {
+                            placeholderGradient
+                                .frame(width: geo.size.width, height: mainPhotoHeight)
+                        }
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: mainPhotoHeight)
+                .frame(height: mainPhotoHeight)
                 .clipped()
                 .contentShape(Rectangle())
                 .onTapGesture { onViewProfile?() }
