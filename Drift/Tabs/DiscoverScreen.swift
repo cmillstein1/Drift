@@ -332,9 +332,10 @@ struct DiscoverScreen: View {
                 tabBarVisibility.discoverStartInFriendsMode = false
             }
             let discoveryMode = supabaseManager.getDiscoveryMode()
-            // Preload both datasets for instant switching
             if discoveryMode == .both {
-                // Load both in parallel for instant tab switching
+                // Default to Friends (travel community first) for App Store positioning
+                mode = .friends
+                // Preload both datasets for instant tab switching
                 if profileManager.discoverProfiles.isEmpty {
                     loadProfiles(forMode: .dating)
                 }
@@ -466,14 +467,15 @@ struct DiscoverScreen: View {
 
                 GeometryReader { geo in
                     let w = geo.size.width
+                    // Friends first (left), Dating second — so default segment is travel friends
                     HStack(spacing: 0) {
-                        unifiedDatingPane
-                            .frame(width: w)
                         unifiedFriendsPane
+                            .frame(width: w)
+                        unifiedDatingPane
                             .frame(width: w)
                     }
                     .frame(width: w * 2, alignment: .leading)
-                    .offset(x: mode == .dating ? 0 : -w)
+                    .offset(x: mode == .friends ? 0 : -w)
                     .animation(.easeInOut(duration: 0.35), value: mode)
                 }
 

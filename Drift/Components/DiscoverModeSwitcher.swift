@@ -26,7 +26,34 @@ struct DiscoverModeSwitcher: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // Dating button
+            // Friends first (primary: travel community) for App Store positioning
+            Button {
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
+                    mode = .friends
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 12))
+                    Text("Friends")
+                        .font(.system(size: 12, weight: mode == .friends ? .bold : .medium))
+                        .tracking(0.5)
+                }
+                .foregroundColor(friendsTextColor)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background {
+                    if mode == .friends {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(friendsGradient)
+                            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+                            .matchedGeometryEffect(id: "discoverSegmentBg", in: animation)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            // Dating second
             Button {
                 withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
                     mode = .dating
@@ -52,33 +79,6 @@ struct DiscoverModeSwitcher: View {
                                     endPoint: .trailing
                                 )
                             )
-                            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
-                            .matchedGeometryEffect(id: "discoverSegmentBg", in: animation)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-
-            // Friends button
-            Button {
-                withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
-                    mode = .friends
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "person.2.fill")
-                        .font(.system(size: 12))
-                    Text("Friends")
-                        .font(.system(size: 12, weight: mode == .friends ? .bold : .medium))
-                        .tracking(0.5)
-                }
-                .foregroundColor(friendsTextColor)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background {
-                    if mode == .friends {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(friendsGradient)
                             .matchedGeometryEffect(id: "discoverSegmentBg", in: animation)
                     }
                 }
