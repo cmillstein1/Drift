@@ -2,11 +2,19 @@
 //  ProfileDetailView.swift
 //  Drift
 //
-//  Full profile view matching Discover page design
+//  Shared profile detail layout used by Dating, Friends, and Message contexts.
+//  Use DatingProfileDetailView, FriendsProfileDetailView, or MessageProfileDetailView
+//  from their respective files so each context has a single, consistent presentation.
 //
 
 import SwiftUI
 import DriftBackend
+
+/// Mode for the detail view: dating shows Like, friends shows Connect (same layout).
+enum ProfileDetailMode {
+    case dating
+    case friends
+}
 
 struct ProfileDetailView: View {
     let profile: UserProfile
@@ -19,6 +27,10 @@ struct ProfileDetailView: View {
     var showLikeAndPassButtons: Bool = false
     /// When set, shown next to location as "X miles away".
     var distanceMiles: Int? = nil
+    /// When .friends, show Connect button instead of Like (same layout as dating for parity).
+    var detailMode: ProfileDetailMode = .dating
+    /// Called when Connect is tapped (friends mode). When nil, Connect is hidden.
+    var onConnect: (() -> Void)? = nil
 
     @State private var imageIndex: Int = 0
     @State private var showFullScreenPhoto = false
@@ -26,6 +38,8 @@ struct ProfileDetailView: View {
     /// UIScrollView contentOffset.y: 0 at top, positive when scrolled down. Used to fade header.
     @State private var scrollContentOffsetY: CGFloat = 0
     @State private var travelStops: [DriftBackend.TravelStop] = []
+    /// When true, Like was tapped — play animation then dismiss.
+    @State private var likeTriggered = false
     @Environment(\.dismiss) var dismiss
 
     private let profileHeaderCollapseThreshold: CGFloat = 72
@@ -37,6 +51,11 @@ struct ProfileDetailView: View {
     private let gray100 = Color(red: 0.95, green: 0.95, blue: 0.96)
     private let gray700 = Color(red: 0.37, green: 0.37, blue: 0.42)
     private let softGray = Color("SoftGray")
+    private let burntOrange = Color("BurntOrange")
+    private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
+    private let skyBlue = Color(red: 0.66, green: 0.77, blue: 0.84)
+    private let forestGreen = Color("ForestGreen")
+    private let desertSand = Color("DesertSand")
 
     /// Profile photos only, deduplicated by URL (no avatar fallback mixed in; no duplicates).
     private var images: [String] {
@@ -50,16 +69,38 @@ struct ProfileDetailView: View {
         }
     }
 
-    var body: some View {
-        ZStack {
-            (showBackButton ? softGray : Color.white).ignoresSafeArea()
+    /// Single section divider height for even spacing (dating, friends, messages).
+    private let sectionDividerHeight: CGFloat = 12
+    /// Vertical padding inside each section for even spacing.
+    private let sectionVerticalPadding: CGFloat = 20
 
-            // Main scrollable content; ScrollViewWithOffset reports contentOffset.y so header fade works
-            ScrollViewWithOffset(contentOffsetY: $scrollContentOffsetY, showsIndicators: false) {
-                VStack(spacing: 0) {
-                    if showBackButton {
-                        Color.clear.frame(height: 79)
-                    }
+    /// When false (e.g. opened from message), layout is identical to discover; only the bottom bar is hidden.
+    private var showsBottomBar: Bool { !showBackButton || showLikeAndPassButtons }
+
+    /// Bottom padding total so "Looking for" scrolls fully into view; same scroll content height in all contexts.
+    private let scrollBottomPaddingTotal: CGFloat = 96
+
+    /// Max top inset for spacer; avoids huge gap when presented from map (nav stack reports inflated safe area).
+    private let maxTopInsetForSpacer: CGFloat = 44
+    /// Fixed top spacer when opened from Discover; constant so every card (first, second, …) is identical.
+    private let discoverTopSpacerHeight: CGFloat = 16
+
+    var body: some View {
+        GeometryReader { geometry in
+            let topSpacerHeight: CGFloat = showBackButton
+                ? max(0, min(geometry.safeAreaInsets.top, maxTopInsetForSpacer) - 28)
+                : discoverTopSpacerHeight
+
+            ZStack {
+                // When no bottom bar (message), use white so no softgray strip at bottom; otherwise softGray
+                (showsBottomBar ? softGray : Color.white)
+                    .ignoresSafeArea()
+
+                // Main scrollable content; ScrollViewWithOffset reports contentOffset.y so header fade works
+                ScrollViewWithOffset(contentOffsetY: $scrollContentOffsetY, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        // Top spacer so back button and carousel sit below status bar (safe-area aware)
+                        Color.clear.frame(height: topSpacerHeight)
                     // Photo carousel at top (all photos, swipeable)
                     GeometryReader { geo in
                         let w = max(geo.size.width, 1)
@@ -116,10 +157,18 @@ struct ProfileDetailView: View {
                                 .allowsHitTesting(false)
 
                                 VStack(alignment: .leading, spacing: 12) {
-                                    Text("\(profile.displayName), \(profile.displayAge)")
-                                        .font(.system(size: 36, weight: .heavy))
-                                        .tracking(-0.5)
-                                        .foregroundColor(.white)
+                                    HStack(alignment: .center, spacing: 8) {
+                                        Text("\(profile.displayName), \(profile.displayAge)")
+                                            .font(.system(size: 36, weight: .heavy))
+                                            .tracking(-0.5)
+                                            .foregroundColor(.white)
+                                        if profile.verified {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.system(size: 22))
+                                                .foregroundColor(forestGreen)
+                                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                                        }
+                                    }
 
                                     if let location = profile.location {
                                         HStack(spacing: 6) {
@@ -170,108 +219,240 @@ struct ProfileDetailView: View {
                                 .allowsHitTesting(false)
                             }
 
-                            // Custom pagination at top — capsule segments (active = opaque white, inactive = semi-transparent)
-                            if images.count > 1 {
-                                VStack {
-                                    HStack(spacing: 6) {
-                                        ForEach(Array(images.enumerated()), id: \.offset) { index, _ in
-                                            RoundedRectangle(cornerRadius: 2)
-                                                .fill(index == imageIndex ? Color.white : Color.white.opacity(0.4))
-                                                .frame(height: 4)
-                                                .frame(maxWidth: .infinity)
-                                        }
-                                    }
-                                    .padding(.horizontal, 24)
-                                    .padding(.top, 16)
-                                    Spacer()
-                                }
-                                .frame(maxWidth: .infinity, alignment: .top)
-                                .allowsHitTesting(false)
-                            }
-
-                            HStack(alignment: .top) {
-                                Spacer()
-                                // Like button (hidden when opened from message; shown when from Likes You)
-                                if !showBackButton || showLikeAndPassButtons {
+                            // Top bar on photo: back/close left + photo page dots (when multiple photos)
+                            VStack {
+                                HStack(spacing: 12) {
+                                    // Back / close (left) — same circular style in all contexts
                                     Button {
-                                        onLike()
+                                        if showBackButton {
+                                            isOpen = false
+                                        }
                                         dismiss()
                                     } label: {
-                                        Image(systemName: "heart.fill")
-                                            .font(.system(size: 24))
+                                        Image(systemName: "chevron.left")
+                                            .font(.system(size: 18, weight: .semibold))
                                             .foregroundColor(.white)
-                                            .frame(width: 56, height: 56)
-                                            .background(Color.white.opacity(0.2))
+                                            .frame(width: 40, height: 40)
+                                            .background(Color.black.opacity(0.4))
                                             .clipShape(Circle())
-                                            .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
-                                            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+                                    }
+                                    Spacer()
+                                    // Photo page indicators — subtle dots (tappable)
+                                    if images.count > 1 {
+                                        HStack(spacing: 5) {
+                                            ForEach(Array(images.enumerated()), id: \.offset) { index, _ in
+                                                Button {
+                                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                                        imageIndex = index
+                                                    }
+                                                } label: {
+                                                    Circle()
+                                                        .fill(index == imageIndex ? Color.white : Color.white.opacity(0.5))
+                                                        .frame(width: 6, height: 6)
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
+                                        }
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 5)
+                                        .background(Capsule().fill(Color.black.opacity(0.18)))
                                     }
                                 }
+                                .padding(.horizontal, 16)
+                                .padding(.top, 16)
+                                Spacer()
                             }
-                            .padding(.top, 12)
-                            .padding(.trailing, 24)
+                            .frame(maxWidth: .infinity, alignment: .top)
                         }
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 500)
 
                     // ==========================================
-                    // ABOUT ME SECTION
+                    // PROFILE CONTENT (white block) — same layout for dating, friends, and messages (no redundant header)
                     // ==========================================
-                    if let bio = profile.bio, !bio.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
+                    if profile.bio != nil && !profile.bio!.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
                             Text("About me")
-                                .font(.system(size: 22, weight: .bold))
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(inkMain.opacity(0.6))
+                                .tracking(0.3)
+                            Text(profile.bio!)
+                                .font(.system(size: 16))
                                 .foregroundColor(inkMain)
-
-                            Text(bio)
-                                .font(.system(size: 18))
-                                .foregroundColor(inkMain)
-                                .lineSpacing(6)
+                                .lineSpacing(4)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        .padding(24)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 24)
+                        .padding(.top, sectionVerticalPadding)
+                        .padding(.bottom, sectionVerticalPadding)
                         .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: showBackButton ? 20 : 0))
-                        .padding(.horizontal, showBackButton ? 16 : 0)
-                        .padding(.top, showBackButton ? 16 : 0)
+                        if !travelStops.isEmpty || profile.lifestyle != nil || profile.nextDestination != nil || profile.workStyle != nil || profile.homeBase != nil || profile.morningPerson != nil || !profile.interests.isEmpty {
+                            softGray.frame(height: sectionDividerHeight)
+                                .frame(maxWidth: .infinity)
+                        }
                     }
 
                     // ==========================================
                     // TRAVEL PLANS CARD
                     // ==========================================
                     if !travelStops.isEmpty {
-                        TravelPlansCard(travelStops: travelStops)
-                            .padding(.horizontal, showBackButton ? 16 : 0)
-                            .padding(.top, showBackButton ? 12 : 0)
+                        TravelPlansCard(travelStops: travelStops, cornerRadius: 0)
+                        if profile.lifestyle != nil || profile.nextDestination != nil || profile.workStyle != nil || profile.homeBase != nil || profile.morningPerson != nil || !profile.interests.isEmpty {
+                            softGray.frame(height: sectionDividerHeight)
+                                .frame(maxWidth: .infinity)
+                        }
+                    } else if profile.lifestyle != nil || profile.nextDestination != nil || profile.workStyle != nil || profile.homeBase != nil || profile.morningPerson != nil || !profile.interests.isEmpty {
+                        softGray.frame(height: sectionDividerHeight)
+                            .frame(maxWidth: .infinity)
                     }
 
                     // ==========================================
-                    // LIFESTYLE CARD
+                    // LIFESTYLE / NEXT STOP / WORK / HOME / MORNING (onboarding data)
                     // ==========================================
-                    if profile.lifestyle != nil || profile.workStyle != nil || profile.homeBase != nil || profile.morningPerson != nil {
-                        LifestyleCard(
-                            lifestyle: profile.lifestyle,
-                            workStyle: profile.workStyle,
-                            homeBase: profile.homeBase,
-                            morningPerson: profile.morningPerson,
-                            cornerRadius: 16
-                        )
-                        .padding(.horizontal, showBackButton ? 16 : 0)
-                        .padding(.top, showBackButton ? 12 : 0)
+                    if profile.lifestyle != nil || profile.nextDestination != nil || profile.workStyle != nil || profile.homeBase != nil || profile.morningPerson != nil {
+
+                        VStack(spacing: 0) {
+                            if let lifestyle = profile.lifestyle {
+                                lifestyleNextStopRow(
+                                    iconBg: burntOrange.opacity(0.1),
+                                    iconName: "sparkles",
+                                    iconColor: burntOrange,
+                                    label: "LIFESTYLE",
+                                    value: lifestyle.displayName
+                                )
+                            }
+                            if let next = profile.nextDestination, !next.isEmpty {
+                                lifestyleNextStopRow(
+                                    iconBg: skyBlue.opacity(0.2),
+                                    iconName: "paperplane",
+                                    iconColor: forestGreen,
+                                    label: "NEXT STOP",
+                                    value: next
+                                )
+                            }
+                            if let work = profile.workStyle {
+                                lifestyleNextStopRow(
+                                    iconBg: inkMain.opacity(0.08),
+                                    iconName: "briefcase",
+                                    iconColor: inkMain,
+                                    label: "WORK STYLE",
+                                    value: work.displayName
+                                )
+                            }
+                            if let home = profile.homeBase, !home.isEmpty {
+                                lifestyleNextStopRow(
+                                    iconBg: inkMain.opacity(0.08),
+                                    iconName: "house",
+                                    iconColor: inkMain,
+                                    label: "HOME BASE",
+                                    value: home
+                                )
+                            }
+                            if let morning = profile.morningPerson {
+                                lifestyleNextStopRow(
+                                    iconBg: inkMain.opacity(0.08),
+                                    iconName: morning ? "sun.max" : "moon.stars",
+                                    iconColor: inkMain,
+                                    label: "MORNING PERSON",
+                                    value: morning ? "Yes" : "No"
+                                )
+                            }
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, sectionVerticalPadding)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.white)
+
+                        if !profile.interests.isEmpty {
+                            softGray.frame(height: sectionDividerHeight)
+                                .frame(maxWidth: .infinity)
+                        }
                     }
 
                     // ==========================================
-                    // INTERESTS CARD
+                    // INTERESTS (onboarding tags)
                     // ==========================================
                     if !profile.interests.isEmpty {
-                        InterestsCard(interests: profile.interests)
-                            .padding(.horizontal, showBackButton ? 16 : 0)
-                            .padding(.top, showBackButton ? 12 : 0)
+                        let hasLifestyleBlock = profile.lifestyle != nil || profile.nextDestination != nil || profile.workStyle != nil || profile.homeBase != nil || profile.morningPerson != nil
+                        if !hasLifestyleBlock {
+                            softGray.frame(height: sectionDividerHeight)
+                                .frame(maxWidth: .infinity)
+                        }
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("INTERESTS")
+                                .font(.system(size: 11, weight: .semibold))
+                                .tracking(0.5)
+                                .foregroundColor(inkMain.opacity(0.6))
+
+                            WrappingHStack(horizontalSpacing: 10, verticalSpacing: 10) {
+                                ForEach(profile.interests, id: \.self) { interest in
+                                    Text(interest)
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(burntOrange)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 20)
+                                                .fill(burntOrange.opacity(0.12))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 20)
+                                                        .stroke(burntOrange.opacity(0.28), lineWidth: 1)
+                                                )
+                                        )
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, sectionVerticalPadding)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.white)
+
+                        if profile.promptAnswers != nil && !profile.promptAnswers!.isEmpty {
+                            softGray.frame(height: sectionDividerHeight)
+                                .frame(maxWidth: .infinity)
+                        }
                     }
 
                     // ==========================================
-                    // PROMPT SECTION 1 - "My simple pleasure"
+                    // PROMPTS (onboarding prompt answers)
+                    // ==========================================
+                    if let answers = profile.promptAnswers, !answers.isEmpty {
+                        softGray.frame(height: sectionDividerHeight)
+                            .frame(maxWidth: .infinity)
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(answers.enumerated()), id: \.offset) { index, promptAnswer in
+                                promptSection(question: promptAnswer.prompt, answer: promptAnswer.answer)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.white)
+                        softGray.frame(height: sectionDividerHeight)
+                            .frame(maxWidth: .infinity)
+                    }
+
+                    // ==========================================
+                    // LOOKING FOR (onboarding)
+                    // ==========================================
+                    if profile.promptAnswers == nil || profile.promptAnswers!.isEmpty {
+                        softGray.frame(height: sectionDividerHeight)
+                            .frame(maxWidth: .infinity)
+                    }
+                    lookingForSection
+                    
+                    // Bottom: minimal padding above the bottom bar
+                    if showsBottomBar {
+                        Color.clear.frame(height: 16)
+                    } else {
+                        // Enough white to avoid softgray strip; not so much it feels like "longer Looking for"
+                        Color.white
+                            .frame(height: 48)
+                            .ignoresSafeArea(edges: .bottom)
+                    }
+
+                    // ==========================================
+                    // Legacy simple pleasure (hidden; prompts use promptAnswers)
                     // ==========================================
 //                    if let simplePleasure = profile.simplePleasure, !simplePleasure.isEmpty {
 //                        HStack(spacing: 0) {
@@ -299,122 +480,117 @@ struct ProfileDetailView: View {
 //                        .background(Color.white)
 //                    }
 
-                    // Bottom padding for action buttons
-                    Spacer().frame(height: 120)
                 }
             }
-
-            // ==========================================
-            // FLOATING HEADER - close + menu (hidden when showBackButton); fades out when user scrolls up
-            // ==========================================
-            if !showBackButton {
-                let fullscreenHeaderOpacity = scrollContentOffsetY <= 0 ? 1.0 : max(0, 1.0 - Double(scrollContentOffsetY) / Double(profileHeaderCollapseThreshold))
-                VStack {
-                    HStack {
-                        Spacer()
-                        ReportBlockMenuButton(
-                            userId: profile.id,
-                            displayName: profile.displayName,
-                            onBlockComplete: { isOpen = false },
-                            darkStyle: true
-                        )
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 20, weight: .medium))
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if showsBottomBar {
+                    VStack(spacing: 0) {
+                        if detailMode == .friends, let onConnect = onConnect {
+                            Button {
+                                let generator = UIImpactFeedbackGenerator(style: .medium)
+                                generator.impactOccurred()
+                                onConnect()
+                                withAnimation(.easeOut(duration: 0.25)) {
+                                    isOpen = false
+                                }
+                                dismiss()
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "person.badge.plus")
+                                        .font(.system(size: 18))
+                                    Text("Connect")
+                                        .font(.system(size: 16, weight: .semibold))
+                                }
                                 .foregroundColor(.white)
-                                .frame(width: 40, height: 40)
-                                .background(Color.white.opacity(0.2))
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
-                                .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(forestGreen)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                            .buttonStyle(LikeButtonStyle())
+                        } else {
+                            HStack(spacing: 12) {
+                                Button {
+                                    guard !likeTriggered else { return }
+                                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                                    generator.impactOccurred()
+                                    likeTriggered = true
+                                    withAnimation(.easeInOut(duration: 0.25)) { }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                        onLike()
+                                        withAnimation(.easeOut(duration: 0.3)) {
+                                            isOpen = false
+                                        }
+                                        dismiss()
+                                    }
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "leaf.fill")
+                                            .font(.system(size: 18))
+                                            .scaleEffect(likeTriggered ? 1.3 : 1.0)
+                                            .animation(.spring(response: 0.35, dampingFraction: 0.6), value: likeTriggered)
+                                        Text("interested")
+                                            .font(.system(size: 16, weight: .semibold))
+                                    }
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                                    .background(
+                                        LinearGradient(
+                                            colors: [burntOrange, sunsetRose],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .scaleEffect(likeTriggered ? 0.98 : 1.0)
+                                }
+                                .buttonStyle(LikeButtonStyle())
+                                .disabled(likeTriggered)
+
+                                Button {
+                                    let generator = UIImpactFeedbackGenerator(style: .light)
+                                    generator.impactOccurred()
+                                    onPass()
+                                    withAnimation(.easeOut(duration: 0.25)) {
+                                        isOpen = false
+                                    }
+                                    dismiss()
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundColor(inkMain)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 16)
+                                        .background(gray100)
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                }
+                                .buttonStyle(LikeButtonStyle())
+                            }
                         }
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 12)
-                    .opacity(fullscreenHeaderOpacity)
-
-                    Spacer()
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .background(Color.white)
                 }
             }
-
-            // ==========================================
-            // PASS BUTTON - bottom left (hidden when opened from message; shown when from Likes You)
-            // ==========================================
-            if !showBackButton || showLikeAndPassButtons {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Button {
-                            onPass()
-                            dismiss()
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 28, weight: .medium))
-                                .foregroundColor(Color.gray)
-                                .frame(width: 64, height: 64)
-                                .background(Color.white)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.gray.opacity(0.15), lineWidth: 1))
-                                .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 4)
-                        }
-
-                        Spacer()
-                    }
-                    .padding(.leading, 24)
-                    .padding(.bottom, 40)
-                }
             }
-
-        }
-        .overlay(alignment: .top) {
-            // PARALLAX HEADER (when opened from message or Likes You): back + menu; top padding respects safe area so button isn't hidden
-            if showBackButton {
-                ZStack(alignment: .top) {
-                    // Expanded: back button + ReportBlockMenu — slide up and fade with scroll
-                    let headerOffset = max(-80, min(0, -scrollContentOffsetY))
-                    let headerOpacity = scrollContentOffsetY <= 0 ? 1.0 : max(0, 1.0 - Double(scrollContentOffsetY) / Double(profileHeaderCollapseThreshold))
-                    HStack {
-                        Button {
-                            isOpen = false
-                        } label: {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(.black)
-                        }
-                        .padding(.leading, 24)
-                        .padding(.vertical, 12)
-                        .padding(.trailing, 8)
-                        Spacer()
-                        ReportBlockMenuButton(
-                            userId: profile.id,
-                            displayName: profile.displayName,
-                            onBlockComplete: { isOpen = false },
-                            plainStyle: true
-                        )
-                        .padding(.trailing, 24)
-                    }
-                    .padding(.top, 16)
-                    .offset(y: headerOffset)
-                    .opacity(headerOpacity)
-                }
-                .frame(maxWidth: .infinity, alignment: .top)
+            .opacity(likeTriggered ? 0 : 1)
+            .animation(.easeOut(duration: 0.3), value: likeTriggered)
+            .fullScreenCover(isPresented: $showFullScreenPhoto) {
+                ProfilePhotoFullScreenView(
+                    imageUrls: images,
+                    initialIndex: fullScreenPhotoIndex,
+                    onDismiss: { showFullScreenPhoto = false }
+                )
             }
-        }
-        .fullScreenCover(isPresented: $showFullScreenPhoto) {
-            ProfilePhotoFullScreenView(
-                imageUrls: images,
-                initialIndex: fullScreenPhotoIndex,
-                onDismiss: { showFullScreenPhoto = false }
-            )
-        }
-        .task {
-            // Load travel stops for this profile
-            do {
-                travelStops = try await ProfileManager.shared.fetchTravelSchedule(for: profile.id)
-            } catch {
-                print("Failed to load travel stops: \(error)")
+            .task {
+                // Load travel stops for this profile
+                do {
+                    travelStops = try await ProfileManager.shared.fetchTravelSchedule(for: profile.id)
+                } catch {
+                    print("Failed to load travel stops: \(error)")
+                }
             }
         }
     }
@@ -425,6 +601,135 @@ struct ProfileDetailView: View {
             startPoint: .top,
             endPoint: .bottom
         )
+    }
+
+    /// Header section: avatar, name, age, location, distance, travel pace badge (match reference).
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                ZStack(alignment: .bottomTrailing) {
+                    if let urlString = profile.avatarUrl ?? profile.photos.first, let url = URL(string: urlString) {
+                        AsyncImage(url: url) { phase in
+                            if let image = phase.image {
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            } else {
+                                Color.gray
+                            }
+                        }
+                        .frame(width: 64, height: 64)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                    } else {
+                        Color.gray
+                            .frame(width: 64, height: 64)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                    if profile.verified {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(forestGreen)
+                            .background(Circle().fill(Color.white).frame(width: 22, height: 22))
+                            .offset(x: 4, y: 4)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(profile.displayName), \(profile.displayAge)")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(inkMain)
+                    if let location = profile.location {
+                        HStack(spacing: 4) {
+                            Image(systemName: "mappin")
+                                .font(.system(size: 14))
+                            Text(location)
+                                .font(.system(size: 14))
+                        }
+                        .foregroundColor(inkMain.opacity(0.6))
+                    }
+                    if distanceMiles != nil {
+                        HStack(spacing: 4) {
+                            Image(systemName: "location")
+                                .font(.system(size: 12))
+                            Text("\(distanceMiles ?? 0) miles away")
+                                .font(.system(size: 14))
+                        }
+                        .foregroundColor(inkMain.opacity(0.6))
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.bottom, 12)
+            if let pace = profile.travelPace {
+                Text(pace.displayName)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(inkMain)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(desertSand))
+            }
+        }
+        .padding(24)
+    }
+
+    /// Prompt Q&A block (onboarding prompt answers); no background (parent wraps in white).
+    @ViewBuilder
+    private func promptSection(question: String, answer: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(question)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(inkMain)
+            Text(answer)
+                .font(.system(size: 16))
+                .foregroundColor(inkMain)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 24)
+        .padding(.vertical, sectionVerticalPadding)
+    }
+
+    /// Looking For section (onboarding).
+    @ViewBuilder
+    private var lookingForSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("LOOKING FOR")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(inkMain.opacity(0.6))
+                .tracking(0.5)
+            Text(profile.lookingFor.displayName)
+                .font(.system(size: 16))
+                .foregroundColor(inkMain)
+                .lineSpacing(4)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 24)
+        .padding(.vertical, sectionVerticalPadding)
+        .background(Color.white)
+    }
+
+    /// One row for Lifestyle or Next Stop (with even vertical spacing). icon in circle + label + value (match reference image).
+    @ViewBuilder
+    private func lifestyleNextStopRow(iconBg: Color, iconName: String, iconColor: Color, label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: iconName)
+                .font(.system(size: 20))
+                .foregroundColor(iconColor)
+                .frame(width: 40, height: 40)
+                .background(iconBg)
+                .clipShape(Circle())
+            VStack(alignment: .leading, spacing: 4) {
+                Text(label)
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(0.5)
+                    .foregroundColor(inkMain.opacity(0.6))
+                Text(value)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(inkMain)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 6)
     }
 
     /// Relative time string for last active (e.g. "2h ago", "1d ago").
@@ -594,6 +899,15 @@ private struct ProfilePhotoFullScreenView: View {
                 Spacer()
             }
         }
+    }
+}
+
+// MARK: - Like button press animation
+private struct LikeButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 

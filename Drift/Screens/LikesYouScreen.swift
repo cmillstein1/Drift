@@ -63,7 +63,7 @@ struct LikesYouScreen: View {
             }
         }
         .fullScreenCover(item: $selectedProfile) { profile in
-            ProfileDetailView(
+            DatingProfileDetailView(
                 profile: profile,
                 isOpen: Binding(
                     get: { selectedProfile != nil },

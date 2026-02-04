@@ -427,9 +427,8 @@ struct MessagesScreen: View {
                             mode: selectedMode,
                             onFindFriends: {
                                 tabBarVisibility.switchToDiscoverInFriendsMode = true
-                                if !supabaseManager.isFriendsOnly() {
-                                    tabBarVisibility.discoverStartInFriendsMode = true
-                                }
+                                // Find Matches (dating) → Discover dating; Find friends → Discover friends
+                                tabBarVisibility.discoverStartInFriendsMode = (selectedMode == .friends)
                             }
                         )
                         .frame(minHeight: UIScreen.main.bounds.height - 320)
@@ -613,26 +612,26 @@ struct MessagesScreen: View {
             }
         }
         .fullScreenCover(item: $selectedProfileToView) { profile in
-            ProfileDetailView(
+            DatingProfileDetailView(
                 profile: profile,
                 isOpen: Binding(
                     get: { selectedProfileToView != nil },
                     set: { if !$0 { selectedProfileToView = nil } }
                 ),
                 onLike: {
-                    // Find the request for this profile and accept it
                     if let request = pendingFriendRequests.first(where: { $0.requesterProfile?.id == profile.id }) {
                         handleAcceptRequest(request)
                     }
                     selectedProfileToView = nil
                 },
                 onPass: {
-                    // Find the request for this profile and decline it
                     if let request = pendingFriendRequests.first(where: { $0.requesterProfile?.id == profile.id }) {
                         handleDeclineRequest(request)
                     }
                     selectedProfileToView = nil
-                }
+                },
+                showBackButton: true,
+                showLikeAndPassButtons: true
             )
         }
         }

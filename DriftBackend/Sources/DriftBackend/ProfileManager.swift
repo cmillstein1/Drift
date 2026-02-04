@@ -11,8 +11,10 @@ public class ProfileManager: ObservableObject {
 
     /// The current user's profile.
     @Published public var currentProfile: UserProfile?
-    /// Profiles for discovery (dating/friends).
+    /// Profiles for discovery (dating feed).
     @Published public var discoverProfiles: [UserProfile] = []
+    /// Profiles for discover friends feed (kept separate so switching segments doesn’t overwrite dating).
+    @Published public var discoverProfilesFriends: [UserProfile] = []
     /// Nearby friend profiles.
     @Published public var nearbyProfiles: [UserProfile] = []
     /// Whether data is currently loading.
@@ -71,7 +73,8 @@ public class ProfileManager: ObservableObject {
             createdAt: profile.createdAt,
             updatedAt: profile.updatedAt,
             lastActiveAt: profile.lastActiveAt,
-            onboardingCompleted: profile.onboardingCompleted
+            onboardingCompleted: profile.onboardingCompleted,
+            hideLocationOnMap: profile.hideLocationOnMap
         )
     }
 
@@ -266,7 +269,18 @@ public class ProfileManager: ObservableObject {
                 return profile
             }
             
-            self.discoverProfiles = profiles
+            // Strip coordinates for users who have hidden their location (so they don't appear on the map)
+            profiles = profiles.map { stripLocationIfHidden($0) }
+            
+            switch lookingFor {
+            case .dating:
+                self.discoverProfiles = profiles
+            case .friends:
+                self.discoverProfilesFriends = profiles
+            case .both:
+                self.discoverProfiles = profiles
+                self.discoverProfilesFriends = profiles
+            }
             isLoading = false
         } catch {
             isLoading = false
@@ -307,13 +321,55 @@ public class ProfileManager: ObservableObject {
                 .execute()
                 .value
 
-            self.nearbyProfiles = profiles
+            // Strip coordinates for users who have hidden their location (so they don't appear on the map)
+            self.nearbyProfiles = profiles.map { stripLocationIfHidden($0) }
             isLoading = false
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
             throw error
         }
+    }
+
+    /// Returns a copy of the profile with latitude/longitude set to nil when hideLocationOnMap is true.
+    private func stripLocationIfHidden(_ profile: UserProfile) -> UserProfile {
+        guard profile.hideLocationOnMap else { return profile }
+        return UserProfile(
+            id: profile.id,
+            name: profile.name,
+            birthday: profile.birthday,
+            age: profile.age,
+            bio: profile.bio,
+            avatarUrl: profile.avatarUrl,
+            photos: profile.photos,
+            location: profile.location,
+            latitude: nil,
+            longitude: nil,
+            verified: profile.verified,
+            lifestyle: profile.lifestyle,
+            travelPace: profile.travelPace,
+            nextDestination: profile.nextDestination,
+            travelDates: profile.travelDates,
+            interests: profile.interests,
+            lookingFor: profile.lookingFor,
+            friendsOnly: profile.friendsOnly,
+            orientation: profile.orientation,
+            preferredMinAge: profile.preferredMinAge,
+            preferredMaxAge: profile.preferredMaxAge,
+            preferredMaxDistanceMiles: profile.preferredMaxDistanceMiles,
+            simplePleasure: profile.simplePleasure,
+            rigInfo: profile.rigInfo,
+            datingLooksLike: profile.datingLooksLike,
+            promptAnswers: profile.promptAnswers,
+            workStyle: profile.workStyle,
+            homeBase: profile.homeBase,
+            morningPerson: profile.morningPerson,
+            createdAt: profile.createdAt,
+            updatedAt: profile.updatedAt,
+            lastActiveAt: profile.lastActiveAt,
+            onboardingCompleted: profile.onboardingCompleted,
+            hideLocationOnMap: profile.hideLocationOnMap
+        )
     }
 
     // MARK: - Travel Schedule

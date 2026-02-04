@@ -119,6 +119,8 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
     public var updatedAt: Date?
     public var lastActiveAt: Date?
     public var onboardingCompleted: Bool
+    /// When true, user's location is hidden on the Nearby map (for themselves and others).
+    public var hideLocationOnMap: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, name, birthday, age, bio
@@ -145,6 +147,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         case updatedAt = "updated_at"
         case lastActiveAt = "last_active_at"
         case onboardingCompleted = "onboarding_completed"
+        case hideLocationOnMap = "hide_location_on_map"
     }
 
     public init(
@@ -180,7 +183,8 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         createdAt: Date? = nil,
         updatedAt: Date? = nil,
         lastActiveAt: Date? = nil,
-        onboardingCompleted: Bool = false
+        onboardingCompleted: Bool = false,
+        hideLocationOnMap: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -215,6 +219,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         self.updatedAt = updatedAt
         self.lastActiveAt = lastActiveAt
         self.onboardingCompleted = onboardingCompleted
+        self.hideLocationOnMap = hideLocationOnMap
     }
 
     public init(from decoder: Decoder) throws {
@@ -280,6 +285,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         lastActiveAt = try container.decodeIfPresent(Date.self, forKey: .lastActiveAt)
         onboardingCompleted = try container.decodeIfPresent(Bool.self, forKey: .onboardingCompleted) ?? false
+        hideLocationOnMap = try container.decodeIfPresent(Bool.self, forKey: .hideLocationOnMap) ?? false
     }
 
     // Computed properties for UI
@@ -440,6 +446,7 @@ public struct ProfileUpdateRequest: Encodable {
     public var homeBase: String?
     public var morningPerson: Bool?
     public var onboardingCompleted: Bool?
+    public var hideLocationOnMap: Bool?
 
     enum CodingKeys: String, CodingKey {
         case name, birthday, bio
@@ -463,6 +470,7 @@ public struct ProfileUpdateRequest: Encodable {
         case homeBase = "home_base"
         case morningPerson = "morning_person"
         case onboardingCompleted = "onboarding_completed"
+        case hideLocationOnMap = "hide_location_on_map"
     }
 
     public init(
@@ -493,7 +501,8 @@ public struct ProfileUpdateRequest: Encodable {
         workStyle: WorkStyle? = nil,
         homeBase: String? = nil,
         morningPerson: Bool? = nil,
-        onboardingCompleted: Bool? = nil
+        onboardingCompleted: Bool? = nil,
+        hideLocationOnMap: Bool? = nil
     ) {
         self.name = name
         self.birthday = birthday
@@ -523,6 +532,7 @@ public struct ProfileUpdateRequest: Encodable {
         self.homeBase = homeBase
         self.morningPerson = morningPerson
         self.onboardingCompleted = onboardingCompleted
+        self.hideLocationOnMap = hideLocationOnMap
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -555,6 +565,7 @@ public struct ProfileUpdateRequest: Encodable {
         try container.encodeIfPresent(homeBase, forKey: .homeBase)
         try container.encodeIfPresent(morningPerson, forKey: .morningPerson)
         try container.encodeIfPresent(onboardingCompleted, forKey: .onboardingCompleted)
+        try container.encodeIfPresent(hideLocationOnMap, forKey: .hideLocationOnMap)
 
         // Explicitly encode promptAnswers as JSON array (only if not nil)
         try container.encodeIfPresent(promptAnswers, forKey: .promptAnswers)
