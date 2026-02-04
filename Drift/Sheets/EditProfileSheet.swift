@@ -7,6 +7,7 @@
 
 import SwiftUI
 import PhotosUI
+import CoreLocation
 import DriftBackend
 
 struct TravelStop: Identifiable {
@@ -1048,11 +1049,23 @@ struct EditProfileSheet: View {
 
         Task {
             do {
+                // Geocode location string so latitude/longitude are saved (needed for map and distance).
+                var lat: Double?
+                var lon: Double?
+                if !currentLocation.isEmpty {
+                    let placemarks = try? await CLGeocoder().geocodeAddressString(currentLocation)
+                    if let coord = placemarks?.first?.location?.coordinate {
+                        lat = coord.latitude
+                        lon = coord.longitude
+                    }
+                }
                 let updates = ProfileUpdateRequest(
                     name: name.isEmpty ? nil : name,
                     bio: about.isEmpty ? nil : about,
                     photos: photos.isEmpty ? nil : photos,
                     location: currentLocation.isEmpty ? nil : currentLocation,
+                    latitude: lat,
+                    longitude: lon,
                     travelPace: travelPace.toBackendType,
                     orientation: interestedIn.rawValue,
                     preferredMinAge: Int(minAge),

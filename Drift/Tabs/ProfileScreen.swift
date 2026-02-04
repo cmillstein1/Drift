@@ -63,6 +63,14 @@ struct ProfileScreen: View {
                 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
+                        // Report scroll offset so tab bar can slide away when scrolling
+                        GeometryReader { geo in
+                            Color.clear.preference(
+                                key: ScrollOffsetPreferenceKey.self,
+                                value: geo.frame(in: .named("profileScroll")).minY
+                            )
+                        }
+                        .frame(height: 0)
                         // Header Section - extends to top
                         headerSection
                             .ignoresSafeArea(edges: .top)
@@ -93,6 +101,7 @@ struct ProfileScreen: View {
                         .padding(.bottom, 100)
                     }
                 }
+                .coordinateSpace(name: "profileScroll")
                 .ignoresSafeArea(edges: .top)
             }
             .sheet(isPresented: $showDiscoveryModeSheet) {

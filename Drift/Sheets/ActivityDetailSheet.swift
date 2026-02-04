@@ -30,8 +30,10 @@ struct ActivityDetailSheet: View {
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
     private let forestGreen = Color("ForestGreen")
+    private let skyBlue = Color(red: 0.45, green: 0.76, blue: 0.98)
     private let softGray = Color("SoftGray")
     private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
+    private let warmWhite = Color(red: 0.99, green: 0.98, blue: 0.96)
 
     /// Share button is visible when activity is public, or when the current user is the host (for private activities).
     private var canShowShareButton: Bool {
@@ -61,407 +63,11 @@ struct ActivityDetailSheet: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Hero Image Section
-            ZStack(alignment: .topLeading) {
-                AsyncImage(url: URL(string: activity.imageUrl ?? "")) { phase in
-                        switch phase {
-                        case .empty:
-                            ZStack {
-                                Color.gray.opacity(0.2)
-                                ProgressView()
-                            }
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        case .failure:
-                            ZStack {
-                                Color.gray.opacity(0.2)
-                                Image(systemName: "photo")
-                                    .foregroundColor(.gray)
-                            }
-                        @unknown default:
-                            EmptyView()
-                        }
-                }
-                .frame(height: 256)
-                .clipped()
-                
-                // Gradient Overlay (match CampgroundDetailSheet: dark to clear to white)
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color.black.opacity(0.4),
-                        Color.clear,
-                        Color.white
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 256)
-                
-                // Header Controls
-                HStack {
-                    Button(action: {
-                        dismiss()
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(charcoalColor)
-                            .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.9))
-                            .clipShape(Circle())
-                    }
-                    
-                    Spacer()
-                    
-                    if canShowShareButton {
-                        Button(action: {
-                            handleShare()
-                        }) {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(charcoalColor)
-                                .frame(width: 36, height: 36)
-                                .background(Color.white.opacity(0.9))
-                                .clipShape(Circle())
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                
-                // Title Overlay (positioned higher)
-                VStack {
-                        Spacer()
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(activity.title)
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundColor(.white)
-                            
-                            Button(action: {
-                                if let host = activity.host {
-                                    selectedHostProfile = host
-                                }
-                            }) {
-                                HStack(spacing: 8) {
-                                    AsyncImage(url: URL(string: activity.host?.avatarUrl ?? "")) { phase in
-                                        switch phase {
-                                        case .empty:
-                                            Circle()
-                                                .fill(Color.white.opacity(0.3))
-                                                .frame(width: 24, height: 24)
-                                        case .success(let image):
-                                            image
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                                .frame(width: 24, height: 24)
-                                                .clipShape(Circle())
-                                        case .failure:
-                                            Image(systemName: "person.circle.fill")
-                                                .font(.system(size: 24))
-                                                .foregroundColor(.white.opacity(0.7))
-                                        @unknown default:
-                                            EmptyView()
-                                        }
-                                    }
-                                    .frame(width: 24, height: 24)
-
-                                    HStack(spacing: 4) {
-                                        Text("Hosted by")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(.white.opacity(0.9))
-                                        Text(activity.host?.displayName ?? "Unknown")
-                                            .font(.system(size: 14, weight: .semibold))
-                                            .foregroundColor(.white)
-                                    }
-                                }
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 56)
-                }
-            }
-            .frame(height: 256)
-            
-            // Content ScrollView
+            heroSection
             ScrollView {
-                VStack(spacing: 0) {
-                        // Key Info Cards
-                        HStack(spacing: 12) {
-                            // Date & Time Card
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "calendar")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(charcoalColor.opacity(0.6))
-                                    Text("Date & Time")
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundColor(charcoalColor.opacity(0.6))
-                                }
-                                
-                                Text(activity.formattedDate)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(charcoalColor)
-
-                                Text(formattedDuration)
-                                    .font(.system(size: 12))
-                                    .foregroundColor(charcoalColor.opacity(0.6))
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(16)
-                            .background(softGray)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            
-                            // Attendees Card
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "person.2")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(charcoalColor.opacity(0.6))
-                                    Text("Attendees")
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundColor(charcoalColor.opacity(0.6))
-                                }
-                                
-                                Text("\(activity.currentAttendees)/\(activity.maxAttendees) joined")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(charcoalColor)
-                                
-                                // Progress Bar
-                                GeometryReader { geometry in
-                                    ZStack(alignment: .leading) {
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .fill(Color.white)
-                                            .frame(height: 6)
-                                        
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .fill(
-                                                LinearGradient(
-                                                    gradient: Gradient(colors: [forestGreen, burntOrange]),
-                                                    startPoint: .leading,
-                                                    endPoint: .trailing
-                                                )
-                                            )
-                                            .frame(
-                                                width: geometry.size.width * CGFloat(activity.currentAttendees) / CGFloat(activity.maxAttendees),
-                                                height: 6
-                                            )
-                                    }
-                                }
-                                .frame(height: 6)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(16)
-                            .background(softGray)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.top, 24)
-                        .padding(.bottom, 24)
-                        
-                        // Location Card
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 8) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(
-                                            LinearGradient(
-                                                gradient: Gradient(colors: [burntOrange, sunsetRose]),
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            )
-                                        )
-                                        .frame(width: 32, height: 32)
-                                    
-                                    Image(systemName: "mappin")
-                                        .font(.system(size: 16, weight: .medium))
-                                        .foregroundColor(.white)
-                                }
-                                
-                                Text("Location")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(charcoalColor)
-                                
-                                Spacer()
-                            }
-                            
-                            Text(activity.location)
-                                .font(.system(size: 14))
-                                .foregroundColor(charcoalColor)
-                            
-                            Text(activity.exactLocation ?? "Exact location shared after joining")
-                                .font(.system(size: 12))
-                                .foregroundColor(charcoalColor.opacity(0.6))
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(16)
-                        .background(softGray)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
-                        
-                        // Description
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("About This Activity")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(charcoalColor)
-                            
-                            Text(activity.description ?? "Join us for an amazing experience! This is a great opportunity to meet fellow travelers and create unforgettable memories. All skill levels welcome. Don't forget to bring water and good vibes!")
-                                .font(.system(size: 15))
-                                .foregroundColor(charcoalColor.opacity(0.7))
-                                .lineSpacing(4)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
-                        
-                        // Attendees Section
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Who's Going")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(charcoalColor)
-                                
-                                Spacer()
-                                
-                                Text("\(activity.currentAttendees) \(activity.currentAttendees == 1 ? "person" : "people")")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(charcoalColor.opacity(0.6))
-                            }
-                            
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(displayedAttendees) { attendee in
-                                        HStack(spacing: 8) {
-                                            AsyncImage(url: URL(string: attendee.profile?.avatarUrl ?? "")) { phase in
-                                                switch phase {
-                                                case .empty:
-                                                    ProgressView()
-                                                        .frame(width: 32, height: 32)
-                                                case .success(let image):
-                                                    image
-                                                        .resizable()
-                                                        .aspectRatio(contentMode: .fill)
-                                                case .failure:
-                                                    Image(systemName: "person.circle.fill")
-                                                        .foregroundColor(.gray)
-                                                @unknown default:
-                                                    EmptyView()
-                                                }
-                                            }
-                                            .frame(width: 32, height: 32)
-                                            .clipShape(Circle())
-                                            .overlay(
-                                                Circle()
-                                                    .stroke(Color.white, lineWidth: 2)
-                                            )
-
-                                            Text(attendee.profile?.displayName ?? "Unknown")
-                                                .font(.system(size: 14, weight: .medium))
-                                                .foregroundColor(charcoalColor)
-
-                                            if attendee.profile?.verified == true {
-                                                Image(systemName: "checkmark.circle.fill")
-                                                    .font(.system(size: 16))
-                                                    .foregroundColor(forestGreen)
-                                            }
-                                        }
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 8)
-                                        .background(softGray)
-                                        .clipShape(Capsule())
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 100) // Space for bottom action bar
-                }
+                scrollContent
             }
-            
-            // Bottom Action Bar
-            VStack(spacing: 0) {
-                Divider()
-                    .background(Color.gray.opacity(0.2))
-                
-                HStack(spacing: 12) {
-                        Button(action: {
-                            handleMessage()
-                        }) {
-                            Image(systemName: "message")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(forestGreen)
-                                .frame(width: 48, height: 48)
-                                .background(Color.clear)
-                                .overlay(
-                                    Circle()
-                                        .stroke(forestGreen, lineWidth: 2)
-                                )
-                        }
-                        
-                        if isHost {
-                            Button(action: { showEditSheet = true }) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "pencil")
-                                    Text("Edit")
-                                        .font(.system(size: 16, weight: .semibold))
-                                }
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 48)
-                            }
-                            .background(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [burntOrange, sunsetRose]),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .clipShape(Capsule())
-                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-                        } else {
-                            Button(action: {
-                                handleJoin()
-                            }) {
-                                if isLoading {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: 48)
-                                } else {
-                                    Text(isJoined ? "Leave Activity" : "Join Activity")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: 48)
-                                }
-                            }
-                            .background(
-                                isJoined
-                                    ? LinearGradient(
-                                        gradient: Gradient(colors: [charcoalColor, charcoalColor.opacity(0.8)]),
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                    : LinearGradient(
-                                        gradient: Gradient(colors: [burntOrange, sunsetRose]),
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                            )
-                            .clipShape(Capsule())
-                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-                            .disabled(isLoading)
-                        }
-                }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 28)
-                .background(
-                    Color.white.opacity(0.95)
-                        .background(.ultraThinMaterial)
-                )
-            }
+            bottomActionBar
         }
         .background(Color.white)
         .ignoresSafeArea(edges: .bottom)
@@ -495,7 +101,7 @@ struct ActivityDetailSheet: View {
             .presentationDragIndicator(.visible)
         }
         .fullScreenCover(item: $selectedHostProfile) { host in
-            ProfileDetailView(
+            DatingProfileDetailView(
                 profile: host,
                 isOpen: Binding(
                     get: { selectedHostProfile != nil },
@@ -505,6 +111,509 @@ struct ActivityDetailSheet: View {
                 onPass: {},
                 showBackButton: true,
                 showLikeAndPassButtons: false
+            )
+        }
+    }
+
+    // MARK: - Hero Section
+    private var heroSection: some View {
+        ZStack(alignment: .topLeading) {
+            heroImage
+            heroGradientOverlay
+            heroHeaderControls
+            heroCategoryBadge
+            heroTitleOverlay
+        }
+        .frame(height: 256)
+    }
+
+    private var heroImage: some View {
+        AsyncImage(url: URL(string: activity.imageUrl ?? "")) { phase in
+            switch phase {
+            case .empty:
+                ZStack {
+                    Color.gray.opacity(0.2)
+                    ProgressView()
+                }
+            case .success(let image):
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            case .failure:
+                ZStack {
+                    Color.gray.opacity(0.2)
+                    Image(systemName: "photo")
+                        .foregroundColor(.gray)
+                }
+            @unknown default:
+                EmptyView()
+            }
+        }
+        .frame(height: 256)
+        .clipped()
+    }
+
+    private var heroGradientOverlay: some View {
+        LinearGradient(
+            gradient: Gradient(colors: [
+                Color.black.opacity(0.2),
+                Color.black.opacity(0.6)
+            ]),
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: 256)
+    }
+
+    private var heroHeaderControls: some View {
+        HStack {
+            Button(action: { dismiss() }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(charcoalColor)
+                    .frame(width: 40, height: 40)
+                    .background(Color.white.opacity(0.9))
+                    .clipShape(Circle())
+            }
+            Spacer()
+            if canShowShareButton {
+                Button(action: { handleShare() }) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(charcoalColor)
+                        .frame(width: 40, height: 40)
+                        .background(Color.white.opacity(0.9))
+                        .clipShape(Circle())
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+    }
+
+    private var heroCategoryBadge: some View {
+        VStack {
+            HStack {
+                Spacer()
+                Text(activity.category.displayName)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(charcoalColor)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.9))
+                    .clipShape(Capsule())
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 64)
+            Spacer()
+        }
+    }
+
+    private var heroTitleOverlay: some View {
+        VStack {
+            Spacer()
+            VStack(alignment: .leading, spacing: 4) {
+                Text(activity.title)
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundColor(.white)
+                Button(action: {
+                    if let host = activity.host { selectedHostProfile = host }
+                }) {
+                    HStack(spacing: 4) {
+                        Text("Hosted by")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.9))
+                        Text(activity.host?.displayName ?? "Unknown")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
+        }
+    }
+
+    // MARK: - Scroll Content
+    private var scrollContent: some View {
+        VStack(spacing: 0) {
+            keyInfoCards
+            locationCard
+            descriptionSection
+            attendeesSection
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 120)
+    }
+
+    private var keyInfoCards: some View {
+        HStack(alignment: .top, spacing: 16) {
+            dateTimeCard
+                .frame(maxWidth: .infinity)
+                .frame(height: 180)
+            attendeesCard
+                .frame(maxWidth: .infinity)
+                .frame(height: 180)
+        }
+        .padding(.horizontal, 0)
+        .padding(.top, 24)
+        .padding(.bottom, 24)
+    }
+
+    private var dateTimeCard: some View {
+        infoCard(
+            icon: "calendar",
+            iconGradient: [burntOrange.opacity(0.1), sunsetRose.opacity(0.1)],
+            iconColor: burntOrange,
+            label: "DATE & TIME",
+            title: activity.formattedDate,
+            subtitle: formattedDuration,
+            blurColors: [burntOrange.opacity(0.05), .clear]
+        )
+    }
+
+    private var attendeesCard: some View {
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 0) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(LinearGradient(
+                            gradient: Gradient(colors: [forestGreen.opacity(0.1), skyBlue.opacity(0.1)]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: "person.2")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(forestGreen)
+                }
+                .padding(.bottom, 12)
+                Text("ATTENDEES")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(charcoalColor.opacity(0.5))
+                    .tracking(0.5)
+                    .padding(.bottom, 6)
+                Text("\(activity.currentAttendees) joined")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(charcoalColor)
+                    .padding(.bottom, 8)
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.gray.opacity(0.1))
+                            .frame(height: 8)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(LinearGradient(
+                                gradient: Gradient(colors: [forestGreen, skyBlue]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ))
+                            .frame(
+                                width: geometry.size.width * CGFloat(activity.currentAttendees) / CGFloat(max(activity.maxAttendees, 1)),
+                                height: 8
+                            )
+                    }
+                }
+                .frame(height: 8)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            Circle()
+                .fill(LinearGradient(
+                    gradient: Gradient(colors: [forestGreen.opacity(0.05), .clear]),
+                    startPoint: .topTrailing,
+                    endPoint: .bottomLeading
+                ))
+                .frame(width: 80, height: 80)
+                .blur(radius: 20)
+                .offset(x: 20, y: -20)
+        }
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 2)
+    }
+
+    private func infoCard(
+        icon: String,
+        iconGradient: [Color],
+        iconColor: Color,
+        label: String,
+        title: String,
+        subtitle: String,
+        blurColors: [Color]
+    ) -> some View {
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 0) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(LinearGradient(
+                            gradient: Gradient(colors: iconGradient),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(iconColor)
+                }
+                .padding(.bottom, 12)
+                Text(label)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(charcoalColor.opacity(0.5))
+                    .tracking(0.5)
+                    .padding(.bottom, 6)
+                Text(title)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(charcoalColor)
+                    .padding(.bottom, 2)
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(charcoalColor.opacity(0.6))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            Circle()
+                .fill(LinearGradient(
+                    gradient: Gradient(colors: blurColors),
+                    startPoint: .topTrailing,
+                    endPoint: .bottomLeading
+                ))
+                .frame(width: 80, height: 80)
+                .blur(radius: 20)
+                .offset(x: 20, y: -20)
+        }
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 2)
+    }
+
+    private var locationCard: some View {
+        ZStack(alignment: .bottomTrailing) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(LinearGradient(
+                                gradient: Gradient(colors: [burntOrange, sunsetRose]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ))
+                            .frame(width: 48, height: 48)
+                            .shadow(color: burntOrange.opacity(0.2), radius: 8, x: 0, y: 4)
+                        Image(systemName: "mappin")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+                    Text("Location")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(charcoalColor)
+                }
+                Text(activity.location)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(charcoalColor)
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(burntOrange.opacity(0.4))
+                        .frame(width: 6, height: 6)
+                    Text(activity.exactLocation ?? "Exact location shared after joining")
+                        .font(.system(size: 14))
+                        .foregroundColor(charcoalColor.opacity(0.6))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(24)
+            Circle()
+                .fill(LinearGradient(
+                    gradient: Gradient(colors: [burntOrange.opacity(0.05), .clear]),
+                    startPoint: .bottomTrailing,
+                    endPoint: .topLeading
+                ))
+                .frame(width: 128, height: 128)
+                .blur(radius: 30)
+                .offset(x: 40, y: 40)
+        }
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 2)
+        .padding(.horizontal, 0)
+        .padding(.bottom, 24)
+    }
+
+    private var descriptionSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(LinearGradient(
+                        gradient: Gradient(colors: [burntOrange, sunsetRose]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ))
+                    .frame(width: 4, height: 24)
+                Text("About This Activity")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(charcoalColor)
+            }
+            Text(activity.description ?? "Join us for an amazing experience! This is a great opportunity to meet fellow travelers and create unforgettable memories. All skill levels welcome. Don't forget to bring water and good vibes!")
+                .font(.system(size: 15))
+                .foregroundColor(charcoalColor.opacity(0.7))
+                .lineSpacing(6)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 8)
+        .padding(.bottom, 24)
+    }
+
+    private var attendeesSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(LinearGradient(
+                            gradient: Gradient(colors: [forestGreen, skyBlue]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ))
+                        .frame(width: 4, height: 24)
+                    Text("Who's Going")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(charcoalColor)
+                }
+                Spacer()
+                Text("\(activity.currentAttendees) \(activity.currentAttendees == 1 ? "person" : "people")")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(charcoalColor.opacity(0.6))
+            }
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 12),
+                GridItem(.flexible(), spacing: 12)
+            ], alignment: .leading, spacing: 12) {
+                ForEach(displayedAttendees) { attendee in
+                    attendeeRow(attendee)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 0)
+        .padding(.bottom, 0)
+    }
+
+    private func attendeeRow(_ attendee: ActivityAttendee) -> some View {
+        HStack(spacing: 12) {
+            ZStack(alignment: .bottomTrailing) {
+                AsyncImage(url: URL(string: attendee.profile?.avatarUrl ?? "")) { phase in
+                    switch phase {
+                    case .empty:
+                        Circle().fill(Color.gray.opacity(0.2))
+                    case .success(let image):
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    case .failure:
+                        Image(systemName: "person.circle.fill")
+                            .font(.system(size: 40))
+                            .foregroundColor(.gray)
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+                .frame(width: 40, height: 40)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                if attendee.profile?.verified == true {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 18, height: 18)
+                        .overlay(
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 16))
+                                .foregroundColor(forestGreen)
+                        )
+                        .offset(x: 2, y: 2)
+                }
+            }
+            Text(attendee.profile?.displayName ?? "Unknown")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(charcoalColor)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+    }
+
+    private var bottomActionBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+                .background(Color.gray.opacity(0.2))
+            HStack(spacing: 12) {
+                Button(action: { handleMessage() }) {
+                    Image(systemName: "message")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(burntOrange)
+                        .frame(width: 48, height: 48)
+                        .background(Color.clear)
+                        .overlay(Circle().stroke(burntOrange, lineWidth: 2))
+                }
+                if isHost {
+                    Button(action: { showEditSheet = true }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "pencil")
+                            Text("Edit")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                    }
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [burntOrange, sunsetRose]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                } else {
+                    Button(action: { handleJoin() }) {
+                        if isLoading {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
+                        } else {
+                            Text(isJoined ? "Leave Activity" : "Join Activity")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
+                        }
+                    }
+                    .background(
+                        isJoined
+                            ? LinearGradient(
+                                gradient: Gradient(colors: [charcoalColor, charcoalColor.opacity(0.8)]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            : LinearGradient(
+                                gradient: Gradient(colors: [burntOrange, sunsetRose]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                    .disabled(isLoading)
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 28)
+            .background(
+                Color.white.opacity(0.95)
+                    .background(.ultraThinMaterial)
             )
         }
     }

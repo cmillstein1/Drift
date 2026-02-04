@@ -16,6 +16,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         FirebaseApp.configure()
 
+        // Image caching: larger URLCache so AsyncImage (URLSession) can serve profile photos from cache on load
+        let memoryCapacity = 50 * 1024 * 1024   // 50 MB memory
+        let diskCapacity = 150 * 1024 * 1024    // 150 MB disk
+        URLCache.shared = URLCache(memoryCapacity: memoryCapacity, diskCapacity: diskCapacity)
+
         // Push notifications: set delegate and register
         UNUserNotificationCenter.current().delegate = self
         let authOptions: UNAuthorizationOptions = [.alert, .badge, .sound]

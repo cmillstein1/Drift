@@ -51,6 +51,7 @@ struct ReportBlockMenu: View {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 18))
+                .rotationEffect(.degrees(-90))
                 .foregroundColor(charcoalColor)
                 .frame(width: 36, height: 36)
                 .background(Color.white.opacity(0.1))
@@ -169,14 +170,29 @@ struct ReportBlockMenuButton: View {
             }
             .disabled(userId == nil || isBlocking)
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: plainStyle ? 20 : (darkStyle ? 18 : 20), weight: plainStyle ? .medium : .regular))
-                .foregroundColor(plainStyle ? .black : (darkStyle ? .white : inkMain))
-                .frame(width: plainStyle ? 44 : (darkStyle ? 36 : 40), height: plainStyle ? 44 : (darkStyle ? 36 : 40))
-                .background(plainStyle ? Color.clear : (darkStyle ? Color.white.opacity(0.2) : Color.white))
-                .clipShape(Circle())
-                .overlay(Circle().stroke(plainStyle ? Color.clear : (darkStyle ? Color.white.opacity(0.3) : Color.gray.opacity(0.2)), lineWidth: plainStyle ? 0 : 1))
-                .shadow(color: plainStyle ? .clear : .black.opacity(darkStyle ? 0.2 : 0.05), radius: darkStyle ? 4 : 4, x: 0, y: 2)
+            Group {
+                if plainStyle {
+                    // Card style: vertical dots, smaller, lighter gray
+                    VStack(spacing: 3) {
+                        ForEach(0..<3, id: \.self) { _ in
+                            Circle()
+                                .fill(Color.gray.opacity(0.45))
+                                .frame(width: 3, height: 3)
+                        }
+                    }
+                    .frame(width: 28, height: 28)
+                } else {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: darkStyle ? 18 : 20, weight: .regular))
+                        .rotationEffect(.degrees(-90))
+                        .foregroundColor(darkStyle ? .white : inkMain)
+                        .frame(width: darkStyle ? 36 : 40, height: darkStyle ? 36 : 40)
+                        .background(darkStyle ? Color.white.opacity(0.2) : Color.white)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(darkStyle ? Color.white.opacity(0.3) : Color.gray.opacity(0.2), lineWidth: 1))
+                        .shadow(color: .black.opacity(darkStyle ? 0.2 : 0.05), radius: 4, x: 0, y: 2)
+                }
+            }
         }
         .disabled(userId == nil || isBlocking)
         .sheet(isPresented: $showReportSheet) {

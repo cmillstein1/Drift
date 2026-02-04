@@ -9,17 +9,25 @@ import Auth
 
 struct FriendsListContent: View {
     var filterPreferences: NearbyFriendsFilterPreferences = .default
+    /// Called when user taps "View Profile" on a card; use to push the profile (e.g. path.append(profile)).
+    var onViewProfile: ((UserProfile) -> Void)? = nil
+    /// When false, only the feed content is rendered (no ScrollView); parent embeds this in its own scroll (e.g. Discover single-scroll).
+    var embedInScrollView: Bool = true
+    /// When set and embedInScrollView true, scroll offset is reported so tab bar can hide/show.
+    var contentOffsetY: Binding<CGFloat>? = nil
 
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var friendsManager = FriendsManager.shared
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @ObservedObject private var discoveryLocation = DiscoveryLocationProvider.shared
+    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
     @State private var isLoading = true
     @State private var swipedIds: [UUID] = []
 
+    /// Friends feed: only profiles looking for friends or both (client-side safeguard).
     private var profiles: [UserProfile] {
-        let raw = profileManager.discoverProfiles
-        // Prefer device location for distance filter; fall back to profile's stored coords
+        let raw = profileManager.discoverProfilesFriends
+            .filter { $0.lookingFor == .friends || $0.lookingFor == .both }
         let lat = DiscoveryLocationProvider.shared.latitudeForFilter ?? profileManager.currentProfile?.latitude
         let lon = DiscoveryLocationProvider.shared.longitudeForFilter ?? profileManager.currentProfile?.longitude
         return raw.filter { filterPreferences.matches($0, currentUserInterests: currentUserInterests, currentUserLat: lat, currentUserLon: lon) }
@@ -31,7 +39,13 @@ struct FriendsListContent: View {
         } ?? []
     }
 
-    private func loadProfiles() {
+    private func loadProfiles(forceRefresh: Bool = false) {
+        // Skip loading if data already cached (preloaded by DiscoverScreen)
+        if !forceRefresh && !profileManager.discoverProfilesFriends.isEmpty {
+            isLoading = false
+            return
+        }
+
         guard let currentUserId = supabaseManager.currentUser?.id else {
             isLoading = false
             return
@@ -74,69 +88,90 @@ struct FriendsListContent: View {
         }
     }
 
-    var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 16) {
-                if isLoading {
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .scaleEffect(1.2)
-                        Text("Finding friends nearby...")
-                            .font(.system(size: 14))
-                            .foregroundColor(.gray)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 60)
-                } else if profiles.isEmpty {
-                    // Empty state — Nobody_Nearby asset, campfire font, centered (like Messages empty state)
-                    VStack(spacing: 0) {
-                        Spacer(minLength: 40)
+    private func distanceMiles(for profile: UserProfile) -> Int? {
+        let lat = DiscoveryLocationProvider.shared.latitudeForFilter ?? profileManager.currentProfile?.latitude
+        let lon = DiscoveryLocationProvider.shared.longitudeForFilter ?? profileManager.currentProfile?.longitude
+        return DistanceHelper.miles(from: lat, lon, to: profile.latitude, profile.longitude)
+    }
 
-                        VStack(spacing: 24) {
-                            Image("Nobody_Nearby")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(maxWidth: 280, maxHeight: 280)
+    /// Use VStack when content is inside a UIScrollView (ScrollViewWithOffset) so the scroll view gets correct content height; use LazyVStack only inside SwiftUI ScrollView.
+    private var useVStackForScroll: Bool {
+        !embedInScrollView || contentOffsetY != nil
+    }
 
-                            VStack(spacing: 10) {
-                                Text(filterPreferences.hasActiveFilters ? "No one matches your filters" : "No friends nearby")
-                                    .font(.campfire(.regular, size: 24))
-                                    .foregroundColor(DriftUI.charcoal)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 32)
-
-                                Text(filterPreferences.hasActiveFilters ? "Try adjusting your filters" : "Check back later or expand your search radius")
-                                    .font(.campfire(.regular, size: 16))
-                                    .foregroundColor(DriftUI.charcoal.opacity(0.7))
-                                    .multilineTextAlignment(.center)
-                                    .lineSpacing(4)
-                                    .padding(.horizontal, 32)
-                            }
-                        }
-
-                        Spacer(minLength: 40)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 420)
-                } else {
-                    ForEach(profiles) { profile in
-                        NavigationLink(value: profile) {
-                            FriendCard(
-                                profile: profile,
-                                mutualInterests: getMutualInterests(for: profile),
-                                requestSent: friendsManager.hasSentRequest(to: profile.id),
-                                onConnect: { profileId in
-                                    handleConnect(profileId: profileId)
-                                },
-                                onTap: nil
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
+    private var scrollContent: some View {
+        Group {
+            if useVStackForScroll {
+                VStack(spacing: 22) {
+                    scrollContentBody
+                }
+            } else {
+                LazyVStack(spacing: 22) {
+                    scrollContentBody
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, LayoutConstants.tabBarBottomPadding)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, tabBarVisibility.isVisible ? LayoutConstants.tabBarBottomPadding : 0)
+    }
+
+    @ViewBuilder
+    private var scrollContentBody: some View {
+        if isLoading {
+            VStack(spacing: 16) {
+                ProgressView()
+                    .scaleEffect(1.2)
+                Text("Finding friends nearby...")
+                    .font(.system(size: 14))
+                    .foregroundColor(.gray)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 60)
+        } else if profiles.isEmpty {
+            VStack(spacing: 0) {
+                Spacer(minLength: 40)
+                DiscoverEndOfFeedView()
+                Spacer(minLength: 40)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 420)
+        } else {
+            ForEach(profiles) { profile in
+                DiscoverCard(
+                    profile: profile,
+                    mode: .friends,
+                    lastActiveAt: profile.lastActiveAt,
+                    distanceMiles: distanceMiles(for: profile),
+                    onPrimaryAction: { handleConnect(profileId: profile.id) },
+                    onViewProfile: { onViewProfile?(profile) },
+                    onBlockComplete: { loadProfiles() }
+                )
+            }
+            DiscoverEndOfFeedView()
+                .padding(.top, 24)
+                .padding(.bottom, tabBarVisibility.isVisible ? 16 : 40)
+        }
+    }
+
+    var body: some View {
+        Group {
+            if !embedInScrollView {
+                scrollContent
+            } else if let binding = contentOffsetY {
+                ScrollViewWithOffset(
+                    contentOffsetY: binding,
+                    showsIndicators: false,
+                    ignoresSafeAreaContentInset: false,
+                    scrollViewBackgroundColor: UIColor(named: "SoftGray") ?? UIColor(red: 0.96, green: 0.96, blue: 0.97, alpha: 1)
+                ) {
+                    scrollContent
+                }
+                .ignoresSafeArea(edges: tabBarVisibility.isVisible ? [] : .bottom)
+            } else {
+                ScrollView(showsIndicators: false) {
+                    scrollContent
+                }
+            }
         }
         .onAppear {
             DiscoveryLocationProvider.shared.requestLocation()
