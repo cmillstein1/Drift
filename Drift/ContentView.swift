@@ -31,7 +31,7 @@ enum AppTab: String, CaseIterable {
     var title: String {
         switch self {
         case .discover: return "Discover"
-        case .community: return "Community"
+        case .community: return "Builder Help"
         case .map: return "Map"
         case .messages: return "Messages"
         case .profile: return "Profile"
@@ -41,7 +41,7 @@ enum AppTab: String, CaseIterable {
     var systemImage: String {
         switch self {
         case .discover: return "compass"
-        case .community: return "person.3.fill"
+        case .community: return "hammer.fill"
         case .map: return "map.fill"
         case .messages: return "message.fill"
         case .profile: return "person.fill"
@@ -165,6 +165,12 @@ struct ContentView: View {
                                 Group {
                                     if tab == .discover {
                                         Image("discover_rv")
+                                            .resizable()
+                                            .renderingMode(.template)
+                                            .aspectRatio(contentMode: .fit)
+                                            .frame(width: 24, height: 24)
+                                    } else if tab == .community {
+                                        Image("build_icon")
                                             .resizable()
                                             .renderingMode(.template)
                                             .aspectRatio(contentMode: .fit)

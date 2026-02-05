@@ -583,6 +583,7 @@ struct MessagesScreen: View {
         }
         .sheet(isPresented: $showLikesYouPaywall) {
             PaywallScreen(isOpen: $showLikesYouPaywall, source: .likesYou)
+                .presentationDragIndicator(.hidden)
         }
         .sheet(isPresented: $showMyFriendsSheet, onDismiss: {
             if let conv = pendingConversationToOpen {

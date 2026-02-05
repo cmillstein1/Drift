@@ -51,7 +51,8 @@ struct PaywallScreen: View {
     private let forestGreen = Color("ForestGreen")
     private let skyBlue = Color("SkyBlue")
     private let softGray = Color("SoftGray")
-    private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51) // Approximate sunset rose
+    private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
+    private let warmMuted = Color(red: 0.78, green: 0.45, blue: 0.32)
     
     var body: some View {
         if isOpen {
@@ -70,6 +71,12 @@ struct PaywallScreen: View {
                     Spacer()
                     
                     VStack(spacing: 0) {
+                        // White cap to cover sheet drag indicator area at top
+                        Color.white
+                            .frame(height: 34)
+                            .frame(maxWidth: .infinity)
+                            .ignoresSafeArea(edges: .top)
+                        
                         // Close Button
                         HStack {
                             Spacer()
@@ -86,22 +93,22 @@ struct PaywallScreen: View {
                                     .clipShape(Circle())
                             }
                             .padding(.trailing, 16)
-                            .padding(.top, 16)
+                            .padding(.top, 12)
                         }
                         
                         ScrollView {
-                            VStack(spacing: 24) {
+                            VStack(spacing: 20) {
                                 // Hero Section
                                 VStack(spacing: 8) {
                                     Text("Go Further Together")
-                                        .font(.system(size: 28, weight: .bold))
+                                        .font(.system(size: 26, weight: .bold))
                                         .foregroundColor(charcoalColor)
                                     
-                                    Text("Everything you need to meet intention people, build real connections, and share the journey - wherever the road takes you")
+                                    Text("Everything you need to meet intentional people, build real connections, and share the journey — wherever the road takes you.")
                                         .font(.system(size: 14))
                                         .foregroundColor(charcoalColor.opacity(0.6))
                                         .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 32)
+                                        .padding(.horizontal, 24)
                                 }
                                 .padding(.top, 8)
                                 
@@ -130,17 +137,6 @@ struct PaywallScreen: View {
                                     )
                                     
                                     FeatureRow(
-                                        icon: "sparkles",
-                                        title: "Expert Building Help",
-                                        description: "Get personalized advice from van conversion and nomad lifestyle experts",
-                                        gradient: LinearGradient(
-                                            colors: [forestGreen, burntOrange],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    
-                                    FeatureRow(
                                         icon: "person.2.fill",
                                         title: "See Who Liked You",
                                         description: "Know who's interested before you swipe and skip the guesswork",
@@ -151,7 +147,7 @@ struct PaywallScreen: View {
                                         )
                                     )
                                 }
-                                .padding(.horizontal, 24)
+                                .padding(.horizontal, 20)
                                 
                                 // Pricing Toggle
                                 GeometryReader { geometry in
@@ -239,16 +235,17 @@ struct PaywallScreen: View {
                                     }
                                 }
                                 .frame(height: 50)
-                                .padding(.horizontal, 24)
-                                .padding(.bottom, 100) // Space for fixed CTA
+                                .padding(.horizontal, 20)
+                                .padding(.bottom, 28)
                             }
                             .padding(.top, 8)
-                            .padding(.bottom, 20)
+                            .padding(.bottom, 16)
                         }
                     }
                     .background(Color.white)
                     .cornerRadius(32, corners: [.topLeft, .topRight])
                     .frame(maxHeight: UIScreen.main.bounds.height * 0.9)
+                    .ignoresSafeArea(edges: .top)
                     
                     // Fixed Bottom CTA
                     VStack(spacing: 8) {
@@ -274,13 +271,13 @@ struct PaywallScreen: View {
                             .padding(.vertical, 14)
                             .background(
                                 LinearGradient(
-                                    colors: [burntOrange, sunsetRose],
+                                    colors: [burntOrange, warmMuted],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 20))
-                            .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                            .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 3)
                         }
                         .disabled(isPurchasing || revenueCatManager.isLoading)
                         
@@ -306,6 +303,7 @@ struct PaywallScreen: View {
                     )
                 }
             }
+            .presentationDragIndicator(.hidden)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .zIndex(1000)
             .onAppear {
@@ -394,8 +392,8 @@ struct FeatureRow: View {
             
             Spacer()
         }
-        .padding(14)
-        .background(softGray)
+        .padding(12)
+        .background(softGray.opacity(0.6))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
