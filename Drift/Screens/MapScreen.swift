@@ -303,7 +303,7 @@ struct MapScreen: View {
                             .clipShape(Capsule())
                             .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
                         }
-                        .padding(.bottom, 100)
+                        .padding(.bottom, 140)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }

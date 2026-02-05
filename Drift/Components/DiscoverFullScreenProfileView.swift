@@ -30,6 +30,8 @@ struct DiscoverFullScreenProfileView: View {
     @State private var scrollOffsetY: CGFloat = 0
     @State private var travelStops: [DriftBackend.TravelStop] = []
     @State private var connectPressed: Bool = false
+    @State private var likePressed: Bool = false
+    @State private var passPressed: Bool = false
     @State private var showReportSheet: Bool = false
 
     // Colors
@@ -354,60 +356,121 @@ struct DiscoverFullScreenProfileView: View {
                         Button {
                             let generator = UIImpactFeedbackGenerator(style: .medium)
                             generator.impactOccurred()
-                            onLike?()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                likePressed = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                                onLike?()
+                            }
                         } label: {
-                            Image(systemName: "heart.fill")
-                                .font(.system(size: 16))
-                                .foregroundColor(.white)
-                                .frame(width: 36, height: 36)
-                                .background(datingGradient)
-                                .clipShape(Circle())
+                            if likePressed {
+                                Image(systemName: "heart.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.white)
+                                    .frame(width: 36, height: 36)
+                                    .background(datingGradient)
+                                    .clipShape(Circle())
+                                    .scaleEffect(1.15)
+                            } else {
+                                Image(systemName: "heart.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.white)
+                                    .frame(width: 36, height: 36)
+                                    .background(datingGradient)
+                                    .clipShape(Circle())
+                            }
                         }
+                        .disabled(likePressed || passPressed)
                         Button {
                             let generator = UIImpactFeedbackGenerator(style: .light)
                             generator.impactOccurred()
-                            onPass?()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                passPressed = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                                onPass?()
+                            }
                         } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(inkMain.opacity(0.6))
-                                .frame(width: 36, height: 36)
-                                .background(gray100)
-                                .clipShape(Circle())
+                            if passPressed {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 36, height: 36)
+                                    .background(Color.red.opacity(0.8))
+                                    .clipShape(Circle())
+                                    .scaleEffect(1.1)
+                            } else {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(inkMain.opacity(0.6))
+                                    .frame(width: 36, height: 36)
+                                    .background(gray100)
+                                    .clipShape(Circle())
+                            }
                         }
+                        .disabled(likePressed || passPressed)
                     }
                 } else {
                     // Fixed frame so Connect → checkmark transition doesn't shift layout
-                    let connectButtonWidth: CGFloat = 88
-                    Button {
-                        let generator = UIImpactFeedbackGenerator(style: .medium)
-                        generator.impactOccurred()
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                            connectPressed = true
+                    HStack(spacing: 8) {
+                        Button {
+                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                            generator.impactOccurred()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                connectPressed = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                                onConnect?()
+                            }
+                        } label: {
+                            if connectPressed {
+                                Image(systemName: "person.crop.circle.badge.checkmark")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.white)
+                                    .frame(width: 36, height: 36)
+                                    .background(Self.friendsGradient)
+                                    .clipShape(Circle())
+                                    .scaleEffect(1.1)
+                            } else {
+                                Text("Connect")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(forestGreen)
+                                    .padding(.horizontal, 18)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().stroke(forestGreen, lineWidth: 1.5))
+                            }
                         }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            onConnect?()
+                        .disabled(connectPressed || passPressed)
+
+                        Button {
+                            let generator = UIImpactFeedbackGenerator(style: .light)
+                            generator.impactOccurred()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                passPressed = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                                onPass?()
+                            }
+                        } label: {
+                            if passPressed {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 36, height: 36)
+                                    .background(Color.red.opacity(0.8))
+                                    .clipShape(Circle())
+                                    .scaleEffect(1.1)
+                            } else {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(inkMain.opacity(0.6))
+                                    .frame(width: 36, height: 36)
+                                    .background(gray100)
+                                    .clipShape(Circle())
+                            }
                         }
-                    } label: {
-                        if connectPressed {
-                            Image(systemName: "person.crop.circle.badge.checkmark")
-                                .font(.system(size: 18))
-                                .foregroundColor(.white)
-                                .frame(width: 36, height: 36)
-                                .background(Self.friendsGradient)
-                                .clipShape(Circle())
-                                .scaleEffect(connectPressed ? 1.0 : 0.8)
-                        } else {
-                            Text("Connect")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(forestGreen)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(Capsule().stroke(forestGreen, lineWidth: 1.5))
-                        }
+                        .disabled(connectPressed || passPressed)
                     }
-                    .frame(width: connectButtonWidth, height: 36)
-                    .disabled(connectPressed)
                 }
             }
             .fixedSize(horizontal: true, vertical: false)

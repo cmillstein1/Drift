@@ -16,6 +16,7 @@ struct DiscoverScreen: View {
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var friendsManager = FriendsManager.shared
     @StateObject private var messagingManager = MessagingManager.shared
+    @StateObject private var communityManager = CommunityManager.shared
     @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
 
     @State private var swipedIds: [UUID] = []
@@ -33,6 +34,7 @@ struct DiscoverScreen: View {
     @State private var zoomedPhotoURL: String? = nil
     @State private var friendsNavigationPath = NavigationPath()
     @State private var selectedFriendProfile: UserProfile? = nil
+    @State private var selectedEvent: CommunityPost? = nil
     /// Current dating profile index for full-screen carousel view
     @State private var currentDatingProfileIndex: Int = 0
     /// Fade animation for profile transitions
@@ -356,6 +358,9 @@ struct DiscoverScreen: View {
                 await FriendsManager.shared.subscribeToMatches()
                 await FriendsManager.shared.subscribeToFriendRequests()
             }
+
+            // Load events for community grid
+            Task { try? await communityManager.fetchPosts(type: .event) }
         }
         .onDisappear {
             tabBarVisibility.isVisible = true
@@ -442,6 +447,11 @@ struct DiscoverScreen: View {
             )
             .id(profile.id)
         }
+        .sheet(item: $selectedEvent) { event in
+            EventDetailSheet(initialPost: event)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+        }
         .sheet(isPresented: $showDatingSettings) {
             DatingSettingsSheet(isPresented: $showDatingSettings)
         }
@@ -458,36 +468,30 @@ struct DiscoverScreen: View {
     }
 
     // MARK: - Unified Discover (when discoveryMode == .both)
-    /// Seamless horizontal slide between Dating and Friends; both panes stay in hierarchy to avoid black flash.
     @ViewBuilder
     private var unifiedDiscoverView: some View {
         NavigationStack {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                GeometryReader { geo in
-                    let w = geo.size.width
-                    // Friends first (left), Dating second — so default segment is travel friends
-                    HStack(spacing: 0) {
-                        unifiedFriendsPane
-                            .frame(width: w)
-                        unifiedDatingPane
-                            .frame(width: w)
-                    }
-                    .frame(width: w * 2, alignment: .leading)
-                    .offset(x: mode == .friends ? 0 : -w)
-                    .animation(.easeInOut(duration: 0.35), value: mode)
+                // Show the appropriate pane based on mode (no sliding animation)
+                if mode == .friends {
+                    unifiedFriendsPane
+                } else {
+                    unifiedDatingPane
                 }
 
                 // Single overlay: mode switcher + map (destination depends on mode)
+                // Match Messages tab: ~10pt below safe area (safe area top ~59 + 10) and light segment design
                 VStack {
                     HStack {
-                        modeSwitcher(style: .dark)
+                        modeSwitcher(style: .light)
                         Spacer()
                         unifiedDiscoverMapButton
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 60)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 70)
+                    .padding(.bottom, 20)
                     Spacer()
                 }
                 .opacity(unifiedOverlayVisible ? 1 : 0)
@@ -497,7 +501,8 @@ struct DiscoverScreen: View {
     }
 
     private var unifiedOverlayVisible: Bool {
-        (mode == .dating && !visibleDatingProfiles.isEmpty) || (mode == .friends && !visibleFriendsProfiles.isEmpty)
+        let hasEvents = communityManager.posts.contains { $0.type == .event }
+        return (mode == .dating && !visibleDatingProfiles.isEmpty) || (mode == .friends && (!visibleFriendsProfiles.isEmpty || hasEvents))
     }
 
     @ViewBuilder
@@ -530,9 +535,9 @@ struct DiscoverScreen: View {
     private var discoverMapButtonLabel: some View {
         Image(systemName: "safari")
             .font(.system(size: 18, weight: .medium))
-            .foregroundColor(.white)
+            .foregroundColor(.gray)
             .frame(width: 40, height: 40)
-            .background(Color.black.opacity(0.4))
+            .glassEffect()
             .clipShape(Circle())
     }
 
@@ -557,21 +562,14 @@ struct DiscoverScreen: View {
 
     @ViewBuilder
     private var unifiedFriendsPane: some View {
-        if visibleFriendsProfiles.isEmpty {
-            emptyState
-        } else if let profile = currentFullScreenFriendsProfile {
-            DiscoverFullScreenProfileView(
-                profile: profile,
-                mode: .friends,
-                distanceMiles: distanceMiles(for: profile),
-                lastActiveAt: profile.lastActiveAt,
-                onPass: { handleFullScreenFriendsPass(profile: profile) },
-                onConnect: { handleFullScreenFriendsConnect(profile: profile) },
-                onBlockComplete: { loadProfiles(forMode: .friends) }
-            )
-            .id(profile.id)
-            .opacity(profileTransitionOpacity)
-        }
+        CommunityGridView(
+            profiles: visibleFriendsProfiles,
+            events: communityManager.posts.filter { $0.type == .event },
+            distanceMiles: distanceMiles(for:),
+            onSelectProfile: { selectedFriendProfile = $0 },
+            onSelectEvent: { selectedEvent = $0 },
+            onConnect: { handleConnect(profileId: $0) }
+        )
     }
 
     private var unifiedDatingFeedContent: some View {
@@ -820,15 +818,15 @@ struct DiscoverScreen: View {
         let discoveryMode = supabaseManager.getDiscoveryMode()
 
         VStack(spacing: 0) {
-            // Mode switcher at top
+            // Mode switcher at top — match Messages tab (safe area + 10pt)
             if discoveryMode == .both {
                 HStack {
                     modeSwitcher(style: .light)
                     Spacer()
                 }
                 .padding(.horizontal, 24)
-                .padding(.top, 72)
-                .padding(.bottom, 4)
+                .padding(.top, 70)
+                .padding(.bottom, 20)
 
                 // Subtitle under segment (dating)
                 Text("Stories from travelers looking to date")
