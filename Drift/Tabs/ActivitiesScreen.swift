@@ -266,6 +266,7 @@ struct ActivitiesScreen: View {
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallScreen(isOpen: $showPaywall, source: .createActivity)
+                    .presentationDragIndicator(.hidden)
             }
             .sheet(item: $selectedActivity) { activity in
                 ActivityDetailSheet(activity: activity) {

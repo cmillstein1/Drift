@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct BottomNav: View {
     @Binding var activeTab: String
@@ -23,9 +24,6 @@ struct BottomNav: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            Divider()
-                .background(Color.gray.opacity(0.2))
-            
             HStack(spacing: 0) {
                 ForEach(tabs, id: \.id) { tab in
                     Button(action: {
@@ -63,9 +61,26 @@ struct BottomNav: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
         }
-        .background(.ultraThinMaterial)
-        .background(Color.white.opacity(0.95))
+        .background(Color.white)
+        .clipShape(BottomNavRoundedCorner(radius: 24, corners: [.topLeft, .topRight]))
+        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: -4)
+        .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 4)
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Rounded Corner Shape for BottomNav
+private struct BottomNavRoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
     }
 }
 

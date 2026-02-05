@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 import DriftBackend
 import Combine
 import Auth
@@ -30,7 +31,7 @@ enum AppTab: String, CaseIterable {
     var title: String {
         switch self {
         case .discover: return "Discover"
-        case .community: return "Community"
+        case .community: return "Builder Help"
         case .map: return "Map"
         case .messages: return "Messages"
         case .profile: return "Profile"
@@ -40,7 +41,7 @@ enum AppTab: String, CaseIterable {
     var systemImage: String {
         switch self {
         case .discover: return "compass"
-        case .community: return "person.3.fill"
+        case .community: return "hammer.fill"
         case .map: return "map.fill"
         case .messages: return "message.fill"
         case .profile: return "person.fill"
@@ -168,6 +169,12 @@ struct ContentView: View {
                                             .renderingMode(.template)
                                             .aspectRatio(contentMode: .fit)
                                             .frame(width: 24, height: 24)
+                                    } else if tab == .community {
+                                        Image("build_icon")
+                                            .resizable()
+                                            .renderingMode(.template)
+                                            .aspectRatio(contentMode: .fit)
+                                            .frame(width: 24, height: 24)
                                     } else {
                                         Image(systemName: tab.systemImage)
                                             .font(.system(size: 20))
@@ -203,17 +210,26 @@ struct ContentView: View {
         }
         .frame(height: LayoutConstants.tabBarHeight)
         .background(
-            Rectangle()
+            TabBarRoundedCorner(radius: 24, corners: [.topLeft, .topRight])
                 .fill(Color.white)
-                .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: -4)
+                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: -4)
                 .ignoresSafeArea(.all, edges: .bottom)
         )
-        .overlay(
-            Rectangle()
-                .fill(Color.gray.opacity(0.1))
-                .frame(height: 1),
-            alignment: .top
+    }
+}
+
+// MARK: - Tab Bar Rounded Corner Shape
+private struct TabBarRoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
         )
+        return Path(path.cgPath)
     }
 }
 
