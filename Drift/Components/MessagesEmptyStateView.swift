@@ -20,7 +20,7 @@ struct MessagesEmptyStateView: View {
                 Image("Message_Empty_State")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: 280, maxHeight: 280)
+                    .frame(maxWidth: 260, maxHeight: 260)
 
                 VStack(spacing: 10) {
                     Text("No messages right now")
