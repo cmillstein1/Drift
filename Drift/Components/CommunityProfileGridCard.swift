@@ -11,6 +11,8 @@ import DriftBackend
 struct CommunityProfileGridCard: View {
     let profile: UserProfile
     let distanceMiles: Int?
+    /// Interest names to show as segments (e.g. shared interests or profile.interests). When nil, uses profile.interests.
+    var displayInterests: [String]? = nil
     var onTap: (() -> Void)? = nil
 
     private let charcoalColor = Color("Charcoal")
@@ -23,9 +25,9 @@ struct CommunityProfileGridCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Image Container with overlay - fixed height
+            // Image container: fixed frame, then clip so the image can never overflow
             ZStack(alignment: .bottomLeading) {
-                // Profile image
+                // Profile image - frame first, then clip to rounded rect
                 AsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? "")) { phase in
                     switch phase {
                     case .empty:
@@ -48,9 +50,10 @@ struct CommunityProfileGridCard: View {
                             .fill(Color.gray.opacity(0.2))
                     }
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: imageHeight)
+                .frame(minWidth: 0, maxWidth: .infinity, minHeight: imageHeight, maxHeight: imageHeight)
                 .clipped()
+                .compositingGroup()
+                .clipShape(RoundedRectangle(cornerRadius: 16))
 
                 // Verified badge (top-right)
                 if profile.verified {
@@ -118,13 +121,16 @@ struct CommunityProfileGridCard: View {
                     )
                 )
             }
+            .frame(maxWidth: .infinity)
             .frame(height: imageHeight)
+            .clipped()
             .clipShape(RoundedRectangle(cornerRadius: 16))
 
-            // Interest tags section - always same height
+            // Shared interests line - always same height
             interestsSection
                 .frame(height: interestsHeight)
         }
+        .frame(maxWidth: .infinity)
         .frame(height: imageHeight + interestsHeight)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -137,10 +143,15 @@ struct CommunityProfileGridCard: View {
 
     @ViewBuilder
     private var interestsSection: some View {
-        if !profile.interests.isEmpty {
-            let displayInterests = Array(profile.interests.prefix(2))
+        let interests = displayInterests ?? profile.interests
+        if interests.isEmpty {
+            HStack { Spacer() }
+                .padding(.horizontal, 12)
+        } else {
+            let shown = Array(interests.prefix(2))
+            let remaining = interests.count - 2
             HStack(spacing: 6) {
-                ForEach(displayInterests, id: \.self) { interest in
+                ForEach(shown, id: \.self) { interest in
                     HStack(spacing: 4) {
                         if let emoji = DriftUI.emoji(for: interest) {
                             Text(emoji)
@@ -149,6 +160,7 @@ struct CommunityProfileGridCard: View {
                         Text(interest)
                             .font(.system(size: 11, weight: .medium))
                             .lineLimit(1)
+                            .minimumScaleFactor(0.6)
                     }
                     .foregroundColor(charcoalColor)
                     .padding(.horizontal, 8)
@@ -156,19 +168,14 @@ struct CommunityProfileGridCard: View {
                     .background(desertSand)
                     .clipShape(Capsule())
                 }
-
-                if profile.interests.count > 2 {
-                    Text("+\(profile.interests.count - 2)")
+                if remaining > 0 {
+                    Text("+\(remaining)")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(charcoalColor.opacity(0.6))
                 }
-
                 Spacer()
             }
             .padding(.horizontal, 12)
-        } else {
-            // Empty spacer to maintain consistent height
-            Spacer()
         }
     }
 }

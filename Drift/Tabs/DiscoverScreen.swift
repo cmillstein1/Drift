@@ -31,6 +31,7 @@ struct DiscoverScreen: View {
     @State private var showFilters: Bool = false
     @State private var friendsFilterPreferences = NearbyFriendsFilterPreferences.default
     @State private var showDatingSettings: Bool = false
+    @State private var showCreateEventSheet: Bool = false
     @State private var zoomedPhotoURL: String? = nil
     @State private var friendsNavigationPath = NavigationPath()
     @State private var selectedFriendProfile: UserProfile? = nil
@@ -455,6 +456,11 @@ struct DiscoverScreen: View {
         .sheet(isPresented: $showDatingSettings) {
             DatingSettingsSheet(isPresented: $showDatingSettings)
         }
+        .sheet(isPresented: $showCreateEventSheet) {
+            CreateCommunityPostSheet(restrictToPostType: .event)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     /// Current user's location: profile city/state (lat/lon) first, then device location as fallback.
@@ -481,13 +487,17 @@ struct DiscoverScreen: View {
                     unifiedDatingPane
                 }
 
-                // Single overlay: mode switcher + map (destination depends on mode)
+                // Single overlay: mode switcher + top-right button (Community: create event +; Dating: compass map)
                 // Match Messages tab: ~10pt below safe area (safe area top ~59 + 10) and light segment design
                 VStack {
                     HStack {
                         modeSwitcher(style: .light)
                         Spacer()
-                        unifiedDiscoverMapButton
+                        if mode == .friends {
+                            discoverCreateEventButton
+                        } else {
+                            unifiedDiscoverMapButton
+                        }
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 70)
@@ -503,6 +513,22 @@ struct DiscoverScreen: View {
     private var unifiedOverlayVisible: Bool {
         let hasEvents = communityManager.posts.contains { $0.type == .event }
         return (mode == .dating && !visibleDatingProfiles.isEmpty) || (mode == .friends && (!visibleFriendsProfiles.isEmpty || hasEvents))
+    }
+
+    /// "+" button for creating a new event (Community tab only). Same style as CommunityScreen; no Help option.
+    private var discoverCreateEventButton: some View {
+        Button {
+            showCreateEventSheet = true
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(charcoal)
+                .frame(width: 40, height: 40)
+                .background(Color.white)
+                .clipShape(Circle())
+                .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
@@ -566,6 +592,7 @@ struct DiscoverScreen: View {
             profiles: visibleFriendsProfiles,
             events: communityManager.posts.filter { $0.type == .event },
             distanceMiles: distanceMiles(for:),
+            sharedInterests: sharedInterestsForGrid,
             onSelectProfile: { selectedFriendProfile = $0 },
             onSelectEvent: { selectedEvent = $0 },
             onConnect: { handleConnect(profileId: $0) }
@@ -871,27 +898,11 @@ struct DiscoverScreen: View {
                     .opacity(profileTransitionOpacity)
                 }
 
-                // Top overlay: map button
+                // Top overlay: create event "+" button (Community tab; no compass here)
                 VStack {
                     HStack {
                         Spacer()
-                        NavigationLink {
-                            DiscoverMapSheet(
-                                profiles: profileManager.discoverProfilesFriends,
-                                currentUserCoordinate: currentUserMapCoordinate,
-                                hideCurrentUserLocation: profileManager.currentProfile?.hideLocationOnMap ?? false,
-                                isPushed: true,
-                                onSelectProfile: { selectedFriendProfile = $0 },
-                                distanceMiles: distanceMiles(for:)
-                            )
-                        } label: {
-                            Image(systemName: "safari")
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.white)
-                                .frame(width: 40, height: 40)
-                                .background(Color.black.opacity(0.4))
-                                .clipShape(Circle())
-                        }
+                        discoverCreateEventButton
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 60)
@@ -914,6 +925,13 @@ struct DiscoverScreen: View {
             profileManager.currentProfile?.interests
         } ?? []
         return Set(currentUserInterests).intersection(Set(profile.interests)).map { $0 }
+    }
+
+    /// When current user has interests loaded, returns shared interest names for each profile so cards show 1–2 shared interest segments. When nil, cards show profile.interests.
+    private var sharedInterestsForGrid: ((UserProfile) -> [String])? {
+        let current = profileManager.currentProfile?.interests ?? []
+        guard !current.isEmpty else { return nil }
+        return { self.getMutualInterests(for: $0) }
     }
     
     private func handleConnect(profileId: UUID) {

@@ -499,6 +499,7 @@ struct BuilderScreen: View {
         }
         .sheet(isPresented: $showPaywall) {
             PaywallScreen(isOpen: $showPaywall, source: .expertHelp)
+                .presentationDragIndicator(.hidden)
         }
         .onAppear {
             loadData()

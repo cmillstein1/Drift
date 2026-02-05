@@ -12,6 +12,8 @@ struct CommunityGridView: View {
     let profiles: [UserProfile]
     let events: [CommunityPost]
     let distanceMiles: (UserProfile) -> Int?
+    /// When set, each card shows these interest names (e.g. shared interests). When nil, cards use profile.interests.
+    var sharedInterests: ((UserProfile) -> [String])? = nil
     let onSelectProfile: (UserProfile) -> Void
     let onSelectEvent: (CommunityPost) -> Void
     let onConnect: (UUID) -> Void
@@ -123,6 +125,7 @@ struct CommunityGridView: View {
                         CommunityProfileGridCard(
                             profile: profile,
                             distanceMiles: distanceMiles(profile),
+                            displayInterests: sharedInterests?(profile),
                             onTap: { onSelectProfile(profile) }
                         )
                     }
