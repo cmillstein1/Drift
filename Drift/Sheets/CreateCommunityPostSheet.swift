@@ -13,6 +13,8 @@ struct CreateCommunityPostSheet: View {
     @Environment(\.dismiss) private var dismiss
     /// When non-nil, the sheet is in edit mode for this event post: pre-filled and shows "Update" instead of "Post".
     var existingPost: CommunityPost? = nil
+    /// When set, only this post type is allowed (e.g. .event for Discover Community tab). Type selector is hidden.
+    var restrictToPostType: CommunityPostType? = nil
     @StateObject private var communityManager = CommunityManager.shared
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var supabaseManager = SupabaseManager.shared
@@ -64,7 +66,7 @@ struct CreateCommunityPostSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    if !isEditMode {
+                    if !isEditMode && restrictToPostType == nil {
                         postTypeSelection
                     }
                     titleInput
@@ -92,7 +94,10 @@ struct CreateCommunityPostSheet: View {
                 longitude: $eventLongitude
             )
         }
-        .onAppear { prefillIfEditing() }
+        .onAppear {
+            if let restricted = restrictToPostType { selectedType = restricted }
+            prefillIfEditing()
+        }
     }
 
     // MARK: - Header
@@ -100,7 +105,7 @@ struct CreateCommunityPostSheet: View {
     private var headerView: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(isEditMode ? "Edit Event" : "Create Post")
+                Text(isEditMode ? "Edit Event" : (restrictToPostType == .event ? "Create Event" : (restrictToPostType == .help ? "Ask Question" : "Create Post")))
                     .font(.system(size: 24, weight: .bold))
                     .foregroundColor(charcoal)
 

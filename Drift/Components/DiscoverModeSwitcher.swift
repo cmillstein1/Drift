@@ -25,26 +25,51 @@ struct DiscoverModeSwitcher: View {
     )
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Dating button
+        HStack(spacing: 4) {
+            // Friends first (primary: travel community) for App Store positioning
             Button {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
+                    mode = .friends
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "person.3.fill")
+                        .font(.system(size: 13))
+                    Text("Community")
+                        .font(.system(size: 13, weight: mode == .friends ? .semibold : .medium))
+                }
+                .foregroundColor(friendsTextColor)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background {
+                    if mode == .friends {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(friendsGradient)
+                            .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
+                            .matchedGeometryEffect(id: "discoverSegmentBg", in: animation)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            // Dating second
+            Button {
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
                     mode = .dating
                 }
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Image(systemName: "heart.fill")
-                        .font(.system(size: 12))
+                        .font(.system(size: 13))
                     Text("Dating")
-                        .font(.system(size: 12, weight: mode == .dating ? .bold : .medium))
-                        .tracking(0.5)
+                        .font(.system(size: 13, weight: mode == .dating ? .semibold : .medium))
                 }
                 .foregroundColor(datingTextColor)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background {
                     if mode == .dating {
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: 16)
                             .fill(
                                 LinearGradient(
                                     colors: [burntOrange, pink500],
@@ -52,42 +77,16 @@ struct DiscoverModeSwitcher: View {
                                     endPoint: .trailing
                                 )
                             )
-                            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
-                            .matchedGeometryEffect(id: "discoverSegmentBg", in: animation)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-
-            // Friends button
-            Button {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                    mode = .friends
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "person.2.fill")
-                        .font(.system(size: 12))
-                    Text("Friends")
-                        .font(.system(size: 12, weight: mode == .friends ? .bold : .medium))
-                        .tracking(0.5)
-                }
-                .foregroundColor(friendsTextColor)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background {
-                    if mode == .friends {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(friendsGradient)
+                            .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
                             .matchedGeometryEffect(id: "discoverSegmentBg", in: animation)
                     }
                 }
             }
             .buttonStyle(.plain)
         }
-        .padding(4)
+        .padding(5)
         .background(containerBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(containerOverlay)
         .shadow(color: shadowColor, radius: shadowRadius, x: 0, y: shadowY)
     }
@@ -129,11 +128,11 @@ struct DiscoverModeSwitcher: View {
     private var containerOverlay: some View {
         switch style {
         case .dark:
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.white.opacity(0.15), lineWidth: 1)
         case .light:
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.gray.opacity(0.15), lineWidth: 1)
         }
     }
 

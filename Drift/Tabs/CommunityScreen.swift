@@ -2,43 +2,19 @@
 //  CommunityScreen.swift
 //  Drift
 //
-//  Community feed combining activities, builder help, and marketplace
+//  Builder Help: categories, help topics, Ask Question
 //
 
 import SwiftUI
 import DriftBackend
 
-// MARK: - Filter Enum
-
-enum CommunityFilter: String, CaseIterable {
-    case all = "All"
-    case events = "Events"
-    case buildHelp = "Help"
-
-    var icon: String {
-        switch self {
-        case .all: return ""
-        case .events: return "tent"
-        case .buildHelp: return "wrench.and.screwdriver"
-        }
-    }
-
-    var postType: CommunityPostType? {
-        switch self {
-        case .all: return nil
-        case .events: return .event
-        case .buildHelp: return .help
-        }
-    }
-}
-
-// MARK: - Main Screen
+// MARK: - Main Screen (Builder Help)
 
 struct CommunityScreen: View {
-    @State private var selectedFilter: CommunityFilter = .all
     @State private var showCreateSheet: Bool = false
     @State private var showNotificationsSheet: Bool = false
     @State private var selectedPost: CommunityPost? = nil
+    @State private var selectedBuilderHelpCategory: HelpCategory? = nil
     @StateObject private var communityManager = CommunityManager.shared
     @StateObject private var notificationsManager = NotificationsManager.shared
 
@@ -50,10 +26,10 @@ struct CommunityScreen: View {
     private func loadData() {
         Task {
             do {
-                try await communityManager.fetchPosts(type: selectedFilter.postType)
+                try await communityManager.fetchPosts(type: .help)
                 await communityManager.subscribeToPosts()
             } catch {
-                print("Failed to load community data: \(error)")
+                print("Failed to load Builder Help data: \(error)")
             }
         }
     }
@@ -63,18 +39,15 @@ struct CommunityScreen: View {
             softGray.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Header
+                // Header: Builder Help title, notifications, filter by category
                 VStack(alignment: .leading, spacing: 20) {
-                    // Title row with notifications and + buttons
                     HStack {
-                        Text("Community")
-                            //.font(.system(size: 32, weight: .bold))
+                        Text("Builder Help")
                             .font(.campfire(.regular, size: 24))
                             .foregroundColor(charcoal)
 
                         Spacer()
 
-                        // Notifications Button
                         Button {
                             showNotificationsSheet = true
                         } label: {
@@ -87,7 +60,6 @@ struct CommunityScreen: View {
                                     .clipShape(Circle())
                                     .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
 
-                                // Unread badge
                                 if notificationsManager.unreadCount > 0 {
                                     Circle()
                                         .fill(burntOrange)
@@ -101,102 +73,19 @@ struct CommunityScreen: View {
                             }
                         }
 
-                        // Create Post Button
-                        Button {
-                            showCreateSheet = true
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.white)
-                                .frame(width: 40, height: 40)
-                                .background(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [burntOrange, sunsetRose]),
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .clipShape(Circle())
-                                .shadow(color: burntOrange.opacity(0.3), radius: 8, x: 0, y: 4)
-                        }
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 24)
-
-                    // Tab Navigation - Pill style with sliding indicator
-                    CommunitySegmentedControl(
-                        selectedFilter: $selectedFilter
-                    )
-                    .padding(.horizontal, 16)
                     .padding(.bottom, 8)
                 }
                 .background(softGray)
 
-                // Posts Feed
-                List {
-                    if filteredPosts.isEmpty {
-                        // Empty State
-                        VStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.gray.opacity(0.1))
-                                    .frame(width: 80, height: 80)
-
-                                Image(systemName: "bubble.left.and.bubble.right")
-                                    .font(.system(size: 32))
-                                    .foregroundColor(.gray.opacity(0.4))
-                            }
-
-                            Text("No posts yet")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(charcoal)
-
-                            Text("Be the first to share something with the community!")
-                                .font(.system(size: 14))
-                                .foregroundColor(charcoal.opacity(0.6))
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 400)
-                        .listRowInsets(EdgeInsets())
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                    } else {
-                        ForEach(filteredPosts) { post in
-                            Group {
-                                if post.type == .event {
-                                    EventCard(post: post)
-                                } else {
-                                    CommunityPostCard(post: post)
-                                }
-                            }
-                            .onTapGesture {
-                                selectedPost = post
-                            }
-                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                        }
-                    }
-                }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .background(Color.clear)
-                .refreshable {
-                    do {
-                        try await communityManager.fetchPosts(type: selectedFilter.postType)
-                        print("[CommunityScreen] Refresh completed, posts count: \(communityManager.posts.count)")
-                    } catch {
-                        print("[CommunityScreen] Refresh failed: \(error)")
-                    }
-                }
+                // Builder Help content only
+                builderHelpContent
             }
-
         }
         .onAppear {
             loadData()
-            setupAttendeeRealtime()
-            // Notifications are loaded by AppDataManager on init
         }
         .onDisappear {
             Task {
@@ -204,12 +93,11 @@ struct CommunityScreen: View {
             }
         }
         .sheet(isPresented: $showCreateSheet) {
-            CreateCommunityPostSheet()
+            CreateCommunityPostSheet(restrictToPostType: .help)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
         .fullScreenCover(isPresented: $showNotificationsSheet, onDismiss: {
-            // Refresh notifications count after viewing
             Task {
                 await notificationsManager.fetchNotifications()
             }
@@ -217,76 +105,292 @@ struct CommunityScreen: View {
             NotificationsScreen()
         }
         .sheet(item: $selectedPost) { post in
-            if post.type == .event {
-                EventDetailSheet(initialPost: post)
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.hidden)
-            } else {
-                CommunityPostDetailSheet(initialPost: post)
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-            }
-        }
-        .onChange(of: selectedFilter) { _, _ in
-            loadData()
+            CommunityPostDetailSheet(initialPost: post)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
 
-    private func setupAttendeeRealtime() {
-        Task {
-            await communityManager.subscribeToMyAttendeeChanges()
-        }
+    /// Help posts for Builder Help section, optionally filtered by category
+    private var helpPosts: [CommunityPost] {
+        let help = communityManager.posts.filter { $0.type == .help }
+        guard let cat = selectedBuilderHelpCategory else { return help }
+        return help.filter { $0.helpCategory == cat }
     }
 
-    // Filtered posts based on selected filter
-    private var filteredPosts: [CommunityPost] {
-        // Filter is applied at fetch time, so just return all posts
-        communityManager.posts
-    }
-}
-
-// MARK: - Community Segmented Control
-
-struct CommunitySegmentedControl: View {
-    @Binding var selectedFilter: CommunityFilter
-    @Namespace private var animation
-    
-    private let charcoal = Color("Charcoal")
-    
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(CommunityFilter.allCases, id: \.self) { filter in
-                Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                        selectedFilter = filter
+    private var builderHelpContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                // Filter by category
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Filter by category")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(charcoal)
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        BuilderHelpCategoryButton(
+                            name: "Electrical",
+                            icon: "bolt.fill",
+                            assetImageName: "electrical",
+                            color: burntOrange,
+                            isSelected: selectedBuilderHelpCategory == .electrical
+                        ) { selectedBuilderHelpCategory = selectedBuilderHelpCategory == .electrical ? nil : .electrical }
+                        BuilderHelpCategoryButton(
+                            name: "Plumbing",
+                            icon: "drop.fill",
+                            assetImageName: "plumbing",
+                            color: Color("SkyBlue"),
+                            isSelected: selectedBuilderHelpCategory == .plumbing
+                        ) { selectedBuilderHelpCategory = selectedBuilderHelpCategory == .plumbing ? nil : .plumbing }
+                        BuilderHelpCategoryButton(
+                            name: "General",
+                            icon: "wrench.and.screwdriver.fill",
+                            assetImageName: "general",
+                            color: Color("ForestGreen"),
+                            isSelected: selectedBuilderHelpCategory == .other
+                        ) { selectedBuilderHelpCategory = selectedBuilderHelpCategory == .other ? nil : .other }
                     }
-                } label: {
-                    HStack(spacing: 6) {
-                        if !filter.icon.isEmpty {
-                            Image(systemName: filter.icon)
-                                .font(.system(size: 14))
+                }
+
+                // Recent Help Topics + Ask Question
+                HStack {
+                    Text("Recent Help Topics")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(charcoal)
+                    Spacer()
+                    Button {
+                        showCreateSheet = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 14, weight: .bold))
+                            Text("Ask Question")
+                                .font(.system(size: 14, weight: .semibold))
                         }
-                        Text(filter.rawValue)
-                            .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(burntOrange)
+                        .clipShape(Capsule())
                     }
-                    .foregroundColor(selectedFilter == filter ? .white : charcoal.opacity(0.5))
+                }
+
+                if helpPosts.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "wrench.and.screwdriver")
+                            .font(.system(size: 40))
+                            .foregroundColor(charcoal.opacity(0.3))
+                        Text("No help topics yet")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundColor(charcoal)
+                        Text("Tap Ask Question to get help from the community.")
+                            .font(.system(size: 14))
+                            .foregroundColor(charcoal.opacity(0.6))
+                            .multilineTextAlignment(.center)
+                    }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background {
-                        if selectedFilter == filter {
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(charcoal)
-                                .matchedGeometryEffect(id: "communitySegment", in: animation)
+                    .padding(.vertical, 48)
+                } else {
+                    VStack(spacing: 12) {
+                        ForEach(helpPosts) { post in
+                            BuilderHelpTopicCard(post: post)
+                                .onTapGesture { selectedPost = post }
                         }
                     }
                 }
-                .buttonStyle(.plain)
+            }
+            .padding(16)
+            .padding(.bottom, 120)
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.clear)
+        .refreshable {
+            do {
+                try await communityManager.fetchPosts(type: .help)
+            } catch {
+                print("[CommunityScreen] Builder Help refresh failed: \(error)")
             }
         }
-        .padding(6)
+    }
+}
+
+// MARK: - Builder Help Category Button
+
+private struct BuilderHelpCategoryButton: View {
+    let name: String
+    let icon: String
+    var assetImageName: String? = nil
+    let color: Color
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                if let asset = assetImageName {
+                    Image(asset)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 32, height: 32)
+                } else {
+                    Image(systemName: icon)
+                        .font(.system(size: 24))
+                        .foregroundColor(color)
+                }
+                Text(name)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(Color("Charcoal"))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .padding(.horizontal, 8)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Builder Help Topic Card
+
+private struct BuilderHelpTopicCard: View {
+    let post: CommunityPost
+    private let charcoal = Color("Charcoal")
+    private let softGray = Color("SoftGray")
+    private let forestGreen = Color("ForestGreen")
+    private let burntOrange = Color("BurntOrange")
+    private let skyBlue = Color("SkyBlue")
+    private let desertSand = Color("DesertSand")
+    private let warmWhite = Color(red: 0.99, green: 0.98, blue: 0.96)
+
+    private var categoryColor: Color {
+        guard let cat = post.helpCategory else { return charcoal }
+        return Color(cat.color)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header: avatar, author, time, Solved badge
+            HStack(alignment: .top) {
+                HStack(spacing: 12) {
+                    if let avatarUrl = post.author?.avatarUrl, let url = URL(string: avatarUrl) {
+                        AsyncImage(url: url) { image in
+                            image.resizable().aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [desertSand, warmWhite],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                )
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(charcoal.opacity(0.5))
+                            }
+                        }
+                        .frame(width: 40, height: 40)
+                        .clipShape(Circle())
+                    } else {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [desertSand, warmWhite],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 40, height: 40)
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(charcoal.opacity(0.5))
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(post.author?.name ?? "Anonymous")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(charcoal)
+                        Text(post.timeAgo)
+                            .font(.system(size: 12))
+                            .foregroundColor(charcoal.opacity(0.5))
+                    }
+                }
+                Spacer()
+                if post.isSolved == true {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 14))
+                        Text("Solved")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundColor(forestGreen)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(forestGreen.opacity(0.1))
+                    .clipShape(Capsule())
+                }
+            }
+            .padding(.bottom, 12)
+
+            // Category tag
+            if let category = post.helpCategory {
+                Text(category == .other ? "General" : category.displayName)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(categoryColor)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(categoryColor.opacity(0.15))
+                    .clipShape(Capsule())
+                    .padding(.bottom, 8)
+            }
+
+            // Title
+            Text(post.title)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(charcoal)
+                .lineSpacing(2)
+                .padding(.bottom, 6)
+
+            // Preview
+            Text(post.content)
+                .font(.system(size: 14))
+                .foregroundColor(charcoal.opacity(0.7))
+                .lineLimit(2)
+                .lineSpacing(2)
+                .padding(.bottom, 16)
+
+            // Footer
+            Rectangle()
+                .fill(softGray)
+                .frame(height: 1)
+            HStack(spacing: 16) {
+                HStack(spacing: 6) {
+                    Image(systemName: "bubble.left")
+                        .font(.system(size: 14))
+                    Text("\(post.replyCount)")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .foregroundColor(charcoal.opacity(0.6))
+                HStack(spacing: 6) {
+                    Image(systemName: "hand.thumbsup")
+                        .font(.system(size: 14))
+                    Text("\(post.likeCount)")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .foregroundColor(charcoal.opacity(0.6))
+                Spacer()
+            }
+            .padding(.top, 12)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
+        .clipShape(RoundedRectangle(cornerRadius: 28))
+        .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
     }
 }
 

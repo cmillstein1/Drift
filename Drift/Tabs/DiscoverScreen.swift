@@ -16,6 +16,7 @@ struct DiscoverScreen: View {
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var friendsManager = FriendsManager.shared
     @StateObject private var messagingManager = MessagingManager.shared
+    @StateObject private var communityManager = CommunityManager.shared
     @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
 
     @State private var swipedIds: [UUID] = []
@@ -30,9 +31,15 @@ struct DiscoverScreen: View {
     @State private var showFilters: Bool = false
     @State private var friendsFilterPreferences = NearbyFriendsFilterPreferences.default
     @State private var showDatingSettings: Bool = false
+    @State private var showCreateEventSheet: Bool = false
     @State private var zoomedPhotoURL: String? = nil
     @State private var friendsNavigationPath = NavigationPath()
     @State private var selectedFriendProfile: UserProfile? = nil
+    @State private var selectedEvent: CommunityPost? = nil
+    /// Current dating profile index for full-screen carousel view
+    @State private var currentDatingProfileIndex: Int = 0
+    /// Fade animation for profile transitions
+    @State private var profileTransitionOpacity: Double = 1.0
     /// Scroll offset for tab bar hide/show (dating and unified .both).
     @State private var discoverScrollOffsetY: CGFloat = 0
     /// Previous scroll offset to detect scroll direction.
@@ -79,6 +86,30 @@ struct DiscoverScreen: View {
     /// Profiles still visible in the feed (not yet swiped). Used for card feed.
     private var visibleDatingProfiles: [UserProfile] {
         profiles.filter { !swipedIds.contains($0.id) }
+    }
+
+    /// Current profile for full-screen dating view
+    private var currentFullScreenProfile: UserProfile? {
+        let visible = visibleDatingProfiles
+        guard currentDatingProfileIndex < visible.count else { return nil }
+        return visible[currentDatingProfileIndex]
+    }
+
+    /// Friends feed: only profiles looking for friends or both (client-side safeguard).
+    private var friendsProfiles: [UserProfile] {
+        profileManager.discoverProfilesFriends.filter { $0.lookingFor == .friends || $0.lookingFor == .both }
+    }
+
+    /// Profiles still visible in the friends feed (not yet swiped/connected).
+    private var visibleFriendsProfiles: [UserProfile] {
+        friendsProfiles.filter { !swipedIds.contains($0.id) }
+    }
+
+    /// Current profile for full-screen friends view
+    private var currentFullScreenFriendsProfile: UserProfile? {
+        let visible = visibleFriendsProfiles
+        guard visible.count > 0 else { return nil }
+        return visible[0]  // Always show first available
     }
 
     /// Distance in miles from current user to profile; nil if unknown.
@@ -304,9 +335,10 @@ struct DiscoverScreen: View {
                 tabBarVisibility.discoverStartInFriendsMode = false
             }
             let discoveryMode = supabaseManager.getDiscoveryMode()
-            // Preload both datasets for instant switching
             if discoveryMode == .both {
-                // Load both in parallel for instant tab switching
+                // Default to Friends (travel community first) for App Store positioning
+                mode = .friends
+                // Preload both datasets for instant tab switching
                 if profileManager.discoverProfiles.isEmpty {
                     loadProfiles(forMode: .dating)
                 }
@@ -327,6 +359,9 @@ struct DiscoverScreen: View {
                 await FriendsManager.shared.subscribeToMatches()
                 await FriendsManager.shared.subscribeToFriendRequests()
             }
+
+            // Load events for community grid
+            Task { try? await communityManager.fetchPosts(type: .event) }
         }
         .onDisappear {
             tabBarVisibility.isVisible = true
@@ -335,10 +370,12 @@ struct DiscoverScreen: View {
             }
         }
         .onChange(of: mode) { newMode in
-            // Always show tab bar when switching segments so it's not stuck hidden (e.g. after scrolling down on Dating then tapping Friends).
-            withAnimation(.easeInOut(duration: 0.25)) {
-                tabBarVisibility.isVisible = true
-            }
+            // Reset profile transition opacity
+            profileTransitionOpacity = 1.0
+
+            // Keep tab bar visible in both modes
+            tabBarVisibility.isVisible = true
+
             // Only reload if profiles for this mode are empty (preserve cached data when switching)
             if newMode == .dating && profileManager.discoverProfiles.isEmpty {
                 loadProfiles(forMode: .dating)
@@ -411,8 +448,18 @@ struct DiscoverScreen: View {
             )
             .id(profile.id)
         }
+        .sheet(item: $selectedEvent) { event in
+            EventDetailSheet(initialPost: event)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+        }
         .sheet(isPresented: $showDatingSettings) {
             DatingSettingsSheet(isPresented: $showDatingSettings)
+        }
+        .sheet(isPresented: $showCreateEventSheet) {
+            CreateCommunityPostSheet(restrictToPostType: .event)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -426,100 +473,130 @@ struct DiscoverScreen: View {
         return DiscoveryLocationProvider.shared.lastCoordinate
     }
 
-    // MARK: - Unified Discover (single scroll when discoveryMode == .both)
+    // MARK: - Unified Discover (when discoveryMode == .both)
     @ViewBuilder
     private var unifiedDiscoverView: some View {
         NavigationStack {
             ZStack {
-                softGray.ignoresSafeArea()
+                Color.black.ignoresSafeArea()
 
-                ScrollViewWithOffset(
-                    contentOffsetY: $discoverScrollOffsetY,
-                    showsIndicators: false,
-                    ignoresSafeAreaContentInset: true,
-                    scrollViewBackgroundColor: UIColor(named: "SoftGray") ?? UIColor(red: 0.96, green: 0.96, blue: 0.97, alpha: 1),
-                    scrollToTop: $scrollToTopTrigger
-                ) {
-                    Group {
-                        if mode == .dating {
-                            if visibleDatingProfiles.isEmpty {
-                                emptyState
-                            } else {
-                                unifiedDatingFeedContent
-                            }
+                // Show the appropriate pane based on mode (no sliding animation)
+                if mode == .friends {
+                    unifiedFriendsPane
+                } else {
+                    unifiedDatingPane
+                }
+
+                // Single overlay: mode switcher + top-right button (Community: create event +; Dating: compass map)
+                // Match Messages tab: ~10pt below safe area (safe area top ~59 + 10) and light segment design
+                VStack {
+                    HStack {
+                        modeSwitcher(style: .light)
+                        Spacer()
+                        if mode == .friends {
+                            discoverCreateEventButton
                         } else {
-                            VStack(spacing: 0) {
-                                Color.clear.frame(height: topNavBarHeight)
-                                FriendsListContent(
-                                    filterPreferences: friendsFilterPreferences,
-                                    onViewProfile: { selectedFriendProfile = $0 },
-                                    embedInScrollView: false
-                                )
-                            }
+                            unifiedDiscoverMapButton
                         }
                     }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 70)
+                    .padding(.bottom, 20)
+                    Spacer()
                 }
-                .onChange(of: discoverScrollOffsetY) { _, y in
-                    let delta = y - lastDiscoverScrollOffsetY
-                    let minHideThreshold: CGFloat = 5 // Minimum scroll down to hide
-                    let minShowThreshold: CGFloat = 15 // Larger threshold for show to avoid bounce triggers
-                    let minOffsetToHide: CGFloat = 50 // Don't hide until scrolled past this point
-
-                    if delta > minHideThreshold && y > minOffsetToHide && tabBarVisibility.isVisible {
-                        // Scrolling down - hide tab bar
-                        withAnimation(.easeInOut(duration: 0.25)) { tabBarVisibility.isVisible = false }
-                        lastDiscoverScrollOffsetY = y
-                    } else if delta < -minShowThreshold && !tabBarVisibility.isVisible {
-                        // Scrolling up with enough intent - show tab bar
-                        withAnimation(.easeInOut(duration: 0.25)) { tabBarVisibility.isVisible = true }
-                        lastDiscoverScrollOffsetY = y
-                    } else if abs(delta) > minHideThreshold {
-                        // Update last position for significant movements
-                        lastDiscoverScrollOffsetY = y
-                    }
-                }
-                .overlay(alignment: .top) {
-                    VStack(spacing: 0) {
-                        HStack {
-                            modeSwitcher(style: .light)
-                            Spacer()
-                            NavigationLink {
-                                DiscoverMapSheet(
-                                    profiles: mode == .dating ? profiles : profileManager.discoverProfilesFriends,
-                                    currentUserCoordinate: currentUserMapCoordinate,
-                                    hideCurrentUserLocation: profileManager.currentProfile?.hideLocationOnMap ?? false,
-                                    isPushed: true,
-                                    onSelectProfile: mode == .dating ? { selectedProfile = $0 } : { selectedFriendProfile = $0 },
-                                    distanceMiles: distanceMiles(for:)
-                                )
-                            } label: {
-                                Image(systemName: "safari")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(inkMain)
-                                    .frame(width: 40, height: 40)
-                                    .background(Color.white)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().stroke(Color.gray.opacity(0.2), lineWidth: 1))
-                                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-                            }
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.top, 12)
-                        .padding(.bottom, 4)
-                        Text(mode == .dating ? "Stories from travelers looking to date" : "Stories from travelers looking for friends")
-                            .font(.system(size: 12))
-                            .foregroundColor(inkSub)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 16)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .background(softGray.ignoresSafeArea(edges: .top))
-                    .padding(.top, 60)
-                }
+                .opacity(unifiedOverlayVisible ? 1 : 0)
             }
-            .ignoresSafeArea(edges: [.top, .bottom])
+            .ignoresSafeArea(edges: .top)
         }
+    }
+
+    private var unifiedOverlayVisible: Bool {
+        let hasEvents = communityManager.posts.contains { $0.type == .event }
+        return (mode == .dating && !visibleDatingProfiles.isEmpty) || (mode == .friends && (!visibleFriendsProfiles.isEmpty || hasEvents))
+    }
+
+    /// "+" button for creating a new event (Community tab only). Same style as CommunityScreen; no Help option.
+    private var discoverCreateEventButton: some View {
+        Button {
+            showCreateEventSheet = true
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(charcoal)
+                .frame(width: 40, height: 40)
+                .background(Color.white)
+                .clipShape(Circle())
+                .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var unifiedDiscoverMapButton: some View {
+        if mode == .dating {
+            NavigationLink {
+                DiscoverMapSheet(
+                    profiles: profiles,
+                    currentUserCoordinate: currentUserMapCoordinate,
+                    hideCurrentUserLocation: profileManager.currentProfile?.hideLocationOnMap ?? false,
+                    isPushed: true,
+                    onSelectProfile: { selectedProfile = $0 },
+                    distanceMiles: distanceMiles(for:)
+                )
+            } label: { discoverMapButtonLabel }
+        } else {
+            NavigationLink {
+                DiscoverMapSheet(
+                    profiles: profileManager.discoverProfilesFriends,
+                    currentUserCoordinate: currentUserMapCoordinate,
+                    hideCurrentUserLocation: profileManager.currentProfile?.hideLocationOnMap ?? false,
+                    isPushed: true,
+                    onSelectProfile: { selectedFriendProfile = $0 },
+                    distanceMiles: distanceMiles(for:)
+                )
+            } label: { discoverMapButtonLabel }
+        }
+    }
+
+    private var discoverMapButtonLabel: some View {
+        Image(systemName: "safari")
+            .font(.system(size: 18, weight: .medium))
+            .foregroundColor(.gray)
+            .frame(width: 40, height: 40)
+            .glassEffect()
+            .clipShape(Circle())
+    }
+
+    @ViewBuilder
+    private var unifiedDatingPane: some View {
+        if visibleDatingProfiles.isEmpty {
+            emptyState
+        } else if let profile = currentFullScreenProfile {
+            DiscoverFullScreenProfileView(
+                profile: profile,
+                mode: .dating,
+                distanceMiles: distanceMiles(for: profile),
+                lastActiveAt: profile.lastActiveAt,
+                onLike: { handleFullScreenSwipe(profile: profile, direction: .right) },
+                onPass: { handleFullScreenSwipe(profile: profile, direction: .left) },
+                onBlockComplete: { loadProfiles() }
+            )
+            .id(profile.id)
+            .opacity(profileTransitionOpacity)
+        }
+    }
+
+    @ViewBuilder
+    private var unifiedFriendsPane: some View {
+        CommunityGridView(
+            profiles: visibleFriendsProfiles,
+            events: communityManager.posts.filter { $0.type == .event },
+            distanceMiles: distanceMiles(for:),
+            sharedInterests: sharedInterestsForGrid,
+            onSelectProfile: { selectedFriendProfile = $0 },
+            onSelectEvent: { selectedEvent = $0 },
+            onConnect: { handleConnect(profileId: $0) }
+        )
     }
 
     private var unifiedDatingFeedContent: some View {
@@ -549,102 +626,130 @@ struct DiscoverScreen: View {
         }
     }
 
-    // MARK: - Dating View (Feed of DiscoverCards) — used when discoveryMode == .dating only
+    // MARK: - Dating View (Full-screen carousel) — used when discoveryMode == .dating only
     @ViewBuilder
     private var datingView: some View {
         NavigationStack {
             ZStack {
-                softGray.ignoresSafeArea()
+                Color.black.ignoresSafeArea()
+
                 if visibleDatingProfiles.isEmpty {
                     emptyState
-                        .onAppear { tabBarVisibility.isVisible = true }
-                } else {
-                    ScrollViewWithOffset(
-                        contentOffsetY: $discoverScrollOffsetY,
-                        showsIndicators: false,
-                        ignoresSafeAreaContentInset: true,
-                        scrollViewBackgroundColor: UIColor(named: "SoftGray") ?? UIColor(red: 0.96, green: 0.96, blue: 0.97, alpha: 1)
-                    ) {
-                        VStack(spacing: 0) {
-                            Color.clear.frame(height: topNavBarHeight)
-                            VStack(spacing: 22) {
-                                ForEach(visibleDatingProfiles) { profile in
-                                    DiscoverCard(
-                                        profile: profile,
-                                        mode: .dating,
-                                        lastActiveAt: profile.lastActiveAt,
-                                        distanceMiles: distanceMiles(for: profile),
-                                        onPrimaryAction: { handleSwipe(profile: profile, direction: .right) },
-                                        onPass: { handleSwipe(profile: profile, direction: .left) },
-                                        onViewProfile: { selectedProfile = profile },
-                                        onBlockComplete: { loadProfiles() }
-                                    )
-                                    .opacity(likedFadingId == profile.id ? 0 : 1)
-                                    .animation(.easeOut(duration: 0.35), value: likedFadingId)
-                                }
-                                DiscoverEndOfFeedView()
-                                    .padding(.top, 24)
-                                    .padding(.bottom, 16)
-                                Spacer().frame(height: 16)
-                            }
-                            .padding(.horizontal, 16)
-                        }
-                    }
-                    .onChange(of: discoverScrollOffsetY) { _, y in
-                        let delta = y - lastDiscoverScrollOffsetY
-                        let minScrollThreshold: CGFloat = 5
-                        let minOffsetToHide: CGFloat = 50
+                } else if let profile = currentFullScreenProfile {
+                    DiscoverFullScreenProfileView(
+                        profile: profile,
+                        mode: .dating,
+                        distanceMiles: distanceMiles(for: profile),
+                        lastActiveAt: profile.lastActiveAt,
+                        onLike: { handleFullScreenSwipe(profile: profile, direction: .right) },
+                        onPass: { handleFullScreenSwipe(profile: profile, direction: .left) },
+                        onBlockComplete: { loadProfiles() }
+                    )
+                    .id(profile.id)
+                    .opacity(profileTransitionOpacity)
+                }
 
-                        if abs(delta) > minScrollThreshold {
-                            if delta > 0 && y > minOffsetToHide && tabBarVisibility.isVisible {
-                                withAnimation(.easeInOut(duration: 0.25)) { tabBarVisibility.isVisible = false }
-                            } else if delta < 0 && !tabBarVisibility.isVisible {
-                                withAnimation(.easeInOut(duration: 0.25)) { tabBarVisibility.isVisible = true }
-                            }
-                            lastDiscoverScrollOffsetY = y
+                // Top overlay: map button
+                VStack {
+                    HStack {
+                        Spacer()
+                        NavigationLink {
+                            DiscoverMapSheet(
+                                profiles: profiles,
+                                currentUserCoordinate: currentUserMapCoordinate,
+                                hideCurrentUserLocation: profileManager.currentProfile?.hideLocationOnMap ?? false,
+                                isPushed: true,
+                                onSelectProfile: { selectedProfile = $0 },
+                                distanceMiles: distanceMiles(for:)
+                            )
+                        } label: {
+                            Image(systemName: "safari")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.white)
+                                .frame(width: 40, height: 40)
+                                .background(Color.black.opacity(0.4))
+                                .clipShape(Circle())
                         }
                     }
-                    .overlay(alignment: .top) {
-                        VStack(spacing: 0) {
-                            HStack {
-                                Spacer()
-                                NavigationLink {
-                                    DiscoverMapSheet(
-                                        profiles: profiles,
-                                        currentUserCoordinate: currentUserMapCoordinate,
-                                        hideCurrentUserLocation: profileManager.currentProfile?.hideLocationOnMap ?? false,
-                                        isPushed: true,
-                                        onSelectProfile: { selectedProfile = $0 },
-                                        distanceMiles: distanceMiles(for:)
-                                    )
-                                } label: {
-                                    Image(systemName: "safari")
-                                        .font(.system(size: 18, weight: .medium))
-                                        .foregroundColor(inkMain)
-                                        .frame(width: 40, height: 40)
-                                        .background(Color.white)
-                                        .clipShape(Circle())
-                                        .overlay(Circle().stroke(Color.gray.opacity(0.2), lineWidth: 1))
-                                        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-                                }
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.top, 12)
-                            .padding(.bottom, 4)
-                            Text("Stories from travelers looking to date")
-                                .font(.system(size: 12))
-                                .foregroundColor(inkSub)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 16)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .background(softGray.ignoresSafeArea(edges: .top))
-                        .padding(.top, 60)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 60)
+                    Spacer()
+                }
+                .opacity(visibleDatingProfiles.isEmpty ? 0 : 1)
+            }
+            .ignoresSafeArea(edges: .top)
+        }
+    }
+
+    /// Handle swipe for full-screen profile view and advance to next profile
+    private func handleFullScreenSwipe(profile: UserProfile, direction: SwipeDirection) {
+        // Advance to next profile immediately (no black screen)
+        swipedIds.append(profile.id)
+        profileTransitionOpacity = 1
+
+        Task {
+            do {
+                let swipeDirection: DriftBackend.SwipeDirection
+                switch direction {
+                case .left: swipeDirection = .left
+                case .right: swipeDirection = .right
+                case .up: swipeDirection = .up
+                }
+                let match = try await friendsManager.swipe(on: profile.id, direction: swipeDirection)
+
+                await MainActor.run {
+                    if let match = match {
+                        matchedProfile = match.otherUserProfile
+                    }
+                    if visibleDatingProfiles.isEmpty {
+                        loadProfiles()
                     }
                 }
+            } catch {
+                print("[DISCOVER] Failed to record swipe: \(error)")
             }
-            .ignoresSafeArea(edges: [.top, .bottom])
+        }
+
+        if visibleDatingProfiles.count <= 1 {
+            loadProfiles()
+        }
+    }
+
+    /// Handle connect for full-screen friends view
+    private func handleFullScreenFriendsConnect(profile: UserProfile) {
+        // Advance to next profile immediately (no black screen)
+        swipedIds.append(profile.id)
+        profileTransitionOpacity = 1
+
+        Task {
+            do {
+                try await friendsManager.sendFriendRequest(to: profile.id)
+                await MainActor.run {
+                    if visibleFriendsProfiles.isEmpty {
+                        loadProfiles(forMode: .friends)
+                    }
+                }
+            } catch {
+                print("[DISCOVER] Failed to send friend request: \(error)")
+            }
+        }
+
+        if visibleFriendsProfiles.count <= 1 {
+            loadProfiles(forMode: .friends)
+        }
+    }
+
+    /// Handle pass for full-screen friends view
+    private func handleFullScreenFriendsPass(profile: UserProfile) {
+        // Advance to next profile immediately (no black screen)
+        swipedIds.append(profile.id)
+        profileTransitionOpacity = 1
+
+        if visibleFriendsProfiles.isEmpty {
+            loadProfiles(forMode: .friends)
+        }
+        if visibleFriendsProfiles.count <= 1 {
+            loadProfiles(forMode: .friends)
         }
     }
 
@@ -740,15 +845,15 @@ struct DiscoverScreen: View {
         let discoveryMode = supabaseManager.getDiscoveryMode()
 
         VStack(spacing: 0) {
-            // Mode switcher at top
+            // Mode switcher at top — match Messages tab (safe area + 10pt)
             if discoveryMode == .both {
                 HStack {
                     modeSwitcher(style: .light)
                     Spacer()
                 }
                 .padding(.horizontal, 24)
-                .padding(.top, 72)
-                .padding(.bottom, 4)
+                .padding(.top, 70)
+                .padding(.bottom, 20)
 
                 // Subtitle under segment (dating)
                 Text("Stories from travelers looking to date")
@@ -770,127 +875,42 @@ struct DiscoverScreen: View {
         .background(softGray)
     }
 
-    // MARK: - Friends View
+    // MARK: - Friends View (Full-screen carousel) — used when discoveryMode == .friends only
     @ViewBuilder
     private var friendsView: some View {
-        let discoveryMode = supabaseManager.getDiscoveryMode()
-
         NavigationStack(path: $friendsNavigationPath) {
-            VStack(spacing: 0) {
-                // Header
-                VStack(spacing: 0) {
-                    // Mode switcher row (only shown when user has both modes enabled)
-                    if discoveryMode == .both {
-                        HStack {
-                            modeSwitcher(style: .light)
-                            Spacer()
-                            NavigationLink {
-                                DiscoverMapSheet(
-                                    profiles: profileManager.discoverProfilesFriends,
-                                    currentUserCoordinate: currentUserMapCoordinate,
-                                    hideCurrentUserLocation: profileManager.currentProfile?.hideLocationOnMap ?? false,
-                                    isPushed: true,
-                                    onSelectProfile: { selectedFriendProfile = $0 },
-                                    distanceMiles: distanceMiles(for:)
-                                )
-                            } label: {
-                                Image(systemName: "safari")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(inkMain)
-                                    .frame(width: 40, height: 40)
-                                    .background(Color.white)
-                                    .clipShape(Circle())
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                    )
-                                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-                            }
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.top, 12)
-                        .padding(.bottom, 4)
-                    } else {
-                        // Friends-only mode: just the map button on the right
-                        HStack {
-                            Spacer()
-                            NavigationLink {
-                                DiscoverMapSheet(
-                                    profiles: profileManager.discoverProfilesFriends,
-                                    currentUserCoordinate: currentUserMapCoordinate,
-                                    hideCurrentUserLocation: profileManager.currentProfile?.hideLocationOnMap ?? false,
-                                    isPushed: true,
-                                    onSelectProfile: { selectedFriendProfile = $0 },
-                                    distanceMiles: distanceMiles(for:)
-                                )
-                            } label: {
-                                Image(systemName: "safari")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(inkMain)
-                                    .frame(width: 40, height: 40)
-                                    .background(Color.white)
-                                    .clipShape(Circle())
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                    )
-                                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-                            }
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.top, 8)
-                    }
+            ZStack {
+                Color.black.ignoresSafeArea()
 
-                    // Subtitle
-                    Text("Stories from travelers looking for friends")
-                        .font(.system(size: 12))
-                        .foregroundColor(inkSub)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 24)
-                        .padding(.top, discoveryMode == .both ? 0 : 4)
-                        .padding(.bottom, 12)
-
-//                    // Title section
-//                    VStack(alignment: .leading, spacing: 4) {
-//                        Text("Nearby Friends")
-//                            .font(.system(size: 24, weight: .heavy))
-//                            .foregroundColor(inkMain)
-//                    }
-//                    .frame(maxWidth: .infinity, alignment: .leading)
-//                    .padding(.horizontal, 24)
-//                    .padding(.bottom, 16)
+                if visibleFriendsProfiles.isEmpty {
+                    emptyState
+                } else if let profile = currentFullScreenFriendsProfile {
+                    DiscoverFullScreenProfileView(
+                        profile: profile,
+                        mode: .friends,
+                        distanceMiles: distanceMiles(for: profile),
+                        lastActiveAt: profile.lastActiveAt,
+                        onPass: { handleFullScreenFriendsPass(profile: profile) },
+                        onConnect: { handleFullScreenFriendsConnect(profile: profile) },
+                        onBlockComplete: { loadProfiles(forMode: .friends) }
+                    )
+                    .id(profile.id)
+                    .opacity(profileTransitionOpacity)
                 }
-                .background(softGray)
 
-                FriendsListContent(
-                    filterPreferences: friendsFilterPreferences,
-                    onViewProfile: { profile in
-                        selectedFriendProfile = profile
-                    },
-                    contentOffsetY: $friendsScrollOffsetY
-                )
-            }
-            .background(softGray)
-            .onChange(of: friendsScrollOffsetY) { _, y in
-                let delta = y - lastFriendsScrollOffsetY
-                let minHideThreshold: CGFloat = 5
-                let minShowThreshold: CGFloat = 15 // Larger threshold to avoid bounce triggers
-                let minOffsetToHide: CGFloat = 50
-
-                if delta > minHideThreshold && y > minOffsetToHide && tabBarVisibility.isVisible {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        tabBarVisibility.isVisible = false
+                // Top overlay: create event "+" button (Community tab; no compass here)
+                VStack {
+                    HStack {
+                        Spacer()
+                        discoverCreateEventButton
                     }
-                    lastFriendsScrollOffsetY = y
-                } else if delta < -minShowThreshold && !tabBarVisibility.isVisible {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        tabBarVisibility.isVisible = true
-                    }
-                    lastFriendsScrollOffsetY = y
-                } else if abs(delta) > minHideThreshold {
-                    lastFriendsScrollOffsetY = y
+                    .padding(.horizontal, 16)
+                    .padding(.top, 60)
+                    Spacer()
                 }
+                .opacity(visibleFriendsProfiles.isEmpty ? 0 : 1)
             }
+            .ignoresSafeArea(edges: .top)
             .sheet(isPresented: $showFilters) {
                 NearbyFriendsFilterSheet(
                     isPresented: $showFilters,
@@ -905,6 +925,13 @@ struct DiscoverScreen: View {
             profileManager.currentProfile?.interests
         } ?? []
         return Set(currentUserInterests).intersection(Set(profile.interests)).map { $0 }
+    }
+
+    /// When current user has interests loaded, returns shared interest names for each profile so cards show 1–2 shared interest segments. When nil, cards show profile.interests.
+    private var sharedInterestsForGrid: ((UserProfile) -> [String])? {
+        let current = profileManager.currentProfile?.interests ?? []
+        guard !current.isEmpty else { return nil }
+        return { self.getMutualInterests(for: $0) }
     }
     
     private func handleConnect(profileId: UUID) {
