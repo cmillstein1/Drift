@@ -14,6 +14,8 @@ struct CommunityGridView: View {
     let distanceMiles: (UserProfile) -> Int?
     /// When set, each card shows these interest names (e.g. shared interests). When nil, cards use profile.interests.
     var sharedInterests: ((UserProfile) -> [String])? = nil
+    /// Top spacing for overlay header. Use smaller value (e.g. 60) when no mode switcher is shown.
+    var topSpacing: CGFloat = 120
     let onSelectProfile: (UserProfile) -> Void
     let onSelectEvent: (CommunityPost) -> Void
     let onConnect: (UUID) -> Void
@@ -29,7 +31,7 @@ struct CommunityGridView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // Top spacing for overlay header
-                    Color.clear.frame(height: 120)
+                    Color.clear.frame(height: topSpacing)
 
                     // Events Section (horizontal scroll) - always show
                     eventsSection

@@ -256,7 +256,7 @@ struct TravelStyleScreen: View {
                     .disabled(!canContinue || isSaving)
                     .buttonStyle(PlainButtonStyle())
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 8)
+                    .padding(.bottom, 12)
                 }
                 .background(Color.softGray)
             }

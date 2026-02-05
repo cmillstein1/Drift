@@ -350,7 +350,11 @@ struct DiscoverScreen: View {
                     loadProfiles(forMode: .dating)
                 }
             } else if discoveryMode == .friends {
-                // Friends-only mode - FriendsListContent handles loading
+                // Friends-only mode - load friends profiles for community grid
+                mode = .friends
+                if profileManager.discoverProfilesFriends.isEmpty {
+                    preloadFriendsProfiles()
+                }
             }
             tabBarVisibility.isVisible = true
 
@@ -502,6 +506,14 @@ struct DiscoverScreen: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 70)
                     .padding(.bottom, 20)
+                    .background(
+                        LinearGradient(
+                            colors: [softGray, softGray.opacity(0)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .ignoresSafeArea(edges: .top)
+                    )
                     Spacer()
                 }
                 .opacity(unifiedOverlayVisible ? 1 : 0)
@@ -875,47 +887,70 @@ struct DiscoverScreen: View {
         .background(softGray)
     }
 
-    // MARK: - Friends View (Full-screen carousel) — used when discoveryMode == .friends only
+    // MARK: - Friends View (Community grid) — used when discoveryMode == .friends only
     @ViewBuilder
     private var friendsView: some View {
         NavigationStack(path: $friendsNavigationPath) {
             ZStack {
-                Color.black.ignoresSafeArea()
+                softGray.ignoresSafeArea()
 
-                if visibleFriendsProfiles.isEmpty {
-                    emptyState
-                } else if let profile = currentFullScreenFriendsProfile {
-                    DiscoverFullScreenProfileView(
-                        profile: profile,
-                        mode: .friends,
-                        distanceMiles: distanceMiles(for: profile),
-                        lastActiveAt: profile.lastActiveAt,
-                        onPass: { handleFullScreenFriendsPass(profile: profile) },
-                        onConnect: { handleFullScreenFriendsConnect(profile: profile) },
-                        onBlockComplete: { loadProfiles(forMode: .friends) }
-                    )
-                    .id(profile.id)
-                    .opacity(profileTransitionOpacity)
-                }
+                // Community grid view (same as unifiedFriendsPane but without mode switcher)
+                CommunityGridView(
+                    profiles: visibleFriendsProfiles,
+                    events: communityManager.posts.filter { $0.type == .event },
+                    distanceMiles: distanceMiles(for:),
+                    sharedInterests: sharedInterestsForGrid,
+                    topSpacing: 60, // Smaller top spacing since no mode switcher in friends-only mode
+                    onSelectProfile: { selectedFriendProfile = $0 },
+                    onSelectEvent: { selectedEvent = $0 },
+                    onConnect: { handleConnect(profileId: $0) }
+                )
 
-                // Top overlay: create event "+" button (Community tab; no compass here)
+                // Top overlay: create event "+" button only (no mode switcher for friends-only mode)
                 VStack {
                     HStack {
                         Spacer()
                         discoverCreateEventButton
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 60)
+                    .padding(.top, 10)
+                    .padding(.bottom, 12)
+                    .background(
+                        LinearGradient(
+                            colors: [softGray, softGray.opacity(0)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .ignoresSafeArea(edges: .top)
+                    )
                     Spacer()
                 }
-                .opacity(visibleFriendsProfiles.isEmpty ? 0 : 1)
             }
-            .ignoresSafeArea(edges: .top)
             .sheet(isPresented: $showFilters) {
                 NearbyFriendsFilterSheet(
                     isPresented: $showFilters,
                     preferences: $friendsFilterPreferences
                 )
+            }
+            .fullScreenCover(item: $selectedFriendProfile) { profile in
+                FriendsProfileDetailView(
+                    profile: profile,
+                    isOpen: Binding(
+                        get: { selectedFriendProfile != nil },
+                        set: { if !$0 { selectedFriendProfile = nil } }
+                    ),
+                    distanceMiles: distanceMiles(for: profile),
+                    onConnect: {
+                        Task {
+                            try? await friendsManager.sendFriendRequest(to: profile.id)
+                        }
+                    }
+                )
+            }
+            .sheet(item: $selectedEvent) { event in
+                CommunityPostDetailSheet(initialPost: event)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
             }
         }
     }

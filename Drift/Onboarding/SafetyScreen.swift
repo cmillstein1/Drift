@@ -45,15 +45,12 @@ struct SafetyScreen: View {
     }
     
     var body: some View {
-        ZStack {
-            screenBackground
-                .ignoresSafeArea()
-            
+        VStack(spacing: 0) {
             VStack(spacing: 0) {
-                VStack(spacing: 0) {
-                    VStack(spacing: 32) {
-                        // Add top padding since we removed the progress indicator
-                        Spacer()
+                VStack(spacing: 32) {
+                    // Top padding
+                    Spacer()
+                        .frame(height: 8)
                             
                         VStack(spacing: 24) {
                             ZStack {
@@ -130,15 +127,14 @@ struct SafetyScreen: View {
                             .background(burntOrange)
                             .clipShape(Capsule())
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 16)
-                    .opacity(buttonOpacity)
-                    .offset(y: buttonOffset)
-                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
+                .opacity(buttonOpacity)
+                .offset(y: buttonOffset)
             }
-            .scaleEffect(contentScale)
-            .opacity(contentOpacity)
         }
+        .scaleEffect(contentScale)
+        .opacity(contentOpacity)
         .onAppear {
             withAnimation(.easeOut(duration: 0.5).delay(0.2)) {
                 iconOpacity = 1

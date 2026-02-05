@@ -176,7 +176,7 @@ struct LifestyleOnboardingScreen: View {
                     .clipShape(Capsule())
                     .disabled(isSaving)
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 16)
+                    .padding(.bottom, 12)
                     .opacity(buttonOpacity)
                     .offset(y: buttonOffset)
                 }

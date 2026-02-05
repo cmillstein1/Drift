@@ -138,14 +138,10 @@ struct InterestsScreen: View {
     }
     
     var body: some View {
-        ZStack {
-            Color.softGray
-                .ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                // Progress indicator is shown in OnboardingFlow
-                Spacer()
-                    .frame(height: 24)
+        VStack(spacing: 0) {
+            // Progress indicator is shown in OnboardingFlow
+            Spacer()
+                .frame(height: 8)
                 
                 VStack(alignment: .leading, spacing: 0) {
                     Text("What do you love doing?")
@@ -238,10 +234,9 @@ struct InterestsScreen: View {
                     .clipShape(Capsule())
                     .disabled(!canContinue || isSaving)
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 16)
-                    .opacity(buttonOpacity)
-                    .offset(y: buttonOffset)
-                }
+                    .padding(.bottom, 12)
+                .opacity(buttonOpacity)
+                .offset(y: buttonOffset)
             }
         }
         .onAppear {
