@@ -11,19 +11,14 @@ import UserNotifications
 struct PushNotificationsScreen: View {
     let onContinue: () -> Void
 
-    @State private var iconScale: CGFloat = 0.9
-    @State private var iconOpacity: Double = 0
     @State private var titleOpacity: Double = 0
     @State private var cardsOpacity: Double = 0
     @State private var buttonOpacity: Double = 0
     @State private var isRequesting = false
 
-    private let warmWhite = Color(red: 0.98, green: 0.98, blue: 0.96)
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
     private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
-    private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
-    private let skyBlue = Color(red: 0.53, green: 0.81, blue: 0.92)
 
     private var bellGradient: LinearGradient {
         LinearGradient(
@@ -34,97 +29,80 @@ struct PushNotificationsScreen: View {
     }
 
     var body: some View {
-        ZStack {
-            warmWhite
-                .ignoresSafeArea()
+        VStack(spacing: 0) {
+            Spacer()
+                .frame(height: 8)
 
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    // Top padding (no progress indicator)
-                    Spacer()
-                        .frame(height: 24)
+            // Image
+            Image("Temp_Noti")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 180, height: 180)
+                .padding(.bottom, 16)
 
-                    ZStack {
-                        Image("Temp_Noti")
-                              .resizable()
-                              .frame(width: 200, height: 200)
-                    }
-                    .padding(.top, 8)
-                    .padding(.bottom, 24)
+            // Title & subtitle
+            VStack(spacing: 6) {
+                Text("Stay connected")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(charcoalColor)
 
-                    // Title & subtitle
-                    VStack(spacing: 8) {
-                        Text("Stay connected")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(charcoalColor)
-                            .opacity(titleOpacity)
-
-                        Text("Get notified when it matters most")
-                            .font(.system(size: 16))
-                            .foregroundColor(charcoalColor.opacity(0.7))
-                            .opacity(titleOpacity)
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 28)
-
-                    // Benefit cards (outline style like profile Notifications / Privacy)
-                    VStack(spacing: 12) {
-                        NotificationBenefitRow(
-                            iconName: "message",
-                            title: "New messages",
-                            subtitle: "Never miss a conversation"
-                        )
-                        NotificationBenefitRow(
-                            iconName: "heart",
-                            title: "New matches",
-                            subtitle: "Know when someone connects"
-                        )
-                        NotificationBenefitRow(
-                            iconName: "person.2",
-                            title: "Nearby travelers",
-                            subtitle: "Find people in your area"
-                        )
-                        NotificationBenefitRow(
-                            iconName: "mappin.circle",
-                            title: "Event updates",
-                            subtitle: "Get notified about activities"
-                        )
-                    }
-                    .padding(.horizontal, 24)
-                    .opacity(cardsOpacity)
-
-                    Spacer()
-                        .frame(height: 40)
-
-                    // Enable Notifications button
-                    Button(action: requestNotificationPermission) {
-                        HStack(spacing: 10) {
-                            if isRequesting {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            } else {
-                                Image(systemName: "bell.fill")
-                                    .font(.system(size: 18))
-                                Text("Enable Notifications")
-                                    .font(.system(size: 17, weight: .semibold))
-                            }
-                        }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(bellGradient)
-                        .clipShape(RoundedRectangle(cornerRadius: 28))
-                    }
-                    .disabled(isRequesting)
-                    .padding(.horizontal, 24)
-                    .opacity(buttonOpacity)
-                }
+                Text("Get notified when it matters most")
+                    .font(.system(size: 16))
+                    .foregroundColor(charcoalColor.opacity(0.7))
             }
+            .opacity(titleOpacity)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
+
+            // Benefit cards - condensed to 3 rows
+            VStack(spacing: 10) {
+                NotificationBenefitRow(
+                    iconName: "bubble.left.and.bubble.right",
+                    title: "Messages & matches",
+                    subtitle: "Never miss a connection"
+                )
+                NotificationBenefitRow(
+                    iconName: "person.2",
+                    title: "Nearby travelers",
+                    subtitle: "Find people in your area"
+                )
+                NotificationBenefitRow(
+                    iconName: "calendar.badge.clock",
+                    title: "Event updates",
+                    subtitle: "Get notified about activities"
+                )
+            }
+            .padding(.horizontal, 24)
+            .opacity(cardsOpacity)
+
+            Spacer()
+
+            // Enable Notifications button
+            Button(action: requestNotificationPermission) {
+                HStack(spacing: 10) {
+                    if isRequesting {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    } else {
+                        Image(systemName: "bell.fill")
+                            .font(.system(size: 18))
+                        Text("Enable Notifications")
+                            .font(.system(size: 17, weight: .semibold))
+                    }
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .background(bellGradient)
+                .clipShape(RoundedRectangle(cornerRadius: 28))
+            }
+            .disabled(isRequesting)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 12)
+            .opacity(buttonOpacity)
         }
         .onAppear {
             withAnimation(.easeOut(duration: 0.5)) {
-                iconScale = 1
-                iconOpacity = 1
                 titleOpacity = 1
             }
             withAnimation(.easeOut(duration: 0.4).delay(0.2)) {
@@ -158,20 +136,19 @@ private struct NotificationBenefitRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Icon — outline style like ProfileScreen (Notifications, Privacy): light bg, dark icon, corner radius 16
             ZStack {
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: 12)
                     .fill(iconBeige)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 36, height: 36)
 
                 Image(systemName: iconName)
-                    .font(.system(size: 18, weight: .medium))
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundColor(charcoalColor)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 15, weight: .medium))
                     .foregroundColor(charcoalColor)
                 Text(subtitle)
                     .font(.system(size: 12))
@@ -180,11 +157,11 @@ private struct NotificationBenefitRow: View {
 
             Spacer()
         }
-        .padding(16)
+        .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 14)
                 .fill(Color.white)
-                .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+                .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
         )
     }
 }

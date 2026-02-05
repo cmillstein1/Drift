@@ -177,6 +177,15 @@ struct DriftApp: App {
                                 .ignoresSafeArea()
                             ProgressView()
                         }
+                    } else if supabaseManager.isShowingOnboarding && UserDefaults.standard.object(forKey: "datingOnboardingStartStep") != nil {
+                        // Partial dating onboarding - user switching from community to dating mode
+                        OnboardingFlow {
+                            withAnimation(.easeInOut(duration: 0.6)) {
+                                supabaseManager.isShowingOnboarding = false
+                            }
+                        }
+                        .transition(.opacity)
+                        .zIndex(2)
                     } else if hasCompletedOnboarding {
                         // User has completed onboarding - go straight to home (skip WelcomeSplash and onboarding)
                         ContentView()
@@ -264,7 +273,10 @@ struct DriftApp: App {
             .onChange(of: supabaseManager.currentUser) { oldValue, newValue in
                 if let user = newValue {
                     let metadataComplete = getOnboardingStatus(from: user.userMetadata)
-                    if metadataComplete || hasCompletedOnboarding {
+                    // Only auto-dismiss onboarding if not in partial dating onboarding mode
+                    // (indicated by datingOnboardingStartStep being set)
+                    let isPartialDatingOnboarding = UserDefaults.standard.object(forKey: "datingOnboardingStartStep") != nil
+                    if (metadataComplete || hasCompletedOnboarding) && !isPartialDatingOnboarding {
                         supabaseManager.isShowingWelcomeSplash = false
                         supabaseManager.isShowingOnboarding = false
                     }

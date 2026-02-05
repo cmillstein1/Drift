@@ -169,12 +169,6 @@ struct ContentView: View {
                                             .renderingMode(.template)
                                             .aspectRatio(contentMode: .fit)
                                             .frame(width: 24, height: 24)
-                                    } else if tab == .community {
-                                        Image("build_icon")
-                                            .resizable()
-                                            .renderingMode(.template)
-                                            .aspectRatio(contentMode: .fit)
-                                            .frame(width: 24, height: 24)
                                     } else {
                                         Image(systemName: tab.systemImage)
                                             .font(.system(size: 20))

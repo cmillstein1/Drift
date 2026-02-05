@@ -60,17 +60,14 @@ struct LocationScreen: View {
     }
     
     var body: some View {
-        ZStack {
-            screenBackground
-                .ignoresSafeArea()
-            
+        VStack(spacing: 0) {
             VStack(spacing: 0) {
-                VStack(spacing: 0) {
-                    VStack(spacing: 32) {
-                        // Add top padding since we removed the progress indicator
-                        Spacer()
-                            .frame(height: 32)
-                        VStack(spacing: 24) {
+                VStack(spacing: 24) {
+                    // Top padding
+                    Spacer()
+                        .frame(height: 16)
+
+                    VStack(spacing: 20) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 24)
                                     .fill(skyBlue.opacity(0.2))
@@ -154,9 +151,8 @@ struct LocationScreen: View {
                         .opacity(skipButtonOpacity)
                         .offset(y: skipButtonOffset)
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 16)
-                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
             }
         }
         .onChange(of: locationManager.authorizationStatus) { oldValue, newValue in

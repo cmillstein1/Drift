@@ -83,14 +83,17 @@ struct DiscoveryModeSheet: View {
                             dismiss()
                         }
 
-                        // Friends Only Card
+                        // Community Card
                         DiscoveryModeOption(
-                            title: "Friends Only",
-                            description: "Focus on platonic connections only. Great for finding travel buddies and community.",
-                            icon: "person.2.fill",
+                            title: "Community",
+                            description: "Focus on building friendships and community connections with fellow travelers.",
+                            icon: "person.3.fill",
                             isSelected: currentMode == .friends,
                             gradient: LinearGradient(
-                                gradient: Gradient(colors: [skyBlue, forestGreen]),
+                                gradient: Gradient(colors: [
+                                    Color(red: 0.66, green: 0.77, blue: 0.84),
+                                    Color(red: 0.33, green: 0.47, blue: 0.34)
+                                ]),
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             ),

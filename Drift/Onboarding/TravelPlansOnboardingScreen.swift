@@ -46,6 +46,7 @@ struct TravelPlansOnboardingScreen: View {
                         .foregroundColor(charcoalColor)
                         .opacity(titleOpacity)
                         .offset(x: titleOffset)
+                        .padding(.top, 8)
 
                     Text("Add your upcoming travel destinations so others can find you along the way.")
                         .font(.system(size: 16))
@@ -126,6 +127,7 @@ struct TravelPlansOnboardingScreen: View {
                         }
                     }
                     .padding(.horizontal, 24)
+                    .padding(.top, 8)
                     .padding(.bottom, 24)
                 }
                 .opacity(contentOpacity)
@@ -154,7 +156,7 @@ struct TravelPlansOnboardingScreen: View {
                     .clipShape(Capsule())
                     .disabled(isSaving)
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 16)
+                    .padding(.bottom, 12)
                     .opacity(buttonOpacity)
                     .offset(y: buttonOffset)
                 }
@@ -239,29 +241,26 @@ private struct TravelStopOnboardingRow: View {
     let onDelete: () -> Void
 
     private let charcoal = Color("Charcoal")
-    private let desertSand = Color("DesertSand")
-
-    private func locationEmoji(for location: String) -> String {
-        let lowercased = location.lowercased()
-        if lowercased.contains("beach") || lowercased.contains("coast") {
-            return "🌊"
-        } else if lowercased.contains("mountain") || lowercased.contains("peak") {
-            return "⛰️"
-        } else if lowercased.contains("desert") || lowercased.contains("canyon") {
-            return "🏜️"
-        } else if lowercased.contains("forest") || lowercased.contains("park") {
-            return "🌲"
-        }
-        return "📍"
-    }
+    private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
+    private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(locationEmoji(for: stop.location))
-                .font(.system(size: 20))
-                .frame(width: 44, height: 44)
-                .background(desertSand)
-                .clipShape(Circle())
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [burntOrange.opacity(0.15), sunsetRose.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 48, height: 48)
+
+                Image(systemName: "signpost.right.and.left")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(burntOrange)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(stop.location)

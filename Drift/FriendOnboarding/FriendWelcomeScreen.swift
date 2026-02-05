@@ -162,7 +162,7 @@ struct FriendWelcomeScreen: View {
                         .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
                 }
                 .padding(.horizontal, 32)
-                .padding(.bottom, 48)
+                .padding(.bottom, 12)
                 .opacity(buttonOpacity)
                 .offset(y: buttonOffset)
             }
