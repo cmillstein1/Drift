@@ -91,55 +91,42 @@ public class CommunityManager: ObservableObject {
                 }
             }
 
-            // Check if current user has liked each post
+            // Check likes and attendance in parallel
             if let userId = SupabaseManager.shared.currentUser?.id {
                 let postIds = posts.map { $0.id }
-                let likes: [PostLike] = try await client
+                let postIdStrings = postIds.map { $0.uuidString }
+                let eventPostIds = posts.filter { $0.type == .event }.map { $0.id }
+                let eventPostIdStrings = eventPostIds.map { $0.uuidString }
+
+                // Run all status queries in parallel
+                async let likesTask: [PostLike] = client
                     .from("post_likes")
                     .select()
                     .eq("user_id", value: userId)
-                    .in("post_id", values: postIds.map { $0.uuidString })
+                    .in("post_id", values: postIdStrings)
                     .execute()
                     .value
 
+                // Fetch all attendee records (confirmed + pending) in one query
+                async let attendeesTask: [EventAttendee] = eventPostIdStrings.isEmpty ? [] : client
+                    .from("event_attendees")
+                    .select()
+                    .eq("user_id", value: userId)
+                    .in("post_id", values: eventPostIdStrings)
+                    .execute()
+                    .value
+
+                let (likes, allAttendees) = try await (likesTask, attendeesTask)
+
                 let likedPostIds = Set(likes.compactMap { $0.postId })
+                let attendingPostIds = Set(allAttendees.filter { $0.status == .confirmed }.map { $0.postId })
+                let pendingPostIds = Set(allAttendees.filter { $0.status == .pending }.map { $0.postId })
 
                 for i in posts.indices {
                     posts[i].isLikedByCurrentUser = likedPostIds.contains(posts[i].id)
-                }
-
-                // Check event attendance for event posts
-                let eventPostIds = posts.filter { $0.type == .event }.map { $0.id }
-                if !eventPostIds.isEmpty {
-                    // Check confirmed attendance
-                    let attendances: [EventAttendee] = try await client
-                        .from("event_attendees")
-                        .select()
-                        .eq("user_id", value: userId)
-                        .eq("status", value: "confirmed")
-                        .in("post_id", values: eventPostIds.map { $0.uuidString })
-                        .execute()
-                        .value
-
-                    let attendingPostIds = Set(attendances.map { $0.postId })
-
-                    // Check pending requests
-                    let pendingRequests: [EventAttendee] = try await client
-                        .from("event_attendees")
-                        .select()
-                        .eq("user_id", value: userId)
-                        .eq("status", value: "pending")
-                        .in("post_id", values: eventPostIds.map { $0.uuidString })
-                        .execute()
-                        .value
-
-                    let pendingPostIds = Set(pendingRequests.map { $0.postId })
-
-                    for i in posts.indices {
-                        if posts[i].type == .event {
-                            posts[i].isAttendingEvent = attendingPostIds.contains(posts[i].id)
-                            posts[i].hasPendingRequest = pendingPostIds.contains(posts[i].id)
-                        }
+                    if posts[i].type == .event {
+                        posts[i].isAttendingEvent = attendingPostIds.contains(posts[i].id)
+                        posts[i].hasPendingRequest = pendingPostIds.contains(posts[i].id)
                     }
                 }
             }
@@ -373,8 +360,8 @@ public class CommunityManager: ObservableObject {
             .execute()
             .value
 
-        // Refresh posts list
-        try await fetchPosts()
+        // Insert into local state instead of full re-fetch
+        posts.insert(post, at: 0)
 
         return post
     }
@@ -427,7 +414,12 @@ public class CommunityManager: ObservableObject {
             .eq("type", value: CommunityPostType.event.rawValue)
             .execute()
 
-        try await fetchPosts()
+        // Refresh just the updated post in local state
+        if let updatedPost = try? await fetchPost(by: postId) {
+            if let idx = posts.firstIndex(where: { $0.id == postId }) {
+                posts[idx] = updatedPost
+            }
+        }
     }
 
     /// Creates a new help post.
@@ -469,8 +461,8 @@ public class CommunityManager: ObservableObject {
             .execute()
             .value
 
-        // Refresh posts list
-        try await fetchPosts()
+        // Insert into local state instead of full re-fetch
+        posts.insert(post, at: 0)
 
         return post
     }

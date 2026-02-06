@@ -278,7 +278,7 @@ struct DiscoverMapPin: View {
         ZStack(alignment: .bottomTrailing) {
             Group {
                 if let urlString = imageURL, let url = URL(string: urlString) {
-                    AsyncImage(url: url) { phase in
+                    CachedAsyncImage(url: url) { phase in
                         switch phase {
                         case .success(let image):
                             image

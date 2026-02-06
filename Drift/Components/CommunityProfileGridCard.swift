@@ -28,7 +28,7 @@ struct CommunityProfileGridCard: View {
             // Image container: fixed frame, then clip so the image can never overflow
             ZStack(alignment: .bottomLeading) {
                 // Profile image - frame first, then clip to rounded rect
-                AsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? "")) { phase in
+                CachedAsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? "")) { phase in
                     switch phase {
                     case .empty:
                         Rectangle()

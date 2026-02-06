@@ -22,7 +22,7 @@ struct DiscoverZoomablePhotoView: View {
             Color.black.ignoresSafeArea()
                 .onTapGesture { onDismiss() }
 
-            AsyncImage(url: imageURL) { phase in
+            CachedAsyncImage(url: imageURL) { phase in
                 switch phase {
                 case .success(let image):
                     image

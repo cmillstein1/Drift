@@ -16,7 +16,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         FirebaseApp.configure()
 
-        // Image caching: larger URLCache so AsyncImage (URLSession) can serve profile photos from cache on load
+        // Image caching: URLCache as disk fallback; in-memory caching handled by ImageCache (CachedAsyncImage)
         let memoryCapacity = 50 * 1024 * 1024   // 50 MB memory
         let diskCapacity = 150 * 1024 * 1024    // 150 MB disk
         URLCache.shared = URLCache(memoryCapacity: memoryCapacity, diskCapacity: diskCapacity)

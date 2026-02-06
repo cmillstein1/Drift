@@ -362,7 +362,7 @@ struct ReplyCard: View {
     @ViewBuilder
     private var avatarView: some View {
         if let avatarUrl = reply.avatar, let url = URL(string: avatarUrl) {
-            AsyncImage(url: url) { phase in
+            CachedAsyncImage(url: url) { phase in
                 switch phase {
                 case .empty:
                     placeholderCircle

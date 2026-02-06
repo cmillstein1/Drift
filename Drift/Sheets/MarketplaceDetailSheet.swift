@@ -82,7 +82,7 @@ struct MarketplaceDetailSheet: View {
             // Image
             TabView(selection: $currentImageIndex) {
                 ForEach(0..<mockImages.count, id: \.self) { index in
-                    AsyncImage(url: URL(string: mockImages[index])) { phase in
+                    CachedAsyncImage(url: URL(string: mockImages[index])) { phase in
                         switch phase {
                         case .empty:
                             Rectangle()

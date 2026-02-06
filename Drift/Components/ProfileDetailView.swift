@@ -110,7 +110,7 @@ struct ProfileDetailView: View {
                                     ForEach(Array(images.enumerated()), id: \.offset) { index, photoUrl in
                                         Group {
                                             if !photoUrl.isEmpty, let url = URL(string: photoUrl) {
-                                                AsyncImage(url: url) { phase in
+                                                CachedAsyncImage(url: url) { phase in
                                                     if let image = phase.image {
                                                         image
                                                             .resizable()
@@ -298,7 +298,7 @@ struct ProfileDetailView: View {
                     // TRAVEL PLANS CARD
                     // ==========================================
                     if !travelStops.isEmpty {
-                        TravelPlansCard(travelStops: travelStops, cornerRadius: 0)
+                        TravelPlansCard(travelStops: travelStops, cornerRadius: 0, useSectionHeaderStyle: true)
                         if profile.lifestyle != nil || profile.nextDestination != nil || profile.workStyle != nil || profile.homeBase != nil || profile.morningPerson != nil || !profile.interests.isEmpty {
                             softGray.frame(height: sectionDividerHeight)
                                 .frame(maxWidth: .infinity)
@@ -609,7 +609,7 @@ struct ProfileDetailView: View {
             HStack(alignment: .top, spacing: 12) {
                 ZStack(alignment: .bottomTrailing) {
                     if let urlString = profile.avatarUrl ?? profile.photos.first, let url = URL(string: urlString) {
-                        AsyncImage(url: url) { phase in
+                        CachedAsyncImage(url: url) { phase in
                             if let image = phase.image {
                                 image
                                     .resizable()
@@ -858,7 +858,7 @@ private struct ProfilePhotoFullScreenView: View {
                 ForEach(Array(imageUrls.enumerated()), id: \.offset) { index, photoUrl in
                     Group {
                         if !photoUrl.isEmpty, let url = URL(string: photoUrl) {
-                            AsyncImage(url: url) { phase in
+                            CachedAsyncImage(url: url) { phase in
                                 if let image = phase.image {
                                     image
                                         .resizable()

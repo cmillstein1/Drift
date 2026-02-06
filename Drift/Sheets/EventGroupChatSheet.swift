@@ -167,7 +167,7 @@ struct EventGroupChatSheet: View {
                 // Show up to 4 attendee avatars
                 ForEach(Array(attendees.prefix(4).enumerated()), id: \.element.id) { index, attendee in
                     if let avatarUrl = attendee.avatarUrl, let url = URL(string: avatarUrl) {
-                        AsyncImage(url: url) { image in
+                        CachedAsyncImage(url: url) { image in
                             image
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
@@ -397,7 +397,7 @@ struct MessageBubble: View {
             } else {
                 // Avatar
                 if let avatarUrl = message.author?.avatarUrl, let url = URL(string: avatarUrl) {
-                    AsyncImage(url: url) { image in
+                    CachedAsyncImage(url: url) { image in
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)

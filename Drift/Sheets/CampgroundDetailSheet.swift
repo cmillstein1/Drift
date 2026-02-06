@@ -107,7 +107,7 @@ struct CampgroundDetailSheet: View {
                 ZStack(alignment: .topLeading) {
                     // Hero Image
                     if let imageUrl = heroImageUrl, let url = URL(string: imageUrl) {
-                        AsyncImage(url: url) { phase in
+                        CachedAsyncImage(url: url) { phase in
                             switch phase {
                             case .empty:
                                 ZStack {

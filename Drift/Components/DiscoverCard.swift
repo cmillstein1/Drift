@@ -77,7 +77,7 @@ struct DiscoverCard: View {
             ZStack(alignment: .bottomLeading) {
                 if let urlString = mainPhotoURL, let url = URL(string: urlString) {
                     GeometryReader { geo in
-                        AsyncImage(url: url) { phase in
+                        CachedAsyncImage(url: url) { phase in
                             if let image = phase.image {
                                 image
                                     .resizable()

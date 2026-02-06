@@ -115,7 +115,7 @@ struct CommunityPostDetailSheet: View {
     @ViewBuilder
     private var avatarView: some View {
         if let avatarUrl = post.author?.avatarUrl, let url = URL(string: avatarUrl) {
-            AsyncImage(url: url) { image in
+            CachedAsyncImage(url: url) { image in
                 image
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -553,7 +553,7 @@ struct CommunityReplyCard: View {
     @ViewBuilder
     private var avatarView: some View {
         if let avatarUrl = reply.author?.avatarUrl, let url = URL(string: avatarUrl) {
-            AsyncImage(url: url) { image in
+            CachedAsyncImage(url: url) { image in
                 image
                     .resizable()
                     .aspectRatio(contentMode: .fill)

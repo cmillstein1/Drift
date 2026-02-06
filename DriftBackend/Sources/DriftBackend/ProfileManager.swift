@@ -22,6 +22,11 @@ public class ProfileManager: ObservableObject {
     /// The last error message, if any.
     @Published public var errorMessage: String?
 
+    /// In-memory profile cache with timestamps for TTL expiration.
+    private var profileCache: [UUID: (profile: UserProfile, fetchedAt: Date)] = [:]
+    /// Profiles are considered fresh for 60 seconds.
+    private let profileCacheTTL: TimeInterval = 60
+
     private var client: SupabaseClient {
         SupabaseManager.shared.client
     }
@@ -159,11 +164,17 @@ public class ProfileManager: ObservableObject {
         print("🔵 [ProfileManager] After refresh - morningPerson: \(String(describing: currentProfile?.morningPerson))")
     }
 
-    /// Fetches a profile by user ID.
+    /// Fetches a profile by user ID, returning a cached version if available and fresh.
     ///
     /// - Parameter id: The user's UUID.
     /// - Returns: The user's profile.
     public func fetchProfile(by id: UUID) async throws -> UserProfile {
+        // Return cached profile if still fresh
+        if let cached = profileCache[id],
+           Date().timeIntervalSince(cached.fetchedAt) < profileCacheTTL {
+            return cached.profile
+        }
+
         let profiles: [UserProfile] = try await client
             .from("profiles")
             .select()
@@ -176,7 +187,43 @@ public class ProfileManager: ObservableObject {
             throw ProfileError.profileNotFound
         }
 
+        profileCache[id] = (profile: profile, fetchedAt: Date())
         return profile
+    }
+
+    /// Fetches multiple profiles by ID in a single query, using cache when available.
+    ///
+    /// - Parameter ids: The user UUIDs to fetch.
+    /// - Returns: Dictionary mapping UUID to profile.
+    public func fetchProfiles(by ids: [UUID]) async throws -> [UUID: UserProfile] {
+        var result: [UUID: UserProfile] = [:]
+        var uncachedIds: [UUID] = []
+
+        for id in ids {
+            if let cached = profileCache[id],
+               Date().timeIntervalSince(cached.fetchedAt) < profileCacheTTL {
+                result[id] = cached.profile
+            } else {
+                uncachedIds.append(id)
+            }
+        }
+
+        if !uncachedIds.isEmpty {
+            let profiles: [UserProfile] = try await client
+                .from("profiles")
+                .select()
+                .in("id", values: uncachedIds)
+                .execute()
+                .value
+
+            let now = Date()
+            for profile in profiles {
+                profileCache[profile.id] = (profile: profile, fetchedAt: now)
+                result[profile.id] = profile
+            }
+        }
+
+        return result
     }
 
     // MARK: - Discovery
@@ -230,8 +277,9 @@ public class ProfileManager: ObservableObject {
                 .execute()
                 .value
 
-            // Filter out excluded IDs
-            profiles = profiles.filter { !excludeIds.contains($0.id) }
+            // Filter out excluded IDs using Set for O(1) lookups
+            let excludeSet = Set(excludeIds)
+            profiles = profiles.filter { !excludeSet.contains($0.id) }
 
             // Apply dating preferences (age range and distance) when in dating mode
             if lookingFor == .dating, let current = currentProfile {
@@ -334,42 +382,10 @@ public class ProfileManager: ObservableObject {
     /// Returns a copy of the profile with latitude/longitude set to nil when hideLocationOnMap is true.
     private func stripLocationIfHidden(_ profile: UserProfile) -> UserProfile {
         guard profile.hideLocationOnMap else { return profile }
-        return UserProfile(
-            id: profile.id,
-            name: profile.name,
-            birthday: profile.birthday,
-            age: profile.age,
-            bio: profile.bio,
-            avatarUrl: profile.avatarUrl,
-            photos: profile.photos,
-            location: profile.location,
-            latitude: nil,
-            longitude: nil,
-            verified: profile.verified,
-            lifestyle: profile.lifestyle,
-            travelPace: profile.travelPace,
-            nextDestination: profile.nextDestination,
-            travelDates: profile.travelDates,
-            interests: profile.interests,
-            lookingFor: profile.lookingFor,
-            friendsOnly: profile.friendsOnly,
-            orientation: profile.orientation,
-            preferredMinAge: profile.preferredMinAge,
-            preferredMaxAge: profile.preferredMaxAge,
-            preferredMaxDistanceMiles: profile.preferredMaxDistanceMiles,
-            simplePleasure: profile.simplePleasure,
-            rigInfo: profile.rigInfo,
-            datingLooksLike: profile.datingLooksLike,
-            promptAnswers: profile.promptAnswers,
-            workStyle: profile.workStyle,
-            homeBase: profile.homeBase,
-            morningPerson: profile.morningPerson,
-            createdAt: profile.createdAt,
-            updatedAt: profile.updatedAt,
-            lastActiveAt: profile.lastActiveAt,
-            onboardingCompleted: profile.onboardingCompleted,
-            hideLocationOnMap: profile.hideLocationOnMap
-        )
+        var stripped = profile
+        stripped.latitude = nil
+        stripped.longitude = nil
+        return stripped
     }
 
     // MARK: - Travel Schedule

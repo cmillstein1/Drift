@@ -50,6 +50,9 @@ struct DiscoverScreen: View {
     @State private var lastFriendsScrollOffsetY: CGFloat = 0
     /// When true, unified ScrollViewWithOffset scrolls to top (when switching segments in .both).
     @State private var scrollToTopTrigger: Bool = false
+    /// Cached blocked user IDs to avoid duplicate fetches across loadProfiles/preloadFriendsProfiles
+    @State private var cachedBlockedIds: [UUID] = []
+    @State private var lastExclusionFetch: Date = .distantPast
 
     /// Top spacer so first card clears the overlay (safe area + mode switcher + subtitle + padding).
     private let topNavBarHeight: CGFloat = 120
@@ -124,6 +127,20 @@ struct DiscoverScreen: View {
         loadProfiles(forMode: mode)
     }
 
+    /// Fetches swiped and blocked IDs, using cache if fresh (< 30s).
+    private func fetchExclusionIds() async throws -> (swiped: [UUID], blocked: [UUID]) {
+        let swiped = try await friendsManager.fetchSwipedUserIds()
+        let blocked: [UUID]
+        if Date().timeIntervalSince(lastExclusionFetch) < 30 {
+            blocked = cachedBlockedIds
+        } else {
+            blocked = try await friendsManager.fetchBlockedExclusionUserIds()
+            cachedBlockedIds = blocked
+            lastExclusionFetch = Date()
+        }
+        return (swiped, blocked)
+    }
+
     /// Load profiles for a specific mode. Data is stored separately in ProfileManager so no race condition issues.
     private func loadProfiles(forMode targetMode: DiscoverMode) {
         // Use device location for distance filter when available (dating & friends)
@@ -133,10 +150,7 @@ struct DiscoverScreen: View {
 
         Task {
             do {
-                let (swiped, blocked) = try await (
-                    friendsManager.fetchSwipedUserIds(),
-                    friendsManager.fetchBlockedExclusionUserIds()
-                )
+                let (swiped, blocked) = try await fetchExclusionIds()
                 // Always set swipedIds - it's shared across modes
                 swipedIds = swiped
                 try await profileManager.fetchDiscoverProfiles(
@@ -185,10 +199,7 @@ struct DiscoverScreen: View {
         let coord = DiscoveryLocationProvider.shared.lastCoordinate
         Task {
             do {
-                let (swiped, blocked) = try await (
-                    friendsManager.fetchSwipedUserIds(),
-                    friendsManager.fetchBlockedExclusionUserIds()
-                )
+                let (swiped, blocked) = try await fetchExclusionIds()
                 guard let currentUserId = supabaseManager.currentUser?.id else { return }
                 try await friendsManager.fetchSentRequests()
                 try await friendsManager.fetchFriends()

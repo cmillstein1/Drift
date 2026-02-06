@@ -28,7 +28,7 @@ struct FriendRequestCard: View {
             HStack(spacing: 12) {
                 // Profile Image
                 Button(action: onViewProfile) {
-                    AsyncImage(url: URL(string: profile?.photos.first ?? profile?.avatarUrl ?? "")) { phase in
+                    CachedAsyncImage(url: URL(string: profile?.photos.first ?? profile?.avatarUrl ?? "")) { phase in
                         switch phase {
                         case .empty:
                             Circle()
