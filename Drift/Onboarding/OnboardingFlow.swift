@@ -104,8 +104,12 @@ struct OnboardingFlow: View {
             // If startStep is provided, jump to that step for partial onboarding
             if let startStep = startStep {
                 flowManager.currentStep = startStep
-                // Clear the stored step after using it
                 UserDefaults.standard.removeObject(forKey: "datingOnboardingStartStep")
+            }
+            // Sign in with Apple: skip name step — use Apple-provided name only (Guideline 4.0)
+            else if UserDefaults.standard.bool(forKey: "last_sign_in_was_apple") {
+                flowManager.currentStep = 1
+                UserDefaults.standard.removeObject(forKey: "last_sign_in_was_apple")
             }
         }
     }
