@@ -33,56 +33,6 @@ public class ProfileManager: ObservableObject {
 
     private init() {}
     
-    // MARK: - Temporary Mock Data Helper (for testing)
-    
-    /// Adds mock prompts to a profile if missing
-    /// TODO: Remove this once database is properly seeded with prompts
-    private func addMockPrompts(to profile: UserProfile) -> UserProfile {
-        let mockPrompts = [
-            PromptAnswer(prompt: "My simple pleasure is", answer: "Waking up before sunrise, making pour-over coffee, and watching the fog roll over the ocean."),
-            PromptAnswer(prompt: "The best trip I ever took was", answer: "Driving the entire Pacific Coast Highway from San Diego to Seattle. Two months of pure magic."),
-            PromptAnswer(prompt: "I'm really good at", answer: "Finding the most epic sunrise spots and making friends with local surfers."),
-            PromptAnswer(prompt: "You can find me on weekends", answer: "Chasing waves at sunrise, exploring hidden beaches, and capturing the perfect golden hour shot."),
-            PromptAnswer(prompt: "I'm looking for someone who", answer: "Loves adventure as much as I do and isn't afraid to wake up early for a good sunrise."),
-            PromptAnswer(prompt: "My ideal first date is", answer: "A sunrise hike followed by coffee at a local roastery, then exploring a new beach together.")
-        ]
-        
-        // Create a new profile with prompts added
-        return UserProfile(
-            id: profile.id,
-            name: profile.name,
-            birthday: profile.birthday,
-            age: profile.age,
-            bio: profile.bio,
-            avatarUrl: profile.avatarUrl,
-            photos: profile.photos,
-            location: profile.location,
-            latitude: profile.latitude,
-            longitude: profile.longitude,
-            verified: profile.verified,
-            lifestyle: profile.lifestyle,
-            travelPace: profile.travelPace,
-            nextDestination: profile.nextDestination,
-            travelDates: profile.travelDates,
-            interests: profile.interests,
-            lookingFor: profile.lookingFor,
-            friendsOnly: profile.friendsOnly,
-            orientation: profile.orientation,
-            preferredMinAge: profile.preferredMinAge,
-            preferredMaxAge: profile.preferredMaxAge,
-            preferredMaxDistanceMiles: profile.preferredMaxDistanceMiles,
-            simplePleasure: profile.simplePleasure,
-            rigInfo: profile.rigInfo,
-            datingLooksLike: profile.datingLooksLike,
-            promptAnswers: mockPrompts,
-            createdAt: profile.createdAt,
-            updatedAt: profile.updatedAt,
-            lastActiveAt: profile.lastActiveAt,
-            onboardingCompleted: profile.onboardingCompleted,
-            hideLocationOnMap: profile.hideLocationOnMap
-        )
-    }
-
     // MARK: - Current Profile
 
     /// Fetches the current user's profile from the database.
@@ -305,17 +255,13 @@ public class ProfileManager: ObservableObject {
                 }
             }
 
+            // Dating only: show users who have completed dating onboarding (orientation, lookingFor, 3+ prompt answers)
+            if lookingFor == .dating {
+                profiles = profiles.filter { Self.hasCompletedDatingOnboarding(profile: $0) }
+            }
+
             // Trim to requested limit after filtering
             profiles = Array(profiles.prefix(limit))
-            
-            // Temporary: Add mock prompts if missing (for testing)
-            // TODO: Remove this once database is properly seeded
-            profiles = profiles.map { profile in
-                if profile.promptAnswers == nil || profile.promptAnswers?.isEmpty == true {
-                    return addMockPrompts(to: profile)
-                }
-                return profile
-            }
             
             // Strip coordinates for users who have hidden their location (so they don't appear on the map)
             profiles = profiles.map { stripLocationIfHidden($0) }
@@ -554,17 +500,19 @@ public class ProfileManager: ObservableObject {
     
     // MARK: - Dating Onboarding
     
-    /// Checks if the user has completed dating-specific onboarding.
+    /// Checks if a profile has completed dating-specific onboarding (used for current user or discovery).
     /// Returns true if they have orientation, lookingFor set to dating/both, and at least 3 prompt answers.
-    public func hasCompletedDatingOnboarding() -> Bool {
-        guard let profile = currentProfile else { return false }
-        
-        // Check if they have dating-specific fields filled
+    public static func hasCompletedDatingOnboarding(profile: UserProfile) -> Bool {
         let hasOrientation = profile.orientation != nil && !profile.orientation!.isEmpty
         let isLookingForDating = profile.lookingFor == .dating || profile.lookingFor == .both
         let hasPromptAnswers = profile.promptAnswers != nil && !profile.promptAnswers!.isEmpty && profile.promptAnswers!.count >= 3
-        
         return hasOrientation && isLookingForDating && hasPromptAnswers
+    }
+
+    /// Checks if the current user has completed dating-specific onboarding.
+    public func hasCompletedDatingOnboarding() -> Bool {
+        guard let profile = currentProfile else { return false }
+        return Self.hasCompletedDatingOnboarding(profile: profile)
     }
     
     /// Determines which onboarding step to start from for partial dating onboarding.

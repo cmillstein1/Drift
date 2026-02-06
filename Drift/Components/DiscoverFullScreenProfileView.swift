@@ -508,8 +508,17 @@ struct DiscoverFullScreenProfileView: View {
                     }
                 }
 
-                // 4. First prompt (if exists)
-                if let answers = profile.promptAnswers, !answers.isEmpty {
+                // Friends: rig, travel pace, next destination (no prompts)
+                if mode == .friends {
+                    if profile.rigInfo != nil && !profile.rigInfo!.isEmpty
+                        || profile.travelPace != nil
+                        || (profile.nextDestination != nil && !profile.nextDestination!.isEmpty) {
+                        friendsTravelInfoSection
+                    }
+                }
+
+                // 4. First prompt (dating only)
+                if mode == .dating, let answers = profile.promptAnswers, !answers.isEmpty {
                     let firstPrompt = answers[0]
                     sectionView(title: firstPrompt.prompt) {
                         Text(firstPrompt.answer)
@@ -525,8 +534,8 @@ struct DiscoverFullScreenProfileView: View {
                     travelPlansSection
                 }
 
-                // 6. Second prompt (if exists)
-                if let answers = profile.promptAnswers, answers.count > 1 {
+                // 6. Second prompt (dating only)
+                if mode == .dating, let answers = profile.promptAnswers, answers.count > 1 {
                     let secondPrompt = answers[1]
                     sectionView(title: secondPrompt.prompt) {
                         Text(secondPrompt.answer)
@@ -537,13 +546,13 @@ struct DiscoverFullScreenProfileView: View {
                     }
                 }
 
-                // 7. Interests
+                // 7. Interests (under photo / prominent for both modes)
                 if !profile.interests.isEmpty {
                     interestsSection
                 }
 
-                // 8. Additional prompts (3rd onwards)
-                if let answers = profile.promptAnswers, answers.count > 2 {
+                // 8. Additional prompts (dating only)
+                if mode == .dating, let answers = profile.promptAnswers, answers.count > 2 {
                     ForEach(Array(answers.dropFirst(2).enumerated()), id: \.offset) { _, promptAnswer in
                         sectionView(title: promptAnswer.prompt) {
                             Text(promptAnswer.answer)
@@ -678,6 +687,62 @@ struct DiscoverFullScreenProfileView: View {
                 .tracking(0.5)
                 .foregroundColor(inkMain.opacity(0.6))
             content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .background(Color.white)
+        .overlay(
+            Rectangle()
+                .fill(softGray)
+                .frame(height: 1),
+            alignment: .bottom
+        )
+    }
+
+    // MARK: - Friends Travel Info (rig, pace, next destination — no prompts)
+
+    @ViewBuilder
+    private var friendsTravelInfoSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("RIG & TRAVEL")
+                .font(.system(size: 11, weight: .semibold))
+                .tracking(0.5)
+                .foregroundColor(inkMain.opacity(0.6))
+
+            VStack(alignment: .leading, spacing: 8) {
+                if let rig = profile.rigInfo, !rig.isEmpty {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "car.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(burntOrange)
+                        Text(rig)
+                            .font(.system(size: 16))
+                            .foregroundColor(inkMain)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                if let pace = profile.travelPace {
+                    HStack(spacing: 8) {
+                        Image(systemName: "figure.walk")
+                            .font(.system(size: 14))
+                            .foregroundColor(burntOrange)
+                        Text(pace.displayName)
+                            .font(.system(size: 16))
+                            .foregroundColor(inkMain)
+                    }
+                }
+                if let next = profile.nextDestination, !next.isEmpty {
+                    HStack(spacing: 8) {
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(burntOrange)
+                        Text("Next: \(next)")
+                            .font(.system(size: 16))
+                            .foregroundColor(inkMain)
+                    }
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
