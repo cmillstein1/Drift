@@ -339,6 +339,17 @@ struct WelcomeScreen: View {
                 authorizationCode: authorizationCode
             )
             print("Apple Sign In successful")
+            // Mark that we signed in with Apple so onboarding skips the name step (Guideline 4.0)
+            UserDefaults.standard.set(true, forKey: "last_sign_in_was_apple")
+            // Use first name from Apple when provided (only on first authorization)
+            if let fullName = credential.fullName, let firstName = fullName.givenName?.trimmingCharacters(in: .whitespaces), !firstName.isEmpty {
+                do {
+                    try await ProfileManager.shared.fetchCurrentProfile()
+                    try await ProfileManager.shared.updateProfile(ProfileUpdateRequest(name: firstName))
+                } catch {
+                    print("Could not save Apple name to profile: \(error)")
+                }
+            }
         } catch {
             print("Apple Sign In error: \(error)")
             if error.localizedDescription.contains("Unacceptable audience") {
