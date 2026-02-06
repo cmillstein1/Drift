@@ -87,7 +87,7 @@ struct FriendDetailView: View {
                                 ForEach(Array(images.enumerated()), id: \.offset) { index, photoUrl in
                                     Group {
                                         if let url = URL(string: photoUrl), !photoUrl.isEmpty {
-                                            AsyncImage(url: url) { phase in
+                                            CachedAsyncImage(url: url) { phase in
                                                 switch phase {
                                                 case .empty:
                                                     placeholderGradient
@@ -537,7 +537,7 @@ private struct FriendDetailPhotoFullScreenView: View {
                 ForEach(Array(imageUrls.enumerated()), id: \.offset) { index, photoUrl in
                     Group {
                         if !photoUrl.isEmpty, let url = URL(string: photoUrl) {
-                            AsyncImage(url: url) { phase in
+                            CachedAsyncImage(url: url) { phase in
                                 if let image = phase.image {
                                     image
                                         .resizable()

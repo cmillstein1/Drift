@@ -130,7 +130,7 @@ struct DiscoverFullScreenProfileView: View {
                 ForEach(Array(photos.enumerated()), id: \.offset) { index, photoUrl in
                     Group {
                         if !photoUrl.isEmpty, let url = URL(string: photoUrl) {
-                            AsyncImage(url: url) { phase in
+                            CachedAsyncImage(url: url) { phase in
                                 if let image = phase.image {
                                     image
                                         .resizable()
@@ -632,7 +632,7 @@ struct DiscoverFullScreenProfileView: View {
             LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(Array(photos.enumerated()), id: \.offset) { index, photoUrl in
                     if let url = URL(string: photoUrl) {
-                        AsyncImage(url: url) { phase in
+                        CachedAsyncImage(url: url) { phase in
                             Group {
                                 if let image = phase.image {
                                     image

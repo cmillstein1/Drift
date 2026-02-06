@@ -53,6 +53,13 @@ public class CampflareManager: ObservableObject {
         _BackendConfiguration.shared.campflareAPIKey
     }
 
+    /// Cached campground details keyed by ID with fetch timestamps.
+    private var campgroundCache: [String: (campground: Campground, fetchedAt: Date)] = [:]
+    /// Cached search results keyed by request description.
+    private var searchCache: [String: (response: CampgroundSearchResponse, fetchedAt: Date)] = [:]
+    /// Cache entries are fresh for 5 minutes.
+    private let cacheTTL: TimeInterval = 300
+
     private init() {}
 
     // MARK: - Campground
@@ -63,6 +70,12 @@ public class CampflareManager: ObservableObject {
     /// - Returns: The campground details.
     /// - Throws: `CampflareError` if the request fails.
     public func fetchCampground(id: String) async throws -> Campground {
+        // Return cached campground if fresh
+        if let cached = campgroundCache[id],
+           Date().timeIntervalSince(cached.fetchedAt) < cacheTTL {
+            return cached.campground
+        }
+
         let urlString = "\(baseURL)/campground/\(id)"
         guard let url = URL(string: urlString) else {
             throw CampflareError.invalidURL
@@ -89,7 +102,9 @@ public class CampflareManager: ObservableObject {
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             do {
-                return try decoder.decode(Campground.self, from: data)
+                let campground = try decoder.decode(Campground.self, from: data)
+                campgroundCache[id] = (campground: campground, fetchedAt: Date())
+                return campground
             } catch {
                 throw CampflareError.decodingError(error)
             }

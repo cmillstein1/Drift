@@ -246,7 +246,7 @@ struct NotificationsScreen: View {
             if let profile = notification.actorProfile,
                let avatarUrl = profile.avatarUrl,
                let url = URL(string: avatarUrl) {
-                AsyncImage(url: url) { image in
+                CachedAsyncImage(url: url) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)

@@ -19,7 +19,7 @@ struct ActivityCard: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .topTrailing) {
-                AsyncImage(url: URL(string: activity.imageUrl ?? "")) { image in
+                CachedAsyncImage(url: URL(string: activity.imageUrl ?? "")) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)

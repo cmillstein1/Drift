@@ -26,6 +26,7 @@ struct ProfileScreen: View {
     @State private var showMyPostsSheet = false
     @State private var navigationPath: [String] = []
     @StateObject private var communityManager = CommunityManager.shared
+    @State private var lastProfileFetch: Date = .distantPast
 
     private var profile: UserProfile? {
         profileManager.currentProfile
@@ -164,16 +165,17 @@ struct ProfileScreen: View {
                     .presentationDragIndicator(.visible)
             }
             .onAppear {
+                // Skip re-fetch if data is less than 30 seconds old
+                guard Date().timeIntervalSince(lastProfileFetch) > 30 else { return }
                 Task {
                     do {
                         try await profileManager.fetchCurrentProfile()
                     } catch {
                         print("Failed to fetch profile: \(error)")
                     }
-                    // Refresh subscription status so Drift Pro badge and menu stay in sync
                     await revenueCatManager.loadCustomerInfo()
-                    // Fetch new interaction count for My Posts badge
                     try? await communityManager.fetchNewInteractionCount()
+                    lastProfileFetch = Date()
                 }
             }
         }
@@ -223,7 +225,7 @@ struct ProfileScreen: View {
                     HStack(alignment: .bottom, spacing: 16) {
                         // Profile Photo
                         ZStack(alignment: .bottomTrailing) {
-                            AsyncImage(url: URL(string: profile?.photos.first ?? profile?.avatarUrl ?? "")) { phase in
+                            CachedAsyncImage(url: URL(string: profile?.photos.first ?? profile?.avatarUrl ?? "")) { phase in
                                 switch phase {
                                 case .empty:
                                     RoundedRectangle(cornerRadius: 28)

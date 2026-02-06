@@ -379,7 +379,7 @@ private struct BlockedUserRowContent: View {
         let userId = profile?.id
 
         HStack(spacing: 12) {
-            AsyncImage(url: URL(string: profile?.avatarUrl ?? profile?.photos.first ?? "")) { phase in
+            CachedAsyncImage(url: URL(string: profile?.avatarUrl ?? profile?.photos.first ?? "")) { phase in
                 switch phase {
                 case .empty:
                     RoundedRectangle(cornerRadius: 12)
