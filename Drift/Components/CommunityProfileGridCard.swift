@@ -126,12 +126,14 @@ struct CommunityProfileGridCard: View {
             .clipped()
             .clipShape(RoundedRectangle(cornerRadius: 16))
 
-            // Shared interests line - always same height
+            // Interests under photo (never show prompts for friends)
             interestsSection
-                .frame(height: interestsHeight)
+                .frame(minHeight: interestsHeight)
+
+            // Rig, travel pace, next destination (friends-relevant info only)
+            travelInfoSection
         }
         .frame(maxWidth: .infinity)
-        .frame(height: imageHeight + interestsHeight)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
@@ -176,6 +178,54 @@ struct CommunityProfileGridCard: View {
                 Spacer()
             }
             .padding(.horizontal, 12)
+        }
+    }
+
+    /// Rig, travel pace, next destination — friends-relevant info only (no prompts).
+    @ViewBuilder
+    private var travelInfoSection: some View {
+        let hasRig = profile.rigInfo != nil && !profile.rigInfo!.isEmpty
+        let hasPace = profile.travelPace != nil
+        let hasNext = profile.nextDestination != nil && !profile.nextDestination!.isEmpty
+        if hasRig || hasPace || hasNext {
+        HStack(spacing: 6) {
+            if hasRig {
+                HStack(spacing: 4) {
+                    Image(systemName: "car.fill")
+                        .font(.system(size: 10))
+                    Text(profile.rigInfo!)
+                        .font(.system(size: 11))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
+            if hasRig && hasPace { Text("•").font(.system(size: 10)) }
+            if hasPace {
+                HStack(spacing: 4) {
+                    Image(systemName: "figure.walk")
+                        .font(.system(size: 10))
+                    Text(profile.travelPace!.displayName)
+                        .font(.system(size: 11))
+                        .lineLimit(1)
+                }
+            }
+            if (hasRig || hasPace) && hasNext { Text("•").font(.system(size: 10)) }
+            if hasNext {
+                HStack(spacing: 4) {
+                    Image(systemName: "mappin.circle.fill")
+                        .font(.system(size: 10))
+                    Text("Next: \(profile.nextDestination!)")
+                        .font(.system(size: 11))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
+        }
+        .foregroundColor(charcoalColor.opacity(0.85))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.top, 4)
+        .padding(.bottom, 10)
         }
     }
 }
