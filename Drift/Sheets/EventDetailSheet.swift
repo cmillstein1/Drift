@@ -354,6 +354,9 @@ struct EventDetailSheet: View {
             if canSeePrivateDetails, let eventDate = post.eventDatetime, eventDate > Date() {
                 addToCalendarButton
             }
+
+            // Photo attribution
+            imageAttributionSection
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 120)
@@ -842,6 +845,40 @@ struct EventDetailSheet: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 8)
+    }
+
+    @ViewBuilder
+    private var imageAttributionSection: some View {
+        if let name = post.imageAttributionName, !name.isEmpty,
+           let urlString = post.imageAttributionUrl, !urlString.isEmpty,
+           let url = URL(string: urlString) {
+            HStack(spacing: 4) {
+                Text("Photo by")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(charcoal.opacity(0.5))
+                Link(destination: url) {
+                    Text(name)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(charcoal.opacity(0.7))
+                        .underline()
+                }
+            }
+            .frame(maxWidth: .infinity)
+        } else if post.images.first?.lowercased().contains("unsplash") == true,
+                  let url = URL(string: "https://unsplash.com") {
+            HStack(spacing: 4) {
+                Text("Photo by")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(charcoal.opacity(0.5))
+                Link(destination: url) {
+                    Text("Unsplash")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(charcoal.opacity(0.7))
+                        .underline()
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
     }
 
     private var whosGoingSection: some View {

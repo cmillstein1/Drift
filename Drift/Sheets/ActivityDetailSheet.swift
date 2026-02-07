@@ -281,17 +281,29 @@ struct ActivityDetailSheet: View {
         if let name = activity.imageAttributionName, !name.isEmpty,
            let urlString = activity.imageAttributionUrl, !urlString.isEmpty,
            let url = URL(string: urlString) {
-            Link(destination: url) {
-                Text("Photo by \(name) on Unsplash")
+            HStack(spacing: 4) {
+                Text("Photo by")
                     .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(charcoalColor.opacity(0.6))
+                    .foregroundColor(charcoalColor.opacity(0.5))
+                Link(destination: url) {
+                    Text(name)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(charcoalColor.opacity(0.7))
+                        .underline()
+                }
             }
             .frame(maxWidth: .infinity)
         } else if let unsplashUrl = URL(string: "https://unsplash.com") {
-            Link(destination: unsplashUrl) {
-                Text("Photo from Unsplash")
+            HStack(spacing: 4) {
+                Text("Photo by")
                     .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(charcoalColor.opacity(0.6))
+                    .foregroundColor(charcoalColor.opacity(0.5))
+                Link(destination: unsplashUrl) {
+                    Text("Unsplash")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(charcoalColor.opacity(0.7))
+                        .underline()
+                }
             }
             .frame(maxWidth: .infinity)
         }
