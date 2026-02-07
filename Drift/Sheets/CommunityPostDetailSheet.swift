@@ -7,6 +7,7 @@
 
 import SwiftUI
 import DriftBackend
+import Auth
 
 struct CommunityPostDetailSheet: View {
     @Environment(\.dismiss) var dismiss
@@ -15,6 +16,9 @@ struct CommunityPostDetailSheet: View {
     @StateObject private var communityManager = CommunityManager.shared
     @State private var replyText: String = ""
     @State private var showingCalendarAdded: Bool = false
+    @State private var showReportSheet = false
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
     @FocusState private var isReplyFocused: Bool
 
     private let charcoal = Color("Charcoal")
@@ -29,6 +33,12 @@ struct CommunityPostDetailSheet: View {
         communityManager.posts.first(where: { $0.id == initialPost.id }) ?? initialPost
     }
 
+    // Check if current user is the post owner
+    private var isCurrentUserOwner: Bool {
+        guard let currentUserId = SupabaseManager.shared.currentUser?.id else { return false }
+        return post.authorId == currentUserId
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             headerSection
@@ -38,6 +48,32 @@ struct CommunityPostDetailSheet: View {
         .background(softGray)
         .onTapGesture {
             isReplyFocused = false
+        }
+        .sheet(isPresented: $showReportSheet) {
+            ReportSheet(
+                targetName: post.author?.name ?? "Unknown",
+                targetUserId: post.authorId,
+                post: post
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
+        .alert("Delete Post?", isPresented: $showDeleteConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                isDeleting = true
+                Task {
+                    do {
+                        try await communityManager.deletePost(post.id)
+                        dismiss()
+                    } catch {
+                        print("Failed to delete post: \(error)")
+                    }
+                    isDeleting = false
+                }
+            }
+        } message: {
+            Text("This post will be permanently deleted. This action cannot be undone.")
         }
         .onAppear {
             Task {
@@ -53,6 +89,32 @@ struct CommunityPostDetailSheet: View {
             HStack {
                 typeBadge
                 Spacer()
+
+                // 3-dot menu
+                Menu {
+                    Button {
+                        showReportSheet = true
+                    } label: {
+                        Label("Report", systemImage: "flag")
+                    }
+
+                    if isCurrentUserOwner {
+                        Button(role: .destructive) {
+                            showDeleteConfirm = true
+                        } label: {
+                            Label("Delete Post", systemImage: "trash")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(charcoal)
+                        .frame(width: 32, height: 32)
+                        .background(Color.white)
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
+                }
+
                 closeButton
             }
             .padding(.horizontal, 20)
