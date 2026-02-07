@@ -89,26 +89,6 @@ struct MatchAnimationView: View {
                 .transition(.opacity)
             }
 
-            // Close button - top right
-            VStack {
-                HStack {
-                    Spacer()
-                    Button(action: onKeepSwiping) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(charcoal.opacity(0.6))
-                            .frame(width: 44, height: 44)
-                            .background(Color.white)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-                    }
-                    .opacity(closeButtonOpacity)
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 60)
-                Spacer()
-            }
-
             // Main Content
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {

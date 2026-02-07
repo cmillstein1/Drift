@@ -55,6 +55,11 @@ struct DiscoverScreen: View {
     /// Cached blocked user IDs to avoid duplicate fetches across loadProfiles/preloadFriendsProfiles
     @State private var cachedBlockedIds: [UUID] = []
     @State private var lastExclusionFetch: Date = .distantPast
+    /// True until the first profile fetch completes (prevents empty-state flash on launch)
+    @State private var isInitialLoading: Bool = true
+    /// Stamp overlay shown during swipe animation ("LIKE" or "NOPE")
+    @State private var showLikeStamp: Bool = false
+    @State private var showNopeStamp: Bool = false
 
     /// Top spacer so first card clears the overlay (safe area + mode switcher + subtitle + padding).
     private let topNavBarHeight: CGFloat = 120
@@ -168,6 +173,7 @@ struct DiscoverScreen: View {
             } catch {
                 print("Failed to load profiles: \(error)")
             }
+            isInitialLoading = false
         }
     }
 
@@ -218,6 +224,7 @@ struct DiscoverScreen: View {
             } catch {
                 print("Failed to preload friends profiles: \(error)")
             }
+            isInitialLoading = false
         }
     }
 
@@ -348,6 +355,9 @@ struct DiscoverScreen: View {
             }
         }
         .onAppear {
+            // Load cached profiles from disk immediately to prevent empty-state flash
+            profileManager.loadCachedDiscoverProfiles()
+
             // Request device location for distance filtering (dating & friends)
             DiscoveryLocationProvider.shared.requestLocation()
 
@@ -608,20 +618,31 @@ struct DiscoverScreen: View {
 
     @ViewBuilder
     private var unifiedDatingPane: some View {
-        if visibleDatingProfiles.isEmpty {
+        if isInitialLoading && visibleDatingProfiles.isEmpty {
+            ZStack {
+                softGray.ignoresSafeArea()
+                ProgressView()
+                    .tint(Color.gray.opacity(0.5))
+            }
+        } else if visibleDatingProfiles.isEmpty {
             emptyState
         } else if let profile = currentFullScreenProfile {
-            DiscoverFullScreenProfileView(
-                profile: profile,
-                mode: .dating,
-                distanceMiles: distanceMiles(for: profile),
-                lastActiveAt: profile.lastActiveAt,
-                onLike: { handleFullScreenSwipe(profile: profile, direction: .right) },
-                onPass: { handleFullScreenSwipe(profile: profile, direction: .left) },
-                onBlockComplete: { loadProfiles() }
-            )
-            .id(profile.id)
-            .opacity(profileTransitionOpacity)
+            ZStack {
+                DiscoverFullScreenProfileView(
+                    profile: profile,
+                    mode: .dating,
+                    distanceMiles: distanceMiles(for: profile),
+                    lastActiveAt: profile.lastActiveAt,
+                    onLike: { handleFullScreenSwipe(profile: profile, direction: .right) },
+                    onPass: { handleFullScreenSwipe(profile: profile, direction: .left) },
+                    onBlockComplete: { loadProfiles() }
+                )
+                .id(profile.id)
+                .opacity(profileTransitionOpacity)
+
+                // Swipe stamp overlays
+                swipeStampOverlay
+            }
         }
     }
 
@@ -632,6 +653,7 @@ struct DiscoverScreen: View {
             events: communityManager.posts.filter { $0.type == .event },
             distanceMiles: distanceMiles(for:),
             sharedInterests: sharedInterestsForGrid,
+            isLoading: isInitialLoading,
             onSelectProfile: { selectedFriendProfile = $0 },
             onSelectEvent: { selectedEvent = $0 },
             onConnect: { handleConnect(profileId: $0) }
@@ -672,20 +694,31 @@ struct DiscoverScreen: View {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                if visibleDatingProfiles.isEmpty {
+                if isInitialLoading && visibleDatingProfiles.isEmpty {
+                    ZStack {
+                        Color.black.ignoresSafeArea()
+                        ProgressView()
+                            .tint(Color.white.opacity(0.4))
+                    }
+                } else if visibleDatingProfiles.isEmpty {
                     emptyState
                 } else if let profile = currentFullScreenProfile {
-                    DiscoverFullScreenProfileView(
-                        profile: profile,
-                        mode: .dating,
-                        distanceMiles: distanceMiles(for: profile),
-                        lastActiveAt: profile.lastActiveAt,
-                        onLike: { handleFullScreenSwipe(profile: profile, direction: .right) },
-                        onPass: { handleFullScreenSwipe(profile: profile, direction: .left) },
-                        onBlockComplete: { loadProfiles() }
-                    )
-                    .id(profile.id)
-                    .opacity(profileTransitionOpacity)
+                    ZStack {
+                        DiscoverFullScreenProfileView(
+                            profile: profile,
+                            mode: .dating,
+                            distanceMiles: distanceMiles(for: profile),
+                            lastActiveAt: profile.lastActiveAt,
+                            onLike: { handleFullScreenSwipe(profile: profile, direction: .right) },
+                            onPass: { handleFullScreenSwipe(profile: profile, direction: .left) },
+                            onBlockComplete: { loadProfiles() }
+                        )
+                        .id(profile.id)
+                        .opacity(profileTransitionOpacity)
+
+                        // Swipe stamp overlays
+                        swipeStampOverlay
+                    }
                 }
 
                 // Top overlay: map button
@@ -733,10 +766,38 @@ struct DiscoverScreen: View {
             }
         }
 
-        // Advance to next profile immediately (no black screen)
-        swipedIds.append(profile.id)
-        profileTransitionOpacity = 1
+        // 1. Show stamp overlay
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+            if isLike {
+                showLikeStamp = true
+            } else {
+                showNopeStamp = true
+            }
+        }
 
+        // 2. Fade out current profile
+        withAnimation(.easeOut(duration: 0.25).delay(0.15)) {
+            profileTransitionOpacity = 0
+        }
+
+        // 3. After fade out, swap to next profile and fade in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            showLikeStamp = false
+            showNopeStamp = false
+            swipedIds.append(profile.id)
+            profileTransitionOpacity = 0
+
+            // Fade in next profile
+            withAnimation(.easeIn(duration: 0.3)) {
+                profileTransitionOpacity = 1
+            }
+
+            if visibleDatingProfiles.count <= 1 {
+                loadProfiles()
+            }
+        }
+
+        // 4. Record swipe on backend (fire-and-forget)
         Task {
             do {
                 let swipeDirection: DriftBackend.SwipeDirection
@@ -758,10 +819,6 @@ struct DiscoverScreen: View {
             } catch {
                 print("[DISCOVER] Failed to record swipe: \(error)")
             }
-        }
-
-        if visibleDatingProfiles.count <= 1 {
-            loadProfiles()
         }
     }
 
@@ -889,6 +946,60 @@ struct DiscoverScreen: View {
         }
     }
 
+    // MARK: - Swipe Stamp Overlay
+
+    @ViewBuilder
+    private var swipeStampOverlay: some View {
+        ZStack {
+            if showLikeStamp {
+                Text("LIKE")
+                    .font(.system(size: 48, weight: .heavy))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [burntOrange, sunsetRose],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [burntOrange, sunsetRose],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 4
+                            )
+                    )
+                    .rotationEffect(.degrees(-15))
+                    .opacity(showLikeStamp ? 1 : 0)
+                    .scaleEffect(showLikeStamp ? 1 : 0.5)
+                    .transition(.scale.combined(with: .opacity))
+                    .allowsHitTesting(false)
+            }
+            if showNopeStamp {
+                Text("KEEP DRIFTIN'")
+                    .font(.system(size: 36, weight: .heavy))
+                    .foregroundStyle(charcoal.opacity(0.85))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(charcoal.opacity(0.85), lineWidth: 4)
+                    )
+                    .rotationEffect(.degrees(15))
+                    .opacity(showNopeStamp ? 1 : 0)
+                    .scaleEffect(showNopeStamp ? 1 : 0.5)
+                    .transition(.scale.combined(with: .opacity))
+                    .allowsHitTesting(false)
+            }
+        }
+        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+    }
+
     // MARK: - Empty State (End of feed: compass + "You're all caught up!")
     @ViewBuilder
     private var emptyState: some View {
@@ -939,6 +1050,7 @@ struct DiscoverScreen: View {
                     distanceMiles: distanceMiles(for:),
                     sharedInterests: sharedInterestsForGrid,
                     topSpacing: 60, // Smaller top spacing since no mode switcher in friends-only mode
+                    isLoading: isInitialLoading,
                     onSelectProfile: { selectedFriendProfile = $0 },
                     onSelectEvent: { selectedEvent = $0 },
                     onConnect: { handleConnect(profileId: $0) }

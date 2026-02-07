@@ -16,6 +16,8 @@ struct CommunityGridView: View {
     var sharedInterests: ((UserProfile) -> [String])? = nil
     /// Top spacing for overlay header. Use smaller value (e.g. 60) when no mode switcher is shown.
     var topSpacing: CGFloat = 120
+    /// When true, shows a loading placeholder instead of the "No travelers nearby" empty state.
+    var isLoading: Bool = false
     let onSelectProfile: (UserProfile) -> Void
     let onSelectEvent: (CommunityPost) -> Void
     let onConnect: (UUID) -> Void
@@ -25,7 +27,15 @@ struct CommunityGridView: View {
     private let inkSub = Color(red: 0.42, green: 0.44, blue: 0.50)
 
     var body: some View {
-        if profiles.isEmpty && events.isEmpty {
+        if isLoading && profiles.isEmpty {
+            // Show soft loading state instead of "No travelers nearby" during initial fetch
+            ZStack {
+                softGray.ignoresSafeArea()
+                ProgressView()
+                    .tint(Color.gray.opacity(0.5))
+                    .scaleEffect(1.1)
+            }
+        } else if profiles.isEmpty && events.isEmpty {
             emptyState
         } else {
             ScrollView {

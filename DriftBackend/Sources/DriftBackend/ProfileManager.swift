@@ -32,7 +32,42 @@ public class ProfileManager: ObservableObject {
     }
 
     private init() {}
-    
+
+    // MARK: - Disk Cache
+
+    private func cacheURL(for key: String) -> URL {
+        let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        return dir.appendingPathComponent("drift_\(key).json")
+    }
+
+    private func saveToDisk(_ profiles: [UserProfile], key: String) {
+        do {
+            let data = try JSONEncoder().encode(profiles)
+            try data.write(to: cacheURL(for: key), options: .atomic)
+        } catch {
+            print("[ProfileManager] Failed to save cache (\(key)): \(error)")
+        }
+    }
+
+    private func loadFromDisk(key: String) -> [UserProfile]? {
+        let url = cacheURL(for: key)
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode([UserProfile].self, from: data)
+    }
+
+    /// Populates discover profile arrays from disk cache if they are currently empty.
+    /// Call synchronously on appear before kicking off async fetches.
+    public func loadCachedDiscoverProfiles() {
+        if discoverProfiles.isEmpty,
+           let cached = loadFromDisk(key: "discover_dating_profiles") {
+            discoverProfiles = cached
+        }
+        if discoverProfilesFriends.isEmpty,
+           let cached = loadFromDisk(key: "discover_friends_profiles") {
+            discoverProfilesFriends = cached
+        }
+    }
+
     // MARK: - Current Profile
 
     /// Fetches the current user's profile from the database.
@@ -262,18 +297,22 @@ public class ProfileManager: ObservableObject {
 
             // Trim to requested limit after filtering
             profiles = Array(profiles.prefix(limit))
-            
+
             // Strip coordinates for users who have hidden their location (so they don't appear on the map)
             profiles = profiles.map { stripLocationIfHidden($0) }
-            
+
             switch lookingFor {
             case .dating:
                 self.discoverProfiles = profiles
+                saveToDisk(profiles, key: "discover_dating_profiles")
             case .friends:
                 self.discoverProfilesFriends = profiles
+                saveToDisk(profiles, key: "discover_friends_profiles")
             case .both:
                 self.discoverProfiles = profiles
                 self.discoverProfilesFriends = profiles
+                saveToDisk(profiles, key: "discover_dating_profiles")
+                saveToDisk(profiles, key: "discover_friends_profiles")
             }
             isLoading = false
         } catch {
