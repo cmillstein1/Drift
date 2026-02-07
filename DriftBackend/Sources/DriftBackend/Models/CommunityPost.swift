@@ -108,6 +108,8 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
     public var title: String
     public var content: String
     public var images: [String]
+    public var imageAttributionName: String?
+    public var imageAttributionUrl: String?
     public var likeCount: Int
     public var replyCount: Int
 
@@ -152,6 +154,8 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
         case title
         case content
         case images
+        case imageAttributionName = "image_attribution_name"
+        case imageAttributionUrl = "image_attribution_url"
         case likeCount = "like_count"
         case replyCount = "reply_count"
         case eventDatetime = "event_datetime"
@@ -181,6 +185,8 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
         title: String,
         content: String,
         images: [String] = [],
+        imageAttributionName: String? = nil,
+        imageAttributionUrl: String? = nil,
         likeCount: Int = 0,
         replyCount: Int = 0,
         eventDatetime: Date? = nil,
@@ -208,6 +214,8 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
         self.title = title
         self.content = content
         self.images = images
+        self.imageAttributionName = imageAttributionName
+        self.imageAttributionUrl = imageAttributionUrl
         self.likeCount = likeCount
         self.replyCount = replyCount
         self.eventDatetime = eventDatetime
@@ -239,6 +247,8 @@ public struct CommunityPost: Codable, Identifiable, Sendable {
         title = try container.decode(String.self, forKey: .title)
         content = try container.decode(String.self, forKey: .content)
         images = try container.decodeIfPresent([String].self, forKey: .images) ?? []
+        imageAttributionName = try container.decodeIfPresent(String.self, forKey: .imageAttributionName)
+        imageAttributionUrl = try container.decodeIfPresent(String.self, forKey: .imageAttributionUrl)
         likeCount = try container.decodeIfPresent(Int.self, forKey: .likeCount) ?? 0
         replyCount = try container.decodeIfPresent(Int.self, forKey: .replyCount) ?? 0
 
@@ -467,6 +477,8 @@ public struct CommunityPostCreateRequest: Encodable {
     public let title: String
     public let content: String
     public let images: [String]
+    public let imageAttributionName: String?
+    public let imageAttributionUrl: String?
 
     // Event fields
     public let eventDatetime: Date?
@@ -487,6 +499,8 @@ public struct CommunityPostCreateRequest: Encodable {
         case title
         case content
         case images
+        case imageAttributionName = "image_attribution_name"
+        case imageAttributionUrl = "image_attribution_url"
         case eventDatetime = "event_datetime"
         case eventLocation = "event_location"
         case eventExactLocation = "event_exact_location"
@@ -504,6 +518,8 @@ public struct CommunityPostCreateRequest: Encodable {
         title: String,
         content: String,
         images: [String] = [],
+        imageAttributionName: String? = nil,
+        imageAttributionUrl: String? = nil,
         eventDatetime: Date? = nil,
         eventLocation: String? = nil,
         eventExactLocation: String? = nil,
@@ -519,6 +535,8 @@ public struct CommunityPostCreateRequest: Encodable {
         self.title = title
         self.content = content
         self.images = images
+        self.imageAttributionName = imageAttributionName
+        self.imageAttributionUrl = imageAttributionUrl
         self.eventDatetime = eventDatetime
         self.eventLocation = eventLocation
         self.eventExactLocation = eventExactLocation

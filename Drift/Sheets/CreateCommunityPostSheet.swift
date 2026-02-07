@@ -289,7 +289,7 @@ struct CreateCommunityPostSheet: View {
                         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
                         var eventImages: [String] = []
                         if !trimmedTitle.isEmpty {
-                            let key = ProcessInfo.processInfo.environment["UNSPLASH_ACCESS_KEY"] ?? UnsplashConfig.accessKey
+                            let key = ProcessInfo.processInfo.environment["UNSPLASH_ACCESS_KEY"] ?? ""
                             if let url = await UnsplashManager.fetchFirstImageURL(query: trimmedTitle, accessKey: key) {
                                 eventImages = [url]
                             }

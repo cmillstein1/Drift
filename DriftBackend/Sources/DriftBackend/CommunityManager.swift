@@ -327,10 +327,14 @@ public class CommunityManager: ObservableObject {
         }
 
         var headerImages = images
+        var attributionName: String?
+        var attributionUrl: String?
         if headerImages.isEmpty, !title.trimmingCharacters(in: .whitespaces).isEmpty {
             let key = _BackendConfiguration.shared.unsplashAccessKey
-            if let url = await UnsplashManager.fetchFirstImageURL(query: title, accessKey: key) {
-                headerImages = [url]
+            if let result = await UnsplashManager.fetchFirstImageWithAttribution(query: title, accessKey: key) {
+                headerImages = [result.imageUrl]
+                attributionName = result.photographerName
+                attributionUrl = result.photographerUrl
             }
         }
         let request = CommunityPostCreateRequest(
@@ -339,6 +343,8 @@ public class CommunityManager: ObservableObject {
             title: title,
             content: content,
             images: headerImages,
+            imageAttributionName: attributionName,
+            imageAttributionUrl: attributionUrl,
             eventDatetime: datetime,
             eventLocation: location,
             eventExactLocation: exactLocation,
