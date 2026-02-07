@@ -24,6 +24,9 @@ struct EventDetailSheet: View {
     @State private var pendingRequests: [UserProfile] = []
     @State private var hasPendingRequest: Bool = false
     @State private var cityLocation: String? = nil
+    @State private var showReportSheet = false
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
 
     private let charcoal = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
@@ -119,6 +122,32 @@ struct EventDetailSheet: View {
             CreateCommunityPostSheet(existingPost: post)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showReportSheet) {
+            ReportSheet(
+                targetName: post.author?.name ?? "Unknown",
+                targetUserId: post.authorId,
+                post: post
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
+        .alert("Delete Event?", isPresented: $showDeleteConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                isDeleting = true
+                Task {
+                    do {
+                        try await communityManager.deletePost(post.id)
+                        dismiss()
+                    } catch {
+                        print("Failed to delete event: \(error)")
+                    }
+                    isDeleting = false
+                }
+            }
+        } message: {
+            Text("This event will be permanently deleted. This action cannot be undone.")
         }
         .onAppear {
             loadAttendees()
@@ -255,6 +284,30 @@ struct EventDetailSheet: View {
                             .background(.white.opacity(0.9))
                             .clipShape(Circle())
                     }
+                }
+
+                // 3-dot menu
+                Menu {
+                    Button {
+                        showReportSheet = true
+                    } label: {
+                        Label("Report", systemImage: "flag")
+                    }
+
+                    if isCurrentUserHost {
+                        Button(role: .destructive) {
+                            showDeleteConfirm = true
+                        } label: {
+                            Label("Delete Event", systemImage: "trash")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(charcoal)
+                        .frame(width: 40, height: 40)
+                        .background(.white.opacity(0.9))
+                        .clipShape(Circle())
                 }
             }
             .padding(.horizontal, 20)

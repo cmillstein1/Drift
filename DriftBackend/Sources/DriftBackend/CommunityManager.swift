@@ -477,16 +477,18 @@ public class CommunityManager: ObservableObject {
     ///
     /// - Parameter postId: The post's UUID.
     public func deletePost(_ postId: UUID) async throws {
-        guard let userId = SupabaseManager.shared.currentUser?.id else {
+        guard SupabaseManager.shared.currentUser?.id != nil else {
             throw CommunityError.notAuthenticated
         }
 
-        try await client
-            .from("community_posts")
-            .update(["deleted_at": ISO8601DateFormatter().string(from: Date())])
-            .eq("id", value: postId)
-            .eq("author_id", value: userId)
+        let success: Bool = try await client
+            .rpc("soft_delete_community_post", params: ["post_id": postId])
             .execute()
+            .value
+
+        guard success else {
+            throw CommunityError.postNotFound
+        }
 
         // Remove from local state
         posts.removeAll { $0.id == postId }
