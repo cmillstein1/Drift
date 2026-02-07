@@ -9,6 +9,17 @@ function isSixDigitCode(s: string): boolean {
 }
 
 serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      },
+    })
+  }
+
   try {
     const body = await req.json().catch(() => ({}))
     const { code, userId, validateOnly, checkUserStatus } = body
@@ -33,21 +44,25 @@ serve(async (req) => {
         return new Response(JSON.stringify({ success: false, hasRedeemed: false, error: 'Unauthorized' }), { status: 401, headers: cors })
       }
       const serviceClient = createClient(supabaseUrl, serviceKey)
-      const [invRows, adminRows] = await Promise.all([
-        serviceClient.from('invitations').select('id').eq('used_by', user.id).limit(1),
-        serviceClient.from('admin_invite_redemptions').select('user_id').eq('user_id', user.id).limit(1)
-      ])
-      const hasRedeemed = (Array.isArray(invRows.data) && invRows.data.length > 0) ||
-        (Array.isArray(adminRows.data) && adminRows.data.length > 0)
+      const invResult = await serviceClient.from('invitations').select('id').eq('used_by', user.id).limit(1)
+      let adminRedeemed = false
+      try {
+        const adminResult = await serviceClient.from('admin_invite_redemptions').select('user_id').eq('user_id', user.id).limit(1)
+        adminRedeemed = Array.isArray(adminResult.data) && adminResult.data.length > 0
+      } catch {
+        // admin_invite_redemptions may not exist yet
+      }
+      const hasRedeemed = (Array.isArray(invResult.data) && invResult.data.length > 0) || adminRedeemed
       return new Response(JSON.stringify({ success: true, hasRedeemed }), { status: 200, headers: cors })
     }
 
     // Validate/redeem mode: require code
-    if (!code) {
+    if (code === undefined || code === null) {
       return new Response(JSON.stringify({ success: false, error: 'Code required' }), { status: 400, headers: cors })
     }
 
-    const rawCode = (code as string).trim()
+    // Handle code as string or number (JSON may send numbers)
+    const rawCode = String(code).trim()
     const normalizedCode = rawCode.toUpperCase()
     const adminInviteCode = Deno.env.get('ADMIN_INVITE_CODE')?.trim()
 
@@ -69,7 +84,6 @@ serve(async (req) => {
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       )
-      // Record in admin_invite_redemptions so hasUserRedeemedInvite() returns true; code stays valid for others.
       const { error: insertError } = await supabaseClient
         .from('admin_invite_redemptions')
         .upsert({ user_id: userId }, { onConflict: 'user_id' })

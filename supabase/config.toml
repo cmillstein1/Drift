@@ -364,8 +364,13 @@ deno_version = 2
 # Disable gateway-level JWT verification (function handles auth manually)
 verify_jwt = false
 
+[functions.redeem-invite]
+# Allow validate-only and admin code without auth; function checks auth for redeem/checkUserStatus
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
+# ADMIN_INVITE_CODE = "env(ADMIN_INVITE_CODE)"  # 6-digit admin code for judges/Apple review. Set in .env or: supabase secrets set ADMIN_INVITE_CODE=123456
 
 [analytics]
 enabled = true
