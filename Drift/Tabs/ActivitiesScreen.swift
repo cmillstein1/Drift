@@ -266,7 +266,8 @@ struct ActivitiesScreen: View {
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallScreen(isOpen: $showPaywall, source: .createActivity)
-                    .presentationDragIndicator(.hidden)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
             }
             .sheet(item: $selectedActivity) { activity in
                 ActivityDetailSheet(activity: activity) {

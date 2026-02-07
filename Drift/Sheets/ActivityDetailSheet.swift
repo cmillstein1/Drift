@@ -64,9 +64,11 @@ struct ActivityDetailSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             heroSection
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 scrollContent
+                    .frame(maxWidth: .infinity)
             }
+            .scrollBounceBehavior(.basedOnSize)
             bottomActionBar
         }
         .background(Color.white)
@@ -241,10 +243,58 @@ struct ActivityDetailSheet: View {
             keyInfoCards
             locationCard
             descriptionSection
+            imageAttributionSection
             attendeesSection
         }
+        .frame(maxWidth: .infinity, alignment: .top)
         .padding(.horizontal, 24)
         .padding(.bottom, 120)
+    }
+
+    /// Unsplash attribution: show when we have an Unsplash image or stored attribution. Placed after description so it's visible.
+    private var imageAttributionSection: some View {
+        Group {
+            if shouldShowUnsplashAttribution {
+                VStack(spacing: 8) {
+                    Rectangle()
+                        .fill(charcoalColor.opacity(0.12))
+                        .frame(height: 1)
+                        .frame(maxWidth: .infinity)
+                    unsplashAttributionView
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 20)
+                .padding(.bottom, 24)
+            }
+        }
+    }
+
+    private var shouldShowUnsplashAttribution: Bool {
+        let hasUnsplashImage = (activity.imageUrl ?? "").lowercased().contains("unsplash")
+        let hasStoredAttribution = (activity.imageAttributionName ?? "").isEmpty == false
+            || (activity.imageAttributionUrl ?? "").isEmpty == false
+        return hasUnsplashImage || hasStoredAttribution
+    }
+
+    @ViewBuilder
+    private var unsplashAttributionView: some View {
+        if let name = activity.imageAttributionName, !name.isEmpty,
+           let urlString = activity.imageAttributionUrl, !urlString.isEmpty,
+           let url = URL(string: urlString) {
+            Link(destination: url) {
+                Text("Photo by \(name) on Unsplash")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(charcoalColor.opacity(0.6))
+            }
+            .frame(maxWidth: .infinity)
+        } else if let unsplashUrl = URL(string: "https://unsplash.com") {
+            Link(destination: unsplashUrl) {
+                Text("Photo from Unsplash")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(charcoalColor.opacity(0.6))
+            }
+            .frame(maxWidth: .infinity)
+        }
     }
 
     private var keyInfoCards: some View {

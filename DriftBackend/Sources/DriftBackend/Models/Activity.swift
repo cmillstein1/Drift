@@ -61,6 +61,10 @@ public struct Activity: Codable, Identifiable, Sendable {
     public var location: String
     public var exactLocation: String?
     public var imageUrl: String?
+    /// Photographer name for Unsplash attribution (displayed on detail screen).
+    public var imageAttributionName: String?
+    /// Photographer's Unsplash profile URL for attribution link.
+    public var imageAttributionUrl: String?
 
     public var startsAt: Date
     public var endsAt: Date?
@@ -86,6 +90,8 @@ public struct Activity: Codable, Identifiable, Sendable {
         case title, description, category, location
         case exactLocation = "exact_location"
         case imageUrl = "image_url"
+        case imageAttributionName = "image_attribution_name"
+        case imageAttributionUrl = "image_attribution_url"
         case startsAt = "starts_at"
         case endsAt = "ends_at"
         case durationMinutes = "duration_minutes"
@@ -107,6 +113,8 @@ public struct Activity: Codable, Identifiable, Sendable {
         location: String,
         exactLocation: String? = nil,
         imageUrl: String? = nil,
+        imageAttributionName: String? = nil,
+        imageAttributionUrl: String? = nil,
         startsAt: Date,
         endsAt: Date? = nil,
         durationMinutes: Int? = nil,
@@ -127,6 +135,8 @@ public struct Activity: Codable, Identifiable, Sendable {
         self.location = location
         self.exactLocation = exactLocation
         self.imageUrl = imageUrl
+        self.imageAttributionName = imageAttributionName
+        self.imageAttributionUrl = imageAttributionUrl
         self.startsAt = startsAt
         self.endsAt = endsAt
         self.durationMinutes = durationMinutes
@@ -151,6 +161,8 @@ public struct Activity: Codable, Identifiable, Sendable {
         location = try container.decode(String.self, forKey: .location)
         exactLocation = try container.decodeIfPresent(String.self, forKey: .exactLocation)
         imageUrl = try container.decodeIfPresent(String.self, forKey: .imageUrl)
+        imageAttributionName = try container.decodeIfPresent(String.self, forKey: .imageAttributionName)
+        imageAttributionUrl = try container.decodeIfPresent(String.self, forKey: .imageAttributionUrl)
         startsAt = try container.decode(Date.self, forKey: .startsAt)
         endsAt = try container.decodeIfPresent(Date.self, forKey: .endsAt)
         durationMinutes = try container.decodeIfPresent(Int.self, forKey: .durationMinutes)
@@ -269,6 +281,8 @@ public struct ActivityCreateRequest: Encodable {
     public let location: String
     public let exactLocation: String?
     public let imageUrl: String?
+    public let imageAttributionName: String?
+    public let imageAttributionUrl: String?
     public let startsAt: Date
     public let endsAt: Date?
     public let durationMinutes: Int?
@@ -280,6 +294,8 @@ public struct ActivityCreateRequest: Encodable {
         case title, description, category, location
         case exactLocation = "exact_location"
         case imageUrl = "image_url"
+        case imageAttributionName = "image_attribution_name"
+        case imageAttributionUrl = "image_attribution_url"
         case startsAt = "starts_at"
         case endsAt = "ends_at"
         case durationMinutes = "duration_minutes"
@@ -295,6 +311,8 @@ public struct ActivityCreateRequest: Encodable {
         location: String,
         exactLocation: String? = nil,
         imageUrl: String? = nil,
+        imageAttributionName: String? = nil,
+        imageAttributionUrl: String? = nil,
         startsAt: Date,
         endsAt: Date? = nil,
         durationMinutes: Int? = nil,
@@ -308,6 +326,8 @@ public struct ActivityCreateRequest: Encodable {
         self.location = location
         self.exactLocation = exactLocation
         self.imageUrl = imageUrl
+        self.imageAttributionName = imageAttributionName
+        self.imageAttributionUrl = imageAttributionUrl
         self.startsAt = startsAt
         self.endsAt = endsAt
         self.durationMinutes = durationMinutes
