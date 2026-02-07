@@ -356,12 +356,10 @@ struct DiscoverFullScreenProfileView: View {
                         Button {
                             let generator = UIImpactFeedbackGenerator(style: .medium)
                             generator.impactOccurred()
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
                                 likePressed = true
                             }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                                onLike?()
-                            }
+                            onLike?()
                         } label: {
                             if likePressed {
                                 Image(systemName: "heart.fill")
@@ -384,12 +382,10 @@ struct DiscoverFullScreenProfileView: View {
                         Button {
                             let generator = UIImpactFeedbackGenerator(style: .light)
                             generator.impactOccurred()
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
                                 passPressed = true
                             }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                                onPass?()
-                            }
+                            onPass?()
                         } label: {
                             if passPressed {
                                 Image(systemName: "xmark")
@@ -416,10 +412,10 @@ struct DiscoverFullScreenProfileView: View {
                         Button {
                             let generator = UIImpactFeedbackGenerator(style: .medium)
                             generator.impactOccurred()
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
                                 connectPressed = true
                             }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                                 onConnect?()
                             }
                         } label: {
@@ -445,10 +441,10 @@ struct DiscoverFullScreenProfileView: View {
                         Button {
                             let generator = UIImpactFeedbackGenerator(style: .light)
                             generator.impactOccurred()
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
                                 passPressed = true
                             }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                                 onPass?()
                             }
                         } label: {
