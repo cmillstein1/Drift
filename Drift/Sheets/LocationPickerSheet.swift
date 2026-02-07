@@ -24,6 +24,10 @@ struct LocationPickerSheet: View {
     @State private var selectedPlacemark: MKPlacemark?
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var showSearchResults: Bool = false
+    @State private var isReverseGeocoding: Bool = false
+    @State private var isMapMoving: Bool = false
+    @State private var geocodeTask: DispatchWorkItem?
+    @State private var hasInitialized: Bool = false
 
     @StateObject private var locationManager = LocationPickerLocationManager()
 
@@ -37,29 +41,39 @@ struct LocationPickerSheet: View {
             ZStack {
                 // Map
                 Map(position: $cameraPosition, interactionModes: [.pan, .zoom]) {
-                    // Selected location marker
-                    if let location = selectedLocation {
-                        Annotation("", coordinate: location) {
-                            VStack(spacing: 0) {
-                                Image(systemName: "mappin.circle.fill")
-                                    .font(.system(size: 36))
-                                    .foregroundColor(burntOrange)
-
-                                Image(systemName: "arrowtriangle.down.fill")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(burntOrange)
-                                    .offset(y: -6)
-                            }
-                        }
-                    }
-
                     UserAnnotation()
                 }
-                .ignoresSafeArea(edges: .bottom)
-                .onTapGesture { location in
-                    // Hide search results when tapping map
+                .onMapCameraChange(frequency: .continuous) { context in
+                    let newCenter = context.region.center
+                    selectedLocation = newCenter
+                    isMapMoving = true
                     showSearchResults = false
+
+                    // Debounced reverse geocode
+                    geocodeTask?.cancel()
+                    let task = DispatchWorkItem {
+                        isMapMoving = false
+                        reverseGeocode(coordinate: newCenter)
+                    }
+                    geocodeTask = task
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: task)
                 }
+                .ignoresSafeArea(edges: .bottom)
+
+                // Center pin overlay (fixed on screen, map moves underneath)
+                VStack(spacing: 0) {
+                    Image(systemName: "mappin.circle.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(burntOrange)
+
+                    Image(systemName: "arrowtriangle.down.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(burntOrange)
+                        .offset(y: -6)
+                }
+                .offset(y: isMapMoving ? -8 : 0)
+                .animation(.easeOut(duration: 0.15), value: isMapMoving)
+                .allowsHitTesting(false)
 
                 VStack(spacing: 0) {
                     // Search bar
@@ -73,9 +87,7 @@ struct LocationPickerSheet: View {
                     Spacer()
 
                     // Selected location card
-                    if selectedLocation != nil {
-                        selectedLocationCard
-                    }
+                    selectedLocationCard
                 }
             }
             .navigationTitle("Select Location")
@@ -89,10 +101,8 @@ struct LocationPickerSheet: View {
                 }
             }
             .onAppear {
-                // Center on user location or initial coordinates
                 if let lat = latitude, let lng = longitude {
                     let coord = CLLocationCoordinate2D(latitude: lat, longitude: lng)
-                    selectedLocation = coord
                     cameraPosition = .region(MKCoordinateRegion(
                         center: coord,
                         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
@@ -114,7 +124,7 @@ struct LocationPickerSheet: View {
                     .font(.system(size: 16))
                     .foregroundColor(charcoal.opacity(0.5))
 
-                TextField("Search for a place...", text: $searchText)
+                TextField("Search places or addresses...", text: $searchText)
                     .font(.system(size: 16))
                     .onSubmit {
                         searchLocation()
@@ -228,7 +238,15 @@ struct LocationPickerSheet: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    if let placemark = selectedPlacemark {
+                    if isMapMoving || isReverseGeocoding {
+                        Text("Move map to place pin")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(charcoal)
+
+                        Text("Release to update location")
+                            .font(.system(size: 13))
+                            .foregroundColor(charcoal.opacity(0.6))
+                    } else if let placemark = selectedPlacemark {
                         Text(placemark.name ?? formatCoordinates(selectedLocation))
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(charcoal)
@@ -241,13 +259,13 @@ struct LocationPickerSheet: View {
                                 .lineLimit(1)
                         }
                     } else if let location = selectedLocation {
-                        Text("Selected Location")
+                        Text(formatCoordinates(location))
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(charcoal)
-
-                        Text(formatCoordinates(location))
-                            .font(.system(size: 13))
-                            .foregroundColor(charcoal.opacity(0.6))
+                    } else {
+                        Text("Pan the map to select a location")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(charcoal)
                     }
                 }
 
@@ -263,9 +281,10 @@ struct LocationPickerSheet: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
-                    .background(forestGreen)
+                    .background(isMapMoving ? forestGreen.opacity(0.5) : forestGreen)
                     .clipShape(Capsule())
             }
+            .disabled(isMapMoving)
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
         }
@@ -333,6 +352,19 @@ struct LocationPickerSheet: View {
         }
 
         dismiss()
+    }
+
+    private func reverseGeocode(coordinate: CLLocationCoordinate2D) {
+        isReverseGeocoding = true
+        let geocoder = CLGeocoder()
+        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+
+        geocoder.reverseGeocodeLocation(location) { placemarks, error in
+            isReverseGeocoding = false
+            if let placemark = placemarks?.first {
+                selectedPlacemark = MKPlacemark(placemark: placemark)
+            }
+        }
     }
 
     // MARK: - Helpers

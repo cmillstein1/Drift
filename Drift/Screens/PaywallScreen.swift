@@ -45,121 +45,120 @@ struct PaywallScreen: View {
     @StateObject private var revenueCatManager = RevenueCatManager.shared
     @State private var isPurchasing = false
     @State private var purchaseError: String?
-    
+
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
     private let forestGreen = Color("ForestGreen")
     private let softGray = Color("SoftGray")
-    
+
     var body: some View {
         if isOpen {
             GeometryReader { geometry in
-                let heroHeight = geometry.size.height * 0.55
-                let cardOverlap: CGFloat = 24
-                
-                ZStack(alignment: .top) {
-                    // Hero
-                    VStack(spacing: 0) {
-                        ZStack(alignment: .bottom) {
-                            Image("Discover_Temp-2")
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(height: heroHeight)
-                                .clipped()
-                            
-                            LinearGradient(
-                                colors: [.clear, .black.opacity(0.7)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Built for Life in Motion")
-                                    .font(.system(size: 24, weight: .bold))
-                                    .foregroundColor(.white)
-                                Text("Unlock features designed for people who live on the move helping you connect, explore, and navigate wherever you are.")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.white.opacity(0.95))
-                                    .lineLimit(3)
+                let heroHeight = geometry.size.height * 0.32
+
+                VStack(spacing: 0) {
+                    // Scrollable: hero + features + plan cards
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            // Hero image (smaller)
+                            ZStack(alignment: .bottom) {
+                                Image("Discover_Temp-2")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(height: heroHeight)
+                                    .frame(maxWidth: .infinity)
+                                    .clipped()
+
+                                LinearGradient(
+                                    colors: [.clear, .black.opacity(0.7)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Built for Life in Motion")
+                                        .font(.system(size: 24, weight: .bold))
+                                        .foregroundColor(.white)
+                                    Text("Unlock features designed for people who live on the move helping you connect, explore, and navigate wherever you are.")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.white.opacity(0.95))
+                                        .lineLimit(3)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 20)
+                                .padding(.bottom, 20)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 44)
-                        }
-                        .frame(height: heroHeight)
-                        .overlay(alignment: .topTrailing) {
-                            Button(action: { withAnimation { isOpen = false } }) {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(charcoalColor)
-                                    .frame(width: 36, height: 36)
-                                    .background(Color.white)
-                                    .clipShape(Circle())
+                            .frame(height: heroHeight)
+                            .overlay(alignment: .topTrailing) {
+                                Button(action: { withAnimation { isOpen = false } }) {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(charcoalColor)
+                                        .frame(width: 36, height: 36)
+                                        .background(Color.white)
+                                        .clipShape(Circle())
+                                }
+                                .padding(.trailing, 16)
+                                .padding(.top, 12)
                             }
-                            .padding(.trailing, 16)
-                            .padding(.top, geometry.safeAreaInsets.top + 12)
+
+                            // Feature list
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Drift Pro includes")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(charcoalColor.opacity(0.5))
+                                    .textCase(.uppercase)
+                                    .padding(.horizontal, 4)
+
+                                FeatureChip(title: "Unlimited Likes", color: forestGreen)
+                                FeatureChip(title: "Create Private Events", color: forestGreen)
+                                FeatureChip(title: "See Who Likes You", color: forestGreen)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 20)
+                            .padding(.bottom, 8)
+
+                            // Plan cards
+                            VStack(spacing: 10) {
+                                PlanCard(
+                                    title: "Annual Plan",
+                                    subtitle: annualSubtitle,
+                                    price: yearlyPriceString,
+                                    originalPrice: yearlyOriginalPriceString,
+                                    isSelected: selectedPlan == .yearly,
+                                    badge: "MOST POPULAR",
+                                    badgeColor: burntOrange
+                                ) {
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                        selectedPlan = .yearly
+                                    }
+                                }
+                                PlanCard(
+                                    title: "Monthly Plan",
+                                    subtitle: monthlySubtitle,
+                                    price: monthlyPriceString,
+                                    originalPrice: nil,
+                                    isSelected: selectedPlan == .monthly,
+                                    badge: nil,
+                                    badgeColor: .clear
+                                ) {
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                        selectedPlan = .monthly
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 16)
+                            .padding(.bottom, 16)
                         }
-                        
-                        Spacer(minLength: 0)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.white)
-                    
-                    // White card overlapping hero, rounded top corners
-                    VStack(spacing: 0) {
-                        // Feature list
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Drift Pro includes")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(charcoalColor.opacity(0.5))
-                                .textCase(.uppercase)
-                                .padding(.horizontal, 4)
 
-                            FeatureChip(title: "Unlimited Likes", color: forestGreen)
-                            FeatureChip(title: "Create Private Events", color: forestGreen)
-                            FeatureChip(title: "See Who Likes You", color: forestGreen)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 20)
-                        .padding(.bottom, 8)
-
-                        VStack(spacing: 10) {
-                            PlanCard(
-                                title: "Annual Plan",
-                                subtitle: annualSubtitle,
-                                price: yearlyPriceString,
-                                originalPrice: yearlyOriginalPriceString,
-                                isSelected: selectedPlan == .yearly,
-                                badge: "MOST POPULAR",
-                                badgeColor: burntOrange
-                            ) {
-                                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                                    selectedPlan = .yearly
-                                }
-                            }
-                            PlanCard(
-                                title: "Monthly Plan",
-                                subtitle: monthlySubtitle,
-                                price: monthlyPriceString,
-                                originalPrice: nil,
-                                isSelected: selectedPlan == .monthly,
-                                badge: nil,
-                                badgeColor: .clear
-                            ) {
-                                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                                    selectedPlan = .monthly
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 16)
-                        .padding(.bottom, 12)
-                        
+                    // Pinned bottom: CTA + cancel
+                    VStack(spacing: 8) {
                         Text("Your next adventure starts here.")
                             .font(.system(size: 15, weight: .medium))
                             .foregroundColor(charcoalColor.opacity(0.7))
-                            .padding(.bottom, 8)
-                        
+
                         Button(action: {
                             Task { await handlePurchase() }
                         }) {
@@ -182,26 +181,21 @@ struct PaywallScreen: View {
                         }
                         .disabled(isPurchasing || revenueCatManager.isLoading)
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 6)
-                        
+
                         if let error = purchaseError {
                             Text(error)
                                 .font(.system(size: 12))
                                 .foregroundColor(.red)
                                 .multilineTextAlignment(.center)
-                                .padding(.bottom, 4)
                         }
-                        
-                        Spacer(minLength: 0)
-                        
+
                         Text("Cancel anytime.")
                             .font(.system(size: 12))
                             .foregroundColor(charcoalColor.opacity(0.5))
-                            .padding(.bottom, geometry.safeAreaInsets.bottom + 12)
+                            .padding(.bottom, geometry.safeAreaInsets.bottom > 0 ? 4 : 12)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.top, 8)
                     .background(Color.white)
-                    .padding(.top, heroHeight - cardOverlap)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.white)
@@ -211,7 +205,7 @@ struct PaywallScreen: View {
             }
         }
     }
-    
+
     private var annualSubtitle: String {
         guard let pkg = revenueCatManager.getYearlyPackage() else { return "$5.83/month • Save 42%" }
         let product = pkg.storeProduct
@@ -222,15 +216,15 @@ struct PaywallScreen: View {
         let perMonthStr = formatter.string(from: NSNumber(value: perMonth)) ?? "$5.83"
         return "\(perMonthStr)/month • Save 42%"
     }
-    
+
     private var monthlySubtitle: String? {
         nil
     }
-    
+
     private var yearlyPriceString: String {
         revenueCatManager.getYearlyPackage()?.storeProduct.localizedPriceString ?? "$69.99"
     }
-    
+
     private var yearlyOriginalPriceString: String? {
         guard let pkg = revenueCatManager.getYearlyPackage() else { return "$119.88" }
         let product = pkg.storeProduct
@@ -246,11 +240,11 @@ struct PaywallScreen: View {
         formatter.currencyCode = product.priceFormatter?.currencyCode ?? "USD"
         return formatter.string(from: NSNumber(value: fullYear)) ?? "$119.88"
     }
-    
+
     private var monthlyPriceString: String {
         revenueCatManager.getMonthlyPackage()?.storeProduct.localizedPriceString ?? "$9.99"
     }
-    
+
     private func handlePurchase() async {
         isPurchasing = true
         purchaseError = nil
@@ -278,7 +272,7 @@ private struct FeatureChip: View {
     let title: String
     let color: Color
     private let softGray = Color("SoftGray")
-    
+
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "checkmark.circle.fill")
@@ -307,13 +301,13 @@ private struct PlanCard: View {
     let badge: String?
     let badgeColor: Color
     let action: () -> Void
-    
+
     private let charcoalColor = Color("Charcoal")
     private let softGray = Color("SoftGray")
     private let forestGreen = Color("ForestGreen")
-    
+
     private let cardHeight: CGFloat = 92
-    
+
     var body: some View {
         Button(action: action) {
             HStack(alignment: .center, spacing: 14) {
@@ -327,7 +321,7 @@ private struct PlanCard: View {
                             .frame(width: 14, height: 14)
                     }
                 }
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     if let badge = badge, !badge.isEmpty {
                         Text(badge)
@@ -348,7 +342,7 @@ private struct PlanCard: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                
+
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(price)
                         .font(.system(size: 18, weight: .bold))
