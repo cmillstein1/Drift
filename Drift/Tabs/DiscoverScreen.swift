@@ -17,6 +17,7 @@ struct DiscoverScreen: View {
     @StateObject private var friendsManager = FriendsManager.shared
     @StateObject private var messagingManager = MessagingManager.shared
     @StateObject private var communityManager = CommunityManager.shared
+    @StateObject private var revenueCatManager = RevenueCatManager.shared
     @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
 
     @State private var swipedIds: [UUID] = []
@@ -36,6 +37,7 @@ struct DiscoverScreen: View {
     @State private var friendsNavigationPath = NavigationPath()
     @State private var selectedFriendProfile: UserProfile? = nil
     @State private var selectedEvent: CommunityPost? = nil
+    @State private var showSwipeLimitPaywall: Bool = false
     /// Current dating profile index for full-screen carousel view
     @State private var currentDatingProfileIndex: Int = 0
     /// Fade animation for profile transitions
@@ -263,6 +265,15 @@ struct DiscoverScreen: View {
     private func handleSwipe(profile: UserProfile, direction: SwipeDirection) {
         let isLike = (direction == .right || direction == .up)
 
+        // Check daily like limit for free users
+        if isLike && !revenueCatManager.hasProAccess {
+            friendsManager.resetDailyLikesIfNeeded()
+            if friendsManager.hasReachedDailyLikeLimit {
+                showSwipeLimitPaywall = true
+                return
+            }
+        }
+
         if isLike {
             withAnimation(.easeOut(duration: 0.35)) {
                 likedFadingId = profile.id
@@ -473,6 +484,11 @@ struct DiscoverScreen: View {
         }
         .sheet(isPresented: $showCreateEventSheet) {
             CreateCommunityPostSheet(restrictToPostType: .event)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showSwipeLimitPaywall) {
+            PaywallScreen(isOpen: $showSwipeLimitPaywall, source: .swipeLimit)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
@@ -706,6 +722,17 @@ struct DiscoverScreen: View {
 
     /// Handle swipe for full-screen profile view and advance to next profile
     private func handleFullScreenSwipe(profile: UserProfile, direction: SwipeDirection) {
+        let isLike = (direction == .right || direction == .up)
+
+        // Check daily like limit for free users
+        if isLike && !revenueCatManager.hasProAccess {
+            friendsManager.resetDailyLikesIfNeeded()
+            if friendsManager.hasReachedDailyLikeLimit {
+                showSwipeLimitPaywall = true
+                return
+            }
+        }
+
         // Advance to next profile immediately (no black screen)
         swipedIds.append(profile.id)
         profileTransitionOpacity = 1

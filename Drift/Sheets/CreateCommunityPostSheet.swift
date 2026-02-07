@@ -285,15 +285,7 @@ struct CreateCommunityPostSheet: View {
                             isDatingEvent: hasDatingEnabled ? isDatingActivity : false
                         )
                     } else {
-                        // Fetch header image from Unsplash once; store URL with post so card and detail use same image (no further API calls).
                         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
-                        var eventImages: [String] = []
-                        if !trimmedTitle.isEmpty {
-                            let key = ProcessInfo.processInfo.environment["UNSPLASH_ACCESS_KEY"] ?? UnsplashConfig.accessKey
-                            if let url = await UnsplashManager.fetchFirstImageURL(query: trimmedTitle, accessKey: key) {
-                                eventImages = [url]
-                            }
-                        }
                         _ = try await communityManager.createEventPost(
                             title: trimmedTitle,
                             content: details.trimmingCharacters(in: .whitespaces),
@@ -303,7 +295,6 @@ struct CreateCommunityPostSheet: View {
                             longitude: eventLongitude,
                             maxAttendees: Int(maxAttendees),
                             privacy: eventPrivacy,
-                            images: eventImages,
                             isDatingEvent: hasDatingEnabled ? isDatingActivity : false
                         )
                     }

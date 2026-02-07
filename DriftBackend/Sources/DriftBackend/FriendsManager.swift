@@ -24,16 +24,62 @@ public class FriendsManager: ObservableObject {
     @Published public var isLoading = false
     /// The last error message, if any.
     @Published public var errorMessage: String?
+    /// Number of right/up swipes today (free users limited to 6/day).
+    @Published public var dailyLikeCount: Int = 0
+    /// Maximum likes per day for free users.
+    public let dailyLikeLimit: Int = 6
+    /// Whether the free-tier daily like limit has been reached.
+    public var hasReachedDailyLikeLimit: Bool {
+        dailyLikeCount >= dailyLikeLimit
+    }
 
     private var friendsChannel: RealtimeChannelV2?
     private var matchesChannel: RealtimeChannelV2?
     private var swipesChannel: RealtimeChannelV2?
 
+    private static let dailyLikeCountKey = "drift_daily_like_count"
+    private static let dailyLikeResetDateKey = "drift_daily_like_reset_date"
+
     private var client: SupabaseClient {
         SupabaseManager.shared.client
     }
 
-    private init() {}
+    private init() {
+        loadDailyLikes()
+        resetDailyLikesIfNeeded()
+    }
+
+    // MARK: - Daily Like Tracking
+
+    /// Resets the daily like count if the stored reset date is in the past (a new calendar day).
+    public func resetDailyLikesIfNeeded() {
+        let defaults = UserDefaults.standard
+        if let resetDate = defaults.object(forKey: Self.dailyLikeResetDateKey) as? Date {
+            if !Calendar.current.isDateInToday(resetDate) {
+                dailyLikeCount = 0
+                let tomorrow = Calendar.current.startOfDay(for: Date())
+                defaults.set(tomorrow, forKey: Self.dailyLikeResetDateKey)
+                defaults.set(0, forKey: Self.dailyLikeCountKey)
+            }
+        } else {
+            // First launch – set reset date to today
+            defaults.set(Calendar.current.startOfDay(for: Date()), forKey: Self.dailyLikeResetDateKey)
+        }
+    }
+
+    /// Increments the daily like count and persists to UserDefaults.
+    private func incrementDailyLikeCount() {
+        resetDailyLikesIfNeeded()
+        dailyLikeCount += 1
+        let defaults = UserDefaults.standard
+        defaults.set(dailyLikeCount, forKey: Self.dailyLikeCountKey)
+        defaults.set(Calendar.current.startOfDay(for: Date()), forKey: Self.dailyLikeResetDateKey)
+    }
+
+    /// Loads the persisted daily like count from UserDefaults.
+    private func loadDailyLikes() {
+        dailyLikeCount = UserDefaults.standard.integer(forKey: Self.dailyLikeCountKey)
+    }
 
     // MARK: - Friends
 
@@ -372,6 +418,11 @@ public class FriendsManager: ObservableObject {
         } catch {
             print("❌ [SWIPE] Failed to record swipe: \(error)")
             throw error
+        }
+
+        // Track daily like count for right/up swipes
+        if direction == .right || direction == .up {
+            incrementDailyLikeCount()
         }
 
         // If right swipe or super like, check for mutual interest
