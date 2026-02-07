@@ -862,6 +862,15 @@ struct EventDetailSheet: View {
                         .foregroundColor(charcoal.opacity(0.7))
                         .underline()
                 }
+                Text("on")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(charcoal.opacity(0.5))
+                Link(destination: URL(string: "https://unsplash.com")!) {
+                    Text("Unsplash")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(charcoal.opacity(0.7))
+                        .underline()
+                }
             }
             .frame(maxWidth: .infinity)
         } else if post.images.first?.lowercased().contains("unsplash") == true,
