@@ -105,8 +105,24 @@ struct PaywallScreen: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.white)
                     
-                    // White card overlapping hero, rounded top corners (no feature list)
+                    // White card overlapping hero, rounded top corners
                     VStack(spacing: 0) {
+                        // Feature list
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Drift Pro includes")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(charcoalColor.opacity(0.5))
+                                .textCase(.uppercase)
+                                .padding(.horizontal, 4)
+
+                            FeatureChip(title: "Unlimited Likes", color: forestGreen)
+                            FeatureChip(title: "Create Private Events", color: forestGreen)
+                            FeatureChip(title: "See Who Likes You", color: forestGreen)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 20)
+                        .padding(.bottom, 8)
+
                         VStack(spacing: 10) {
                             PlanCard(
                                 title: "Annual Plan",

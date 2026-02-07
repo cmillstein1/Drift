@@ -28,6 +28,8 @@ struct CreateActivitySheet: View {
     @State private var requireApproval: Bool = false
     @State private var showPrivacyDetails: Bool = false
     @State private var showLocationPicker: Bool = false
+    @State private var showPaywall: Bool = false
+    @StateObject private var revenueCatManager = RevenueCatManager.shared
     
     private var isEditMode: Bool { existingActivity != nil }
     private let categories = ["Outdoor", "Work", "Social", "Food & Drink", "Creative", "Wellness"]
@@ -74,6 +76,11 @@ struct CreateActivitySheet: View {
                     latitude: $latitude,
                     longitude: $longitude
                 )
+            }
+            .sheet(isPresented: $showPaywall) {
+                PaywallScreen(isOpen: $showPaywall, source: .createActivity)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
             }
         }
     }
@@ -346,22 +353,32 @@ struct CreateActivitySheet: View {
                     title: "Friends Only",
                     description: "Only your connections can see",
                     isSelected: privacy == .friends,
+                    isLocked: !revenueCatManager.hasProAccess,
                     onTap: {
-                        withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
-                            privacy = .friends
+                        if revenueCatManager.hasProAccess {
+                            withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
+                                privacy = .friends
+                            }
+                        } else {
+                            showPaywall = true
                         }
                     }
                 )
-                
+
                 PrivacyOption(
                     icon: "lock",
                     iconColor: charcoalColor,
                     title: "Private",
                     description: "Invite only",
                     isSelected: privacy == .private,
+                    isLocked: !revenueCatManager.hasProAccess,
                     onTap: {
-                        withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
-                            privacy = .private
+                        if revenueCatManager.hasProAccess {
+                            withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
+                                privacy = .private
+                            }
+                        } else {
+                            showPaywall = true
                         }
                     }
                 )
@@ -499,11 +516,12 @@ struct PrivacyOption: View {
     let title: String
     let description: String
     let isSelected: Bool
+    var isLocked: Bool = false
     let onTap: () -> Void
-    
+
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
     private let burntOrange = Color(red: 0.80, green: 0.40, blue: 0.20)
-    
+
     var body: some View {
         Button(action: onTap) {
             HStack {
@@ -511,25 +529,41 @@ struct PrivacyOption: View {
                     .font(.system(size: 20))
                     .foregroundColor(iconColor)
                     .frame(width: 24, height: 24)
-                
+
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(charcoalColor)
-                    
+                    HStack(spacing: 6) {
+                        Text(title)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(charcoalColor)
+
+                        if isLocked {
+                            Text("PRO")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(burntOrange)
+                                .clipShape(Capsule())
+                        }
+                    }
+
                     Text(description)
                         .font(.system(size: 12))
                         .foregroundColor(charcoalColor.opacity(0.6))
                 }
-                
+
                 Spacer()
-                
-                if isSelected {
+
+                if isLocked {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(charcoalColor.opacity(0.4))
+                } else if isSelected {
                     ZStack {
                         Circle()
                             .fill(burntOrange)
                             .frame(width: 20, height: 20)
-                        
+
                         Circle()
                             .fill(Color.white)
                             .frame(width: 8, height: 8)
@@ -539,10 +573,10 @@ struct PrivacyOption: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? burntOrange.opacity(0.05) : Color.white)
+                    .fill(isSelected && !isLocked ? burntOrange.opacity(0.05) : Color.white)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(isSelected ? burntOrange : Color.gray.opacity(0.3), lineWidth: 2)
+                            .stroke(isSelected && !isLocked ? burntOrange : Color.gray.opacity(0.3), lineWidth: 2)
                     )
             )
         }

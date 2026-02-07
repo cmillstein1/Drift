@@ -15,11 +15,9 @@ enum ActivityViewMode {
 
 struct ActivitiesScreen: View {
     @State private var showCreateSheet = false
-    @State private var showPaywall = false
     @State private var viewMode: ActivityViewMode = .list
     @State private var segmentIndex: Int = 0
     @State private var selectedActivity: Activity? = nil
-    @StateObject private var revenueCatManager = RevenueCatManager.shared
     @StateObject private var activityManager = ActivityManager.shared
 
     private var segmentOptions: [SegmentOption] {
@@ -111,11 +109,7 @@ struct ActivitiesScreen: View {
                         Spacer()
                         
                         Button(action: {
-                            if revenueCatManager.hasProAccess {
-                                showCreateSheet = true
-                            } else {
-                                showPaywall = true
-                            }
+                            showCreateSheet = true
                         }) {
                             Image(systemName: "plus")
                                 .font(.system(size: 20, weight: .semibold))
@@ -263,11 +257,6 @@ struct ActivitiesScreen: View {
                 }
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
-            }
-            .sheet(isPresented: $showPaywall) {
-                PaywallScreen(isOpen: $showPaywall, source: .createActivity)
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
             }
             .sheet(item: $selectedActivity) { activity in
                 ActivityDetailSheet(activity: activity) {
