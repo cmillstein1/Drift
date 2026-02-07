@@ -213,8 +213,12 @@ public class FriendsManager: ObservableObject {
                 .eq("id", value: requestId)
                 .execute()
 
-            try await fetchPendingRequests()
-            try await fetchFriends()
+            // Update local state instead of full re-fetch
+            pendingRequests.removeAll { $0.id == requestId }
+            if var acceptedRequest = request {
+                acceptedRequest.status = .accepted
+                friends.append(acceptedRequest)
+            }
 
             var conversation: Conversation? = nil
             if let requesterId = request?.requesterId {
@@ -222,7 +226,6 @@ public class FriendsManager: ObservableObject {
                     with: requesterId,
                     type: .friends
                 )
-                try await MessagingManager.shared.fetchConversations()
             }
             return conversation
         } else {
@@ -233,7 +236,8 @@ public class FriendsManager: ObservableObject {
                 .eq("id", value: requestId)
                 .execute()
 
-            try await fetchPendingRequests()
+            // Update local state instead of full re-fetch
+            pendingRequests.removeAll { $0.id == requestId }
             return nil
         }
     }
@@ -484,11 +488,13 @@ public class FriendsManager: ObservableObject {
                 .execute()
                 .value
 
-            // Fetch profiles for each match and ensure conversations exist
+            // Batch-fetch profiles for all matches in a single query
+            let otherUserIds = matches.map { $0.otherUserId(currentUserId: userId) }
+            let profileMap = try await ProfileManager.shared.fetchProfiles(by: otherUserIds)
+
             var matchesWithProfiles: [Match] = []
             for match in matches {
                 let otherUserId = match.otherUserId(currentUserId: userId)
-                let profile = try await ProfileManager.shared.fetchProfile(by: otherUserId)
 
                 // Ensure a dating conversation exists for this match
                 _ = try? await MessagingManager.shared.fetchOrCreateConversation(
@@ -497,7 +503,7 @@ public class FriendsManager: ObservableObject {
                 )
 
                 var matchWithProfile = match
-                matchWithProfile.otherUserProfile = profile
+                matchWithProfile.otherUserProfile = profileMap[otherUserId]
                 matchesWithProfiles.append(matchWithProfile)
             }
 
@@ -560,13 +566,11 @@ public class FriendsManager: ObservableObject {
 
         print("⏳ Pending likes (not yet responded): \(pendingLikeUserIds.count)")
 
-        // Fetch profiles for these users
-        var profiles: [UserProfile] = []
-        for likerId in pendingLikeUserIds {
-            if let profile = try? await ProfileManager.shared.fetchProfile(by: likerId) {
-                profiles.append(profile)
-                print("✅ Loaded profile: \(profile.displayName)")
-            }
+        // Batch-fetch profiles for all likers in a single query
+        let profileMap = try await ProfileManager.shared.fetchProfiles(by: pendingLikeUserIds)
+        let profiles = pendingLikeUserIds.compactMap { profileMap[$0] }
+        for profile in profiles {
+            print("✅ Loaded profile: \(profile.displayName)")
         }
 
         self.peopleLikedMe = profiles

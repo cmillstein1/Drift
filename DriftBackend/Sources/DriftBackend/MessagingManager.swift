@@ -93,7 +93,29 @@ public class MessagingManager: ObservableObject {
 
             print("[Messages] API returned \(conversations.count) conversation(s) | types: \(conversations.map { $0.type.rawValue })")
 
-            // Enrich with other user data for 1:1 conversations
+            // Batch-fetch last message for all conversations in a single query
+            let conversationIds = conversations.map { $0.id }
+            var lastMessageByConv: [UUID: Message] = [:]
+            if !conversationIds.isEmpty {
+                // Fetch the most recent message per conversation using a single query
+                // We fetch recent messages for all conversations and pick the latest per conv
+                let allLastMessages: [Message] = try await client
+                    .from("messages")
+                    .select("*, sender:profiles!sender_id(*)")
+                    .in("conversation_id", values: conversationIds)
+                    .order("created_at", ascending: false)
+                    .execute()
+                    .value
+
+                // Group by conversation and take the first (most recent) for each
+                for msg in allLastMessages {
+                    if lastMessageByConv[msg.conversationId] == nil {
+                        lastMessageByConv[msg.conversationId] = msg
+                    }
+                }
+            }
+
+            // Enrich with other user data and last message
             var enrichedConversations: [Conversation] = []
             for (idx, var conv) in conversations.enumerated() {
                 if let participants = conv.participants {
@@ -102,17 +124,7 @@ public class MessagingManager: ObservableObject {
                         .profile
                 }
 
-                // Fetch last message
-                let messages: [Message] = try await client
-                    .from("messages")
-                    .select("*, sender:profiles!sender_id(*)")
-                    .eq("conversation_id", value: conv.id)
-                    .order("created_at", ascending: false)
-                    .limit(1)
-                    .execute()
-                    .value
-
-                conv.lastMessage = messages.first
+                conv.lastMessage = lastMessageByConv[conv.id]
                 enrichedConversations.append(conv)
 
                 let myParticipant = conv.participants?.first(where: { $0.userId == userId })
@@ -250,9 +262,15 @@ public class MessagingManager: ObservableObject {
         return conversationWithUser
     }
 
+    /// Whether there are older messages that can be loaded.
+    @Published public var hasOlderMessages = true
+
+    /// Page size for message pagination.
+    private let messagePageSize = 50
+
     // MARK: - Messages
 
-    /// Fetches messages for a conversation.
+    /// Fetches the most recent page of messages for a conversation.
     ///
     /// - Parameter conversationId: The conversation's ID.
     public func fetchMessages(for conversationId: UUID) async throws {
@@ -264,18 +282,42 @@ public class MessagingManager: ObservableObject {
                 .select("*, sender:profiles!sender_id(*)")
                 .eq("conversation_id", value: conversationId)
                 .is("deleted_at", value: nil)
-                .order("created_at", ascending: true)
+                .order("created_at", ascending: false)
+                .limit(messagePageSize)
                 .execute()
                 .value
 
-            self.currentMessages = messages
+            self.currentMessages = messages.reversed()
             self.currentConversationId = conversationId
+            self.hasOlderMessages = messages.count >= messagePageSize
             isLoading = false
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
             throw error
         }
+    }
+
+    /// Loads older messages before the earliest currently loaded message.
+    ///
+    /// - Parameter conversationId: The conversation's ID.
+    public func fetchOlderMessages(for conversationId: UUID) async throws {
+        guard hasOlderMessages, let oldest = currentMessages.first,
+              let oldestDate = oldest.createdAt else { return }
+
+        let olderMessages: [Message] = try await client
+            .from("messages")
+            .select("*, sender:profiles!sender_id(*)")
+            .eq("conversation_id", value: conversationId)
+            .is("deleted_at", value: nil)
+            .lt("created_at", value: ISO8601DateFormatter().string(from: oldestDate))
+            .order("created_at", ascending: false)
+            .limit(messagePageSize)
+            .execute()
+            .value
+
+        hasOlderMessages = olderMessages.count >= messagePageSize
+        currentMessages.insert(contentsOf: olderMessages.reversed(), at: 0)
     }
 
     /// Sends a message to a conversation.

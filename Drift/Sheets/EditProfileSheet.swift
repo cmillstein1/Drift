@@ -1334,7 +1334,7 @@ struct EditPhotoSlot: View {
                     .overlay(photoOverlay)
             } else if let url = photoUrl, !url.isEmpty {
                 // Existing photo
-                AsyncImage(url: URL(string: url)) { image in
+                CachedAsyncImage(url: URL(string: url)) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)

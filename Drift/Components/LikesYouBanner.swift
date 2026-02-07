@@ -24,7 +24,7 @@ struct LikesYouBanner: View {
 
         Group {
             if let url = url, !urlString.isEmpty {
-                AsyncImage(url: url) { phase in
+                CachedAsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):
                         image

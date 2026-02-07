@@ -158,7 +158,7 @@ struct VanBuilderChannelView: View {
                     HStack(spacing: 12) {
                         ForEach(Array(selectedImages.enumerated()), id: \.offset) { index, imageUrl in
                             ZStack(alignment: .topTrailing) {
-                                AsyncImage(url: URL(string: imageUrl)) { image in
+                                CachedAsyncImage(url: URL(string: imageUrl)) { image in
                                     image
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
@@ -365,7 +365,7 @@ struct ChannelMessageBubble: View {
 
             HStack(alignment: .top, spacing: 12) {
                 // Avatar
-                AsyncImage(url: URL(string: userAvatar)) { image in
+                CachedAsyncImage(url: URL(string: userAvatar)) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
@@ -419,7 +419,7 @@ struct ChannelMessageBubble: View {
                     // Images
                     if !message.images.isEmpty {
                         if message.images.count == 1 {
-                            AsyncImage(url: URL(string: message.images[0])) { image in
+                            CachedAsyncImage(url: URL(string: message.images[0])) { image in
                                 image
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
@@ -434,7 +434,7 @@ struct ChannelMessageBubble: View {
                                 GridItem(.flexible(), spacing: 8)
                             ], spacing: 8) {
                                 ForEach(Array(message.images.enumerated()), id: \.offset) { index, imageUrl in
-                                    AsyncImage(url: URL(string: imageUrl)) { image in
+                                    CachedAsyncImage(url: URL(string: imageUrl)) { image in
                                         image
                                             .resizable()
                                             .aspectRatio(contentMode: .fill)

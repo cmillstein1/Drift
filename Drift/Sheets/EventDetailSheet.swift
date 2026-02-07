@@ -288,7 +288,7 @@ struct EventDetailSheet: View {
     @ViewBuilder
     private var heroImage: some View {
         if let imageUrl = post.images.first, let url = URL(string: imageUrl) {
-            AsyncImage(url: url) { phase in
+            CachedAsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):
                     image
@@ -399,7 +399,7 @@ struct EventDetailSheet: View {
         HStack(spacing: 12) {
             // Avatar
             if let avatarUrl = user.avatarUrl, let url = URL(string: avatarUrl) {
-                AsyncImage(url: url) { image in
+                CachedAsyncImage(url: url) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
@@ -886,7 +886,7 @@ struct EventDetailSheet: View {
         HStack(spacing: 12) {
             ZStack(alignment: .bottomTrailing) {
                 if let avatarUrl = avatarUrl, let url = URL(string: avatarUrl) {
-                    AsyncImage(url: url) { image in
+                    CachedAsyncImage(url: url) { image in
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)

@@ -46,8 +46,6 @@ struct LocationScreen: View {
     @State private var feature2Offset: CGFloat = -20
     @State private var buttonOpacity: Double = 0
     @State private var buttonOffset: CGFloat = 20
-    @State private var skipButtonOpacity: Double = 0
-    @State private var skipButtonOffset: CGFloat = 20
     
     private let warmWhite = Color(red: 0.98, green: 0.98, blue: 0.96)
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
@@ -82,7 +80,7 @@ struct LocationScreen: View {
                             .opacity(iconOpacity)
                             
                             VStack(spacing: 12) {
-                                Text("Enable location")
+                                Text("Continue")
                                     .font(.system(size: 32, weight: .bold))
                                     .foregroundColor(charcoalColor)
                                     .opacity(titleOpacity)
@@ -126,9 +124,9 @@ struct LocationScreen: View {
                     
                     VStack(spacing: 12) {
                         Button(action: {
-                            locationManager.requestLocationPermission()
+                            onContinue()
                         }) {
-                            Text("Enable Location")
+                            Text("Continue")
                                 .font(.system(size: 17, weight: .semibold))
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
@@ -138,18 +136,6 @@ struct LocationScreen: View {
                         }
                         .opacity(buttonOpacity)
                         .offset(y: buttonOffset)
-                        
-                        Button(action: {
-                            onContinue()
-                        }) {
-                            Text("Skip for now")
-                                .font(.system(size: 17, weight: .medium))
-                                .foregroundColor(charcoalColor.opacity(0.7))
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 56)
-                        }
-                        .opacity(skipButtonOpacity)
-                        .offset(y: skipButtonOffset)
                     }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
@@ -162,6 +148,9 @@ struct LocationScreen: View {
             }
         }
         .onAppear {
+            // Trigger location permission request when user lands so they always proceed to the system dialog after the message (App Review guideline).
+            locationManager.requestLocationPermission()
+            
             withAnimation(.easeOut(duration: 0.5).delay(0.2)) {
                 iconOpacity = 1
                 iconScale = 1.0
@@ -212,11 +201,6 @@ struct LocationScreen: View {
             withAnimation(.easeOut(duration: 0.5).delay(0.7)) {
                 buttonOpacity = 1
                 buttonOffset = 0
-            }
-            
-            withAnimation(.easeOut(duration: 0.5).delay(0.8)) {
-                skipButtonOpacity = 1
-                skipButtonOffset = 0
             }
         }
     }

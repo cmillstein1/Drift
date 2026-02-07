@@ -322,7 +322,7 @@ struct BuilderScreen: View {
     @ViewBuilder
     private func expertAvatar(expert: VanBuilderExpert) -> some View {
         if let avatarUrl = expert.profile?.avatarUrl, let url = URL(string: avatarUrl) {
-            AsyncImage(url: url) { image in
+            CachedAsyncImage(url: url) { image in
                 image
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -499,7 +499,8 @@ struct BuilderScreen: View {
         }
         .sheet(isPresented: $showPaywall) {
             PaywallScreen(isOpen: $showPaywall, source: .expertHelp)
-                .presentationDragIndicator(.hidden)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .onAppear {
             loadData()

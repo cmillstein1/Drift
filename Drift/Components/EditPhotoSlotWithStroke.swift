@@ -50,7 +50,7 @@ struct EditPhotoSlotWithStroke: View {
                 .overlay(photoOverlay)
             } else if let url = photoUrl, !url.isEmpty {
                 GeometryReader { geometry in
-                    AsyncImage(url: URL(string: url)) { phase in
+                    CachedAsyncImage(url: URL(string: url)) { phase in
                         switch phase {
                         case .success(let image):
                             image

@@ -17,6 +17,7 @@ struct CommunityScreen: View {
     @State private var selectedBuilderHelpCategory: HelpCategory? = nil
     @StateObject private var communityManager = CommunityManager.shared
     @StateObject private var notificationsManager = NotificationsManager.shared
+    @State private var lastDataFetch: Date = .distantPast
 
     private let charcoal = Color("Charcoal")
     private let softGray = Color("SoftGray")
@@ -24,10 +25,13 @@ struct CommunityScreen: View {
     private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
 
     private func loadData() {
+        // Skip re-fetch if data is less than 30 seconds old
+        guard Date().timeIntervalSince(lastDataFetch) > 30 else { return }
         Task {
             do {
                 try await communityManager.fetchPosts(type: .help)
                 await communityManager.subscribeToPosts()
+                lastDataFetch = Date()
             } catch {
                 print("Failed to load Builder Help data: \(error)")
             }
@@ -275,7 +279,7 @@ private struct BuilderHelpTopicCard: View {
             HStack(alignment: .top) {
                 HStack(spacing: 12) {
                     if let avatarUrl = post.author?.avatarUrl, let url = URL(string: avatarUrl) {
-                        AsyncImage(url: url) { image in
+                        CachedAsyncImage(url: url) { image in
                             image.resizable().aspectRatio(contentMode: .fill)
                         } placeholder: {
                             ZStack {
@@ -447,7 +451,7 @@ struct CommunityPostCard: View {
             HStack(spacing: 12) {
                 // Avatar with type-specific color
                 if let avatarUrl = post.author?.avatarUrl, let url = URL(string: avatarUrl) {
-                    AsyncImage(url: url) { image in
+                    CachedAsyncImage(url: url) { image in
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)

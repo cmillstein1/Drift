@@ -183,10 +183,14 @@ public class ActivityManager: ObservableObject {
         }
 
         var headerImageUrl = imageUrl
+        var attributionName: String?
+        var attributionUrl: String?
         if headerImageUrl == nil, !title.trimmingCharacters(in: .whitespaces).isEmpty {
             let key = _BackendConfiguration.shared.unsplashAccessKey
-            if let url = await UnsplashManager.fetchFirstImageURL(query: title, accessKey: key) {
-                headerImageUrl = url
+            if let result = await UnsplashManager.fetchFirstImageWithAttribution(query: title, accessKey: key) {
+                headerImageUrl = result.imageUrl
+                attributionName = result.photographerName
+                attributionUrl = result.photographerUrl
             }
         }
         let request = ActivityCreateRequest(
@@ -197,6 +201,8 @@ public class ActivityManager: ObservableObject {
             location: location,
             exactLocation: exactLocation,
             imageUrl: headerImageUrl,
+            imageAttributionName: attributionName,
+            imageAttributionUrl: attributionUrl,
             startsAt: startsAt,
             durationMinutes: durationMinutes,
             maxAttendees: maxAttendees,
@@ -218,9 +224,9 @@ public class ActivityManager: ObservableObject {
             .insert(hostAttendee)
             .execute()
 
-        // Refresh lists
-        try await fetchActivities()
-        try await fetchMyActivities()
+        // Update local state instead of full re-fetch
+        activities.insert(activity, at: 0)
+        myActivities.insert(activity, at: 0)
 
         return activity
     }
@@ -273,9 +279,15 @@ public class ActivityManager: ObservableObject {
             .eq("id", value: activityId)
             .execute()
 
-        // Refresh lists
-        try await fetchActivities()
-        try await fetchMyActivities()
+        // Refresh the updated activity in local state
+        if let updatedActivity = try? await fetchActivity(by: activityId) {
+            if let idx = activities.firstIndex(where: { $0.id == activityId }) {
+                activities[idx] = updatedActivity
+            }
+            if let idx = myActivities.firstIndex(where: { $0.id == activityId }) {
+                myActivities[idx] = updatedActivity
+            }
+        }
     }
 
     /// Cancels an activity.
@@ -310,9 +322,13 @@ public class ActivityManager: ObservableObject {
             .insert(request)
             .execute()
 
-        // Refresh lists
-        try await fetchActivities()
-        try await fetchJoinedActivities()
+        // Update local state: re-fetch just this activity to get updated attendees
+        if let updated = try? await fetchActivity(by: activityId) {
+            if let idx = activities.firstIndex(where: { $0.id == activityId }) {
+                activities[idx] = updated
+            }
+            joinedActivities.append(updated)
+        }
     }
 
     /// Leaves an activity.
@@ -333,8 +349,12 @@ public class ActivityManager: ObservableObject {
         // Update local state
         joinedActivities.removeAll { $0.id == activityId }
 
-        // Refresh activities to update attendee counts
-        try await fetchActivities()
+        // Re-fetch just this activity to update attendee count
+        if let updated = try? await fetchActivity(by: activityId) {
+            if let idx = activities.firstIndex(where: { $0.id == activityId }) {
+                activities[idx] = updated
+            }
+        }
     }
 
     /// Checks if the current user is attending an activity.

@@ -12,6 +12,8 @@ struct TravelPlansCard: View {
     let travelStops: [DriftBackend.TravelStop]
     /// Corner radius for the card; use 0 for no rounded corners (e.g. profile detail).
     var cornerRadius: CGFloat = 16
+    /// When true, use the same small uppercase header style as "Interests", "About me" etc. (e.g. in ProfileDetailView).
+    var useSectionHeaderStyle: Bool = false
 
     private let charcoal = Color("Charcoal")
     private let desertSand = Color("DesertSand")
@@ -48,13 +50,20 @@ struct TravelPlansCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             // Header
-            HStack(spacing: 8) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 18))
-                    .foregroundColor(burntOrange)
-                Text("Travel Plans")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(charcoal)
+            if useSectionHeaderStyle {
+                Text("TRAVEL PLANS")
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(0.5)
+                    .foregroundColor(charcoal.opacity(0.6))
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 18))
+                        .foregroundColor(burntOrange)
+                    Text("Travel Plans")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(charcoal)
+                }
             }
 
             // Travel stops list

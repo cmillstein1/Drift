@@ -22,62 +22,17 @@ public class ProfileManager: ObservableObject {
     /// The last error message, if any.
     @Published public var errorMessage: String?
 
+    /// In-memory profile cache with timestamps for TTL expiration.
+    private var profileCache: [UUID: (profile: UserProfile, fetchedAt: Date)] = [:]
+    /// Profiles are considered fresh for 60 seconds.
+    private let profileCacheTTL: TimeInterval = 60
+
     private var client: SupabaseClient {
         SupabaseManager.shared.client
     }
 
     private init() {}
     
-    // MARK: - Temporary Mock Data Helper (for testing)
-    
-    /// Adds mock prompts to a profile if missing
-    /// TODO: Remove this once database is properly seeded with prompts
-    private func addMockPrompts(to profile: UserProfile) -> UserProfile {
-        let mockPrompts = [
-            PromptAnswer(prompt: "My simple pleasure is", answer: "Waking up before sunrise, making pour-over coffee, and watching the fog roll over the ocean."),
-            PromptAnswer(prompt: "The best trip I ever took was", answer: "Driving the entire Pacific Coast Highway from San Diego to Seattle. Two months of pure magic."),
-            PromptAnswer(prompt: "I'm really good at", answer: "Finding the most epic sunrise spots and making friends with local surfers."),
-            PromptAnswer(prompt: "You can find me on weekends", answer: "Chasing waves at sunrise, exploring hidden beaches, and capturing the perfect golden hour shot."),
-            PromptAnswer(prompt: "I'm looking for someone who", answer: "Loves adventure as much as I do and isn't afraid to wake up early for a good sunrise."),
-            PromptAnswer(prompt: "My ideal first date is", answer: "A sunrise hike followed by coffee at a local roastery, then exploring a new beach together.")
-        ]
-        
-        // Create a new profile with prompts added
-        return UserProfile(
-            id: profile.id,
-            name: profile.name,
-            birthday: profile.birthday,
-            age: profile.age,
-            bio: profile.bio,
-            avatarUrl: profile.avatarUrl,
-            photos: profile.photos,
-            location: profile.location,
-            latitude: profile.latitude,
-            longitude: profile.longitude,
-            verified: profile.verified,
-            lifestyle: profile.lifestyle,
-            travelPace: profile.travelPace,
-            nextDestination: profile.nextDestination,
-            travelDates: profile.travelDates,
-            interests: profile.interests,
-            lookingFor: profile.lookingFor,
-            friendsOnly: profile.friendsOnly,
-            orientation: profile.orientation,
-            preferredMinAge: profile.preferredMinAge,
-            preferredMaxAge: profile.preferredMaxAge,
-            preferredMaxDistanceMiles: profile.preferredMaxDistanceMiles,
-            simplePleasure: profile.simplePleasure,
-            rigInfo: profile.rigInfo,
-            datingLooksLike: profile.datingLooksLike,
-            promptAnswers: mockPrompts,
-            createdAt: profile.createdAt,
-            updatedAt: profile.updatedAt,
-            lastActiveAt: profile.lastActiveAt,
-            onboardingCompleted: profile.onboardingCompleted,
-            hideLocationOnMap: profile.hideLocationOnMap
-        )
-    }
-
     // MARK: - Current Profile
 
     /// Fetches the current user's profile from the database.
@@ -159,11 +114,17 @@ public class ProfileManager: ObservableObject {
         print("🔵 [ProfileManager] After refresh - morningPerson: \(String(describing: currentProfile?.morningPerson))")
     }
 
-    /// Fetches a profile by user ID.
+    /// Fetches a profile by user ID, returning a cached version if available and fresh.
     ///
     /// - Parameter id: The user's UUID.
     /// - Returns: The user's profile.
     public func fetchProfile(by id: UUID) async throws -> UserProfile {
+        // Return cached profile if still fresh
+        if let cached = profileCache[id],
+           Date().timeIntervalSince(cached.fetchedAt) < profileCacheTTL {
+            return cached.profile
+        }
+
         let profiles: [UserProfile] = try await client
             .from("profiles")
             .select()
@@ -176,7 +137,43 @@ public class ProfileManager: ObservableObject {
             throw ProfileError.profileNotFound
         }
 
+        profileCache[id] = (profile: profile, fetchedAt: Date())
         return profile
+    }
+
+    /// Fetches multiple profiles by ID in a single query, using cache when available.
+    ///
+    /// - Parameter ids: The user UUIDs to fetch.
+    /// - Returns: Dictionary mapping UUID to profile.
+    public func fetchProfiles(by ids: [UUID]) async throws -> [UUID: UserProfile] {
+        var result: [UUID: UserProfile] = [:]
+        var uncachedIds: [UUID] = []
+
+        for id in ids {
+            if let cached = profileCache[id],
+               Date().timeIntervalSince(cached.fetchedAt) < profileCacheTTL {
+                result[id] = cached.profile
+            } else {
+                uncachedIds.append(id)
+            }
+        }
+
+        if !uncachedIds.isEmpty {
+            let profiles: [UserProfile] = try await client
+                .from("profiles")
+                .select()
+                .in("id", values: uncachedIds)
+                .execute()
+                .value
+
+            let now = Date()
+            for profile in profiles {
+                profileCache[profile.id] = (profile: profile, fetchedAt: now)
+                result[profile.id] = profile
+            }
+        }
+
+        return result
     }
 
     // MARK: - Discovery
@@ -230,8 +227,9 @@ public class ProfileManager: ObservableObject {
                 .execute()
                 .value
 
-            // Filter out excluded IDs
-            profiles = profiles.filter { !excludeIds.contains($0.id) }
+            // Filter out excluded IDs using Set for O(1) lookups
+            let excludeSet = Set(excludeIds)
+            profiles = profiles.filter { !excludeSet.contains($0.id) }
 
             // Apply dating preferences (age range and distance) when in dating mode
             if lookingFor == .dating, let current = currentProfile {
@@ -257,17 +255,13 @@ public class ProfileManager: ObservableObject {
                 }
             }
 
+            // Dating only: show users who have completed dating onboarding (orientation, lookingFor, 3+ prompt answers)
+            if lookingFor == .dating {
+                profiles = profiles.filter { Self.hasCompletedDatingOnboarding(profile: $0) }
+            }
+
             // Trim to requested limit after filtering
             profiles = Array(profiles.prefix(limit))
-            
-            // Temporary: Add mock prompts if missing (for testing)
-            // TODO: Remove this once database is properly seeded
-            profiles = profiles.map { profile in
-                if profile.promptAnswers == nil || profile.promptAnswers?.isEmpty == true {
-                    return addMockPrompts(to: profile)
-                }
-                return profile
-            }
             
             // Strip coordinates for users who have hidden their location (so they don't appear on the map)
             profiles = profiles.map { stripLocationIfHidden($0) }
@@ -334,42 +328,10 @@ public class ProfileManager: ObservableObject {
     /// Returns a copy of the profile with latitude/longitude set to nil when hideLocationOnMap is true.
     private func stripLocationIfHidden(_ profile: UserProfile) -> UserProfile {
         guard profile.hideLocationOnMap else { return profile }
-        return UserProfile(
-            id: profile.id,
-            name: profile.name,
-            birthday: profile.birthday,
-            age: profile.age,
-            bio: profile.bio,
-            avatarUrl: profile.avatarUrl,
-            photos: profile.photos,
-            location: profile.location,
-            latitude: nil,
-            longitude: nil,
-            verified: profile.verified,
-            lifestyle: profile.lifestyle,
-            travelPace: profile.travelPace,
-            nextDestination: profile.nextDestination,
-            travelDates: profile.travelDates,
-            interests: profile.interests,
-            lookingFor: profile.lookingFor,
-            friendsOnly: profile.friendsOnly,
-            orientation: profile.orientation,
-            preferredMinAge: profile.preferredMinAge,
-            preferredMaxAge: profile.preferredMaxAge,
-            preferredMaxDistanceMiles: profile.preferredMaxDistanceMiles,
-            simplePleasure: profile.simplePleasure,
-            rigInfo: profile.rigInfo,
-            datingLooksLike: profile.datingLooksLike,
-            promptAnswers: profile.promptAnswers,
-            workStyle: profile.workStyle,
-            homeBase: profile.homeBase,
-            morningPerson: profile.morningPerson,
-            createdAt: profile.createdAt,
-            updatedAt: profile.updatedAt,
-            lastActiveAt: profile.lastActiveAt,
-            onboardingCompleted: profile.onboardingCompleted,
-            hideLocationOnMap: profile.hideLocationOnMap
-        )
+        var stripped = profile
+        stripped.latitude = nil
+        stripped.longitude = nil
+        return stripped
     }
 
     // MARK: - Travel Schedule
@@ -538,17 +500,19 @@ public class ProfileManager: ObservableObject {
     
     // MARK: - Dating Onboarding
     
-    /// Checks if the user has completed dating-specific onboarding.
+    /// Checks if a profile has completed dating-specific onboarding (used for current user or discovery).
     /// Returns true if they have orientation, lookingFor set to dating/both, and at least 3 prompt answers.
-    public func hasCompletedDatingOnboarding() -> Bool {
-        guard let profile = currentProfile else { return false }
-        
-        // Check if they have dating-specific fields filled
+    public static func hasCompletedDatingOnboarding(profile: UserProfile) -> Bool {
         let hasOrientation = profile.orientation != nil && !profile.orientation!.isEmpty
         let isLookingForDating = profile.lookingFor == .dating || profile.lookingFor == .both
         let hasPromptAnswers = profile.promptAnswers != nil && !profile.promptAnswers!.isEmpty && profile.promptAnswers!.count >= 3
-        
         return hasOrientation && isLookingForDating && hasPromptAnswers
+    }
+
+    /// Checks if the current user has completed dating-specific onboarding.
+    public func hasCompletedDatingOnboarding() -> Bool {
+        guard let profile = currentProfile else { return false }
+        return Self.hasCompletedDatingOnboarding(profile: profile)
     }
     
     /// Determines which onboarding step to start from for partial dating onboarding.
