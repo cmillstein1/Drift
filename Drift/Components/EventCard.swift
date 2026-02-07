@@ -87,7 +87,7 @@ struct EventCard: View {
             ZStack(alignment: .topTrailing) {
                 // Image or gradient placeholder
                 if let imageUrl = eventImageURL, let url = URL(string: imageUrl) {
-                    AsyncImage(url: url) { phase in
+                    CachedAsyncImage(url: url) { phase in
                         switch phase {
                         case .success(let image):
                             image

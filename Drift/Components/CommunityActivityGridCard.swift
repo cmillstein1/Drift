@@ -25,7 +25,7 @@ struct CommunityActivityGridCard: View {
             ZStack(alignment: .topLeading) {
                 // Activity image or gradient fallback
                 if let imageUrl = activity.imageUrl, !imageUrl.isEmpty {
-                    AsyncImage(url: URL(string: imageUrl)) { phase in
+                    CachedAsyncImage(url: URL(string: imageUrl)) { phase in
                         switch phase {
                         case .empty:
                             categoryGradientFallback

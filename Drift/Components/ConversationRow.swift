@@ -62,7 +62,7 @@ struct ConversationRow: View {
             HStack(spacing: 16) {
                 ZStack(alignment: .bottomTrailing) {
                     // Avatar
-                    AsyncImage(url: URL(string: conversation.avatarUrl ?? "")) { phase in
+                    CachedAsyncImage(url: URL(string: conversation.avatarUrl ?? "")) { phase in
                         switch phase {
                         case .empty:
                             Circle()
@@ -173,25 +173,6 @@ struct ConversationRow: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            if let onDelete {
-                Button(role: .destructive, action: onDelete) {
-                    Label("Delete", systemImage: "trash")
-                }
-            }
-            if let onHide {
-                Button(action: onHide) {
-                    Label("Hide", systemImage: "eye.slash")
-                }
-                .tint(charcoalColor)
-            }
-            if let onUnhide {
-                Button(action: onUnhide) {
-                    Label("Unhide", systemImage: "eye")
-                }
-                .tint(forestGreen)
-            }
-        }
         .contextMenu {
             if let onHide {
                 Button(action: onHide) {

@@ -179,7 +179,7 @@ struct LikeYouCard: View {
             GeometryReader { geo in
                 ZStack(alignment: .bottom) {
                     // Profile image
-                    AsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? "")) { phase in
+                    CachedAsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? "")) { phase in
                         if let image = phase.image {
                             image
                                 .resizable()

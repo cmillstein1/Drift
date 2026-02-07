@@ -204,6 +204,13 @@ struct MessagesScreen: View {
         guard let userId = supabaseManager.currentUser?.id else { return [] }
         return filteredConversations.filter { !$0.hasLeft(for: userId) && $0.isHidden(for: userId) }
     }
+
+    /// Conversations matching search text.
+    private var searchFilteredConversations: [Conversation] {
+        guard !searchText.isEmpty else { return visibleConversations }
+        let query = searchText.lowercased()
+        return visibleConversations.filter { $0.displayName.lowercased().contains(query) }
+    }
     
     var body: some View {
         NavigationStack {
@@ -380,13 +387,10 @@ struct MessagesScreen: View {
                                 .foregroundColor(charcoalColor)
                                 .padding(.horizontal, 16)
 
-                            List {
+                            LazyVStack(spacing: 8) {
                                 ForEach(visibleConversations) { conversation in
-                                    ConversationRow(
-                                        conversation: conversation,
-                                        currentUserId: supabaseManager.currentUser?.id,
-                                        onTap: { selectedConversation = conversation },
-                                        onHide: {
+                                    SwipeableRow(actions: [
+                                        SwipeAction(label: "Hide", icon: "eye.slash", tint: charcoalColor) {
                                             Task {
                                                 messagingManager.errorMessage = nil
                                                 do {
@@ -396,8 +400,7 @@ struct MessagesScreen: View {
                                                 }
                                             }
                                         },
-                                        onUnhide: nil,
-                                        onDelete: {
+                                        SwipeAction(label: "Delete", icon: "trash", tint: .red) {
                                             Task {
                                                 messagingManager.errorMessage = nil
                                                 do {
@@ -407,16 +410,37 @@ struct MessagesScreen: View {
                                                 }
                                             }
                                         }
-                                    )
-                                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                                    .listRowSeparator(.hidden)
-                                    .listRowBackground(Color.clear)
+                                    ]) {
+                                        ConversationRow(
+                                            conversation: conversation,
+                                            currentUserId: supabaseManager.currentUser?.id,
+                                            onTap: { selectedConversation = conversation },
+                                            onHide: {
+                                                Task {
+                                                    messagingManager.errorMessage = nil
+                                                    do {
+                                                        try await messagingManager.hideConversation(conversation.id)
+                                                    } catch {
+                                                        messagingManager.errorMessage = error.localizedDescription
+                                                    }
+                                                }
+                                            },
+                                            onUnhide: nil,
+                                            onDelete: {
+                                                Task {
+                                                    messagingManager.errorMessage = nil
+                                                    do {
+                                                        try await messagingManager.leaveConversation(conversation.id)
+                                                    } catch {
+                                                        messagingManager.errorMessage = error.localizedDescription
+                                                    }
+                                                }
+                                            }
+                                        )
+                                    }
+                                    .padding(.horizontal, 16)
                                 }
                             }
-                            .listStyle(.plain)
-                            .scrollContentBackground(.hidden)
-                            .scrollDisabled(true)
-                            .frame(minHeight: CGFloat(visibleConversations.count) * 96)
                         }
                         .padding(.bottom, 24)
                     }
@@ -461,14 +485,10 @@ struct MessagesScreen: View {
                             .buttonStyle(PlainButtonStyle())
 
                             if hiddenSectionExpanded {
-                                List {
+                                LazyVStack(spacing: 8) {
                                     ForEach(hiddenConversations) { conversation in
-                                        ConversationRow(
-                                            conversation: conversation,
-                                            currentUserId: supabaseManager.currentUser?.id,
-                                            onTap: { selectedConversation = conversation },
-                                            onHide: nil,
-                                            onUnhide: {
+                                        SwipeableRow(actions: [
+                                            SwipeAction(label: "Unhide", icon: "eye", tint: Color("ForestGreen")) {
                                                 Task {
                                                     messagingManager.errorMessage = nil
                                                     do {
@@ -478,7 +498,7 @@ struct MessagesScreen: View {
                                                     }
                                                 }
                                             },
-                                            onDelete: {
+                                            SwipeAction(label: "Delete", icon: "trash", tint: .red) {
                                                 Task {
                                                     messagingManager.errorMessage = nil
                                                     do {
@@ -488,16 +508,37 @@ struct MessagesScreen: View {
                                                     }
                                                 }
                                             }
-                                        )
-                                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                                        .listRowSeparator(.hidden)
-                                        .listRowBackground(Color.clear)
+                                        ]) {
+                                            ConversationRow(
+                                                conversation: conversation,
+                                                currentUserId: supabaseManager.currentUser?.id,
+                                                onTap: { selectedConversation = conversation },
+                                                onHide: nil,
+                                                onUnhide: {
+                                                    Task {
+                                                        messagingManager.errorMessage = nil
+                                                        do {
+                                                            try await messagingManager.unhideConversation(conversation.id)
+                                                        } catch {
+                                                            messagingManager.errorMessage = error.localizedDescription
+                                                        }
+                                                    }
+                                                },
+                                                onDelete: {
+                                                    Task {
+                                                        messagingManager.errorMessage = nil
+                                                        do {
+                                                            try await messagingManager.leaveConversation(conversation.id)
+                                                        } catch {
+                                                            messagingManager.errorMessage = error.localizedDescription
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                        }
+                                        .padding(.horizontal, 16)
                                     }
                                 }
-                                .listStyle(.plain)
-                                .scrollContentBackground(.hidden)
-                                .scrollDisabled(true)
-                                .frame(minHeight: CGFloat(hiddenConversations.count) * 96)
                                 .padding(.bottom, 24)
                             }
                         }
@@ -553,29 +594,10 @@ struct MessagesScreen: View {
             }
         }
         .onChange(of: selectedMode) { _, newMode in
-            let uid = supabaseManager.currentUser?.id
-            let afterMode = messagingManager.conversations.filter { conv in
-                switch newMode {
-                case .dating: return conv.type == .dating
-                case .friends: return conv.type == .friends
-                }
-            }
-            let vis = (uid == nil ? 0 : afterMode.filter { !$0.hasLeft(for: uid!) && !$0.isHidden(for: uid!) }.count)
-            let hid = (uid == nil ? 0 : afterMode.filter { !$0.hasLeft(for: uid!) && $0.isHidden(for: uid!) }.count)
-            print("[Messages] selectedMode changed → \(newMode) | afterModeFilter: \(afterMode.count) | visible: \(vis), hidden: \(hid)")
+            print("[Messages] selectedMode changed → \(newMode) | visible: \(visibleConversations.count), hidden: \(hiddenConversations.count)")
         }
         .onChange(of: messagingManager.conversations.count) { _, newCount in
-            let uid = supabaseManager.currentUser?.id
-            let afterModeFilter: [Conversation] = messagingManager.conversations.filter { conv in
-                switch selectedMode {
-                case .dating: return conv.type == .dating
-                case .friends: return conv.type == .friends
-                }
-            }
-            let vis = (uid == nil ? 0 : afterModeFilter.filter { !$0.hasLeft(for: uid!) && !$0.isHidden(for: uid!) }.count)
-            let hid = (uid == nil ? 0 : afterModeFilter.filter { !$0.hasLeft(for: uid!) && $0.isHidden(for: uid!) }.count)
-            let typeBreakdown = Dictionary(grouping: messagingManager.conversations, by: { $0.type.rawValue }).mapValues(\.count)
-            print("[Messages] conversations.count changed → total: \(newCount) | selectedMode: \(selectedMode) | afterModeFilter: \(afterModeFilter.count) | visible: \(vis), hidden: \(hid) | types in list: \(typeBreakdown) | currentUser: \(uid != nil ? "yes" : "no")")
+            print("[Messages] conversations.count changed → total: \(newCount) | visible: \(visibleConversations.count), hidden: \(hiddenConversations.count)")
         }
         // Note: Realtime subscriptions are managed by AppDataManager at the ContentView level
         .sheet(isPresented: $showLikesYouScreen) {
@@ -583,7 +605,8 @@ struct MessagesScreen: View {
         }
         .sheet(isPresented: $showLikesYouPaywall) {
             PaywallScreen(isOpen: $showLikesYouPaywall, source: .likesYou)
-                .presentationDragIndicator(.hidden)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showMyFriendsSheet, onDismiss: {
             if let conv = pendingConversationToOpen {

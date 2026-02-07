@@ -380,7 +380,7 @@ struct FriendGridCard: View {
                     .frame(height: 200)
                 
                 // Image container with proper clipping
-                AsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? "")) { phase in
+                CachedAsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? "")) { phase in
                     Group {
                         switch phase {
                         case .empty:

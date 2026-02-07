@@ -219,7 +219,7 @@ struct MatchAnimationView: View {
                         VStack(spacing: 16) {
                             HStack(spacing: 16) {
                                 // Small profile image
-                                AsyncImage(url: URL(string: matchedProfile.photos.first ?? matchedProfile.avatarUrl ?? "")) { phase in
+                                CachedAsyncImage(url: URL(string: matchedProfile.photos.first ?? matchedProfile.avatarUrl ?? "")) { phase in
                                     if let image = phase.image {
                                         image
                                             .resizable()
@@ -561,7 +561,7 @@ struct ProfileCircle: View {
                 .fill(Color.white)
                 .frame(width: 128, height: 128)
                 .overlay(
-                    AsyncImage(url: URL(string: imageUrl ?? "")) { phase in
+                    CachedAsyncImage(url: URL(string: imageUrl ?? "")) { phase in
                         if let image = phase.image {
                             image
                                 .resizable()

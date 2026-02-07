@@ -146,7 +146,7 @@ struct ProfileCard: View {
     private func primaryPhotoSection(geometry: GeometryProxy) -> some View {
         ZStack(alignment: .bottom) {
             // Photo
-            AsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? "")) { phase in
+            CachedAsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? "")) { phase in
                 switch phase {
                 case .empty:
                     ZStack {
@@ -263,7 +263,7 @@ struct ProfileCard: View {
 
         // Additional photos
         ForEach(Array(profile.photos.dropFirst().prefix(3).enumerated()), id: \.offset) { index, photoUrl in
-            AsyncImage(url: URL(string: photoUrl)) { phase in
+            CachedAsyncImage(url: URL(string: photoUrl)) { phase in
                 switch phase {
                 case .empty:
                     ZStack {

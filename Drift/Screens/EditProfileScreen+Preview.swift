@@ -59,7 +59,7 @@ extension EditProfileScreen {
             ZStack(alignment: .bottom) {
                 if let firstPhoto = photos.first, !firstPhoto.isEmpty,
                    let url = URL(string: firstPhoto) {
-                    AsyncImage(url: url) { phase in
+                    CachedAsyncImage(url: url) { phase in
                         if let image = phase.image {
                             image
                                 .resizable()
@@ -182,7 +182,7 @@ extension EditProfileScreen {
                 if let photoUrl = photos[safe: index], !photoUrl.isEmpty,
                    let url = URL(string: photoUrl) {
                     GeometryReader { geometry in
-                        AsyncImage(url: url) { phase in
+                        CachedAsyncImage(url: url) { phase in
                             if let image = phase.image {
                                 image
                                     .resizable()
