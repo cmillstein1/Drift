@@ -183,10 +183,14 @@ public class ActivityManager: ObservableObject {
         }
 
         var headerImageUrl = imageUrl
+        var attributionName: String?
+        var attributionUrl: String?
         if headerImageUrl == nil, !title.trimmingCharacters(in: .whitespaces).isEmpty {
             let key = _BackendConfiguration.shared.unsplashAccessKey
-            if let url = await UnsplashManager.fetchFirstImageURL(query: title, accessKey: key) {
-                headerImageUrl = url
+            if let result = await UnsplashManager.fetchFirstImageWithAttribution(query: title, accessKey: key) {
+                headerImageUrl = result.imageUrl
+                attributionName = result.photographerName
+                attributionUrl = result.photographerUrl
             }
         }
         let request = ActivityCreateRequest(
@@ -197,6 +201,8 @@ public class ActivityManager: ObservableObject {
             location: location,
             exactLocation: exactLocation,
             imageUrl: headerImageUrl,
+            imageAttributionName: attributionName,
+            imageAttributionUrl: attributionUrl,
             startsAt: startsAt,
             durationMinutes: durationMinutes,
             maxAttendees: maxAttendees,

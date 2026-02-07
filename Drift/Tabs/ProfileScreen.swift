@@ -147,7 +147,8 @@ struct ProfileScreen: View {
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallScreen(isOpen: $showPaywall, source: .general)
-                    .presentationDragIndicator(.hidden)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showGenerateInvite) {
                 GenerateInviteSheet(isPresented: $showGenerateInvite)

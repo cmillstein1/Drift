@@ -142,7 +142,8 @@ struct SubscriptionStatusView: View {
         }
         .sheet(isPresented: $showPaywall) {
             PaywallScreen(isOpen: $showPaywall, source: .general)
-                .presentationDragIndicator(.hidden)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
     

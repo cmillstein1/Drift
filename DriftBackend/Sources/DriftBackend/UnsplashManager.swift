@@ -13,6 +13,16 @@ public enum UnsplashManager {
     ///   - accessKey: Unsplash API Access Key (Client ID).
     /// - Returns: First photo's `regular` URL (1080px) suitable for headers, or nil if none.
     public static func fetchFirstImageURL(query: String, accessKey: String) async -> String? {
+        let result = await fetchFirstImageWithAttribution(query: query, accessKey: accessKey)
+        return result?.imageUrl
+    }
+
+    /// Fetches the first search result image URL and photographer attribution for the given query.
+    /// - Parameters:
+    ///   - query: Search term (e.g. event title).
+    ///   - accessKey: Unsplash API Access Key (Client ID).
+    /// - Returns: Image URL plus photographer name and Unsplash profile URL, or nil if none.
+    public static func fetchFirstImageWithAttribution(query: String, accessKey: String) async -> (imageUrl: String, photographerName: String, photographerUrl: String)? {
         guard !accessKey.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
         guard let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "\(baseURL)/search/photos?query=\(encoded)&per_page=1") else {
@@ -28,7 +38,11 @@ public enum UnsplashManager {
                 return nil
             }
             let decoded = try JSONDecoder().decode(UnsplashSearchResponse.self, from: data)
-            return decoded.results.first?.urls.regular
+            guard let photo = decoded.results.first,
+                  let imageUrl = photo.urls.regular else { return nil }
+            let name = photo.user.name ?? photo.user.username ?? "Unsplash"
+            let profileUrl = photo.user.links?.html ?? "https://unsplash.com"
+            return (imageUrl, name, profileUrl)
         } catch {
             return nil
         }
@@ -43,6 +57,7 @@ private struct UnsplashSearchResponse: Decodable {
 
 private struct UnsplashPhoto: Decodable {
     let urls: UnsplashPhotoUrls
+    let user: UnsplashUser
 }
 
 private struct UnsplashPhotoUrls: Decodable {
@@ -51,4 +66,14 @@ private struct UnsplashPhotoUrls: Decodable {
     let regular: String?
     let small: String?
     let thumb: String?
+}
+
+private struct UnsplashUser: Decodable {
+    let name: String?
+    let username: String?
+    let links: UnsplashUserLinks?
+}
+
+private struct UnsplashUserLinks: Decodable {
+    let html: String?
 }

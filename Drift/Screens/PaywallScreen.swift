@@ -49,210 +49,103 @@ struct PaywallScreen: View {
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
     private let forestGreen = Color("ForestGreen")
-    private let skyBlue = Color("SkyBlue")
     private let softGray = Color("SoftGray")
-    private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
-    private let warmMuted = Color(red: 0.78, green: 0.45, blue: 0.32)
     
     var body: some View {
         if isOpen {
-            ZStack {
-                // Backdrop
-                Color.black.opacity(0.6)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        withAnimation {
-                            isOpen = false
-                        }
-                    }
+            GeometryReader { geometry in
+                let heroHeight = geometry.size.height * 0.55
+                let cardOverlap: CGFloat = 24
                 
-                // Modal Content
-                VStack(spacing: 0) {
-                    Spacer()
-                    
+                ZStack(alignment: .top) {
+                    // Hero
                     VStack(spacing: 0) {
-                        // White cap to cover sheet drag indicator area at top
-                        Color.white
-                            .frame(height: 34)
-                            .frame(maxWidth: .infinity)
-                            .ignoresSafeArea(edges: .top)
-                        
-                        // Close Button
-                        HStack {
-                            Spacer()
-                            Button(action: {
-                                withAnimation {
-                                    isOpen = false
-                                }
-                            }) {
+                        ZStack(alignment: .bottom) {
+                            Image("Discover_Temp-2")
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(height: heroHeight)
+                                .clipped()
+                            
+                            LinearGradient(
+                                colors: [.clear, .black.opacity(0.7)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Built for Life in Motion")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.white)
+                                Text("Unlock features designed for people who live on the move helping you connect, explore, and navigate wherever you are.")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.white.opacity(0.95))
+                                    .lineLimit(3)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 44)
+                        }
+                        .frame(height: heroHeight)
+                        .overlay(alignment: .topTrailing) {
+                            Button(action: { withAnimation { isOpen = false } }) {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 16, weight: .medium))
                                     .foregroundColor(charcoalColor)
-                                    .frame(width: 40, height: 40)
-                                    .background(softGray)
+                                    .frame(width: 36, height: 36)
+                                    .background(Color.white)
                                     .clipShape(Circle())
                             }
                             .padding(.trailing, 16)
-                            .padding(.top, 12)
+                            .padding(.top, geometry.safeAreaInsets.top + 12)
                         }
                         
-                        ScrollView {
-                            VStack(spacing: 20) {
-                                // Hero Section
-                                VStack(spacing: 8) {
-                                    Text("Go Further Together")
-                                        .font(.system(size: 26, weight: .bold))
-                                        .foregroundColor(charcoalColor)
-                                    
-                                    Text("Everything you need to meet intentional people, build real connections, and share the journey — wherever the road takes you.")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(charcoalColor.opacity(0.6))
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 24)
-                                }
-                                .padding(.top, 8)
-                                
-                                // Features Grid
-                                VStack(spacing: 12) {
-                                    FeatureRow(
-                                        icon: "heart.fill",
-                                        title: "Unlimited Swiping",
-                                        description: "Connect with as many travelers as you want, no daily limits",
-                                        gradient: LinearGradient(
-                                            colors: [burntOrange, sunsetRose],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    
-                                    FeatureRow(
-                                        icon: "calendar",
-                                        title: "Create Activities",
-                                        description: "Host meetups, group adventures, and local events in any location",
-                                        gradient: LinearGradient(
-                                            colors: [skyBlue, forestGreen],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    
-                                    FeatureRow(
-                                        icon: "person.2.fill",
-                                        title: "See Who Liked You",
-                                        description: "Know who's interested before you swipe and skip the guesswork",
-                                        gradient: LinearGradient(
-                                            colors: [sunsetRose, burntOrange],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
-                                }
-                                .padding(.horizontal, 20)
-                                
-                                // Pricing Toggle
-                                GeometryReader { geometry in
-                                    ZStack(alignment: .leading) {
-                                        // Background
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(softGray)
-                                            .frame(height: 50)
-                                        
-                                        // Sliding Background
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .fill(Color.white)
-                                            .frame(width: (geometry.size.width - 8) / 2, height: 42)
-                                            .offset(x: selectedPlan == .monthly ? 4 : (geometry.size.width - 8) / 2 + 4)
-                                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedPlan)
-                                        
-                                        HStack(spacing: 0) {
-                                            // Monthly Button
-                                            Button(action: {
-                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                                    selectedPlan = .monthly
-                                                }
-                                            }) {
-                                                VStack(spacing: 2) {
-                                                    Text("Monthly")
-                                                        .font(.system(size: 14, weight: .medium))
-                                                        .foregroundColor(selectedPlan == .monthly ? charcoalColor : charcoalColor.opacity(0.6))
-                                                    
-                                                    if let monthlyPackage = revenueCatManager.getMonthlyPackage() {
-                                                        Text(monthlyPackage.storeProduct.localizedPriceString)
-                                                            .font(.system(size: 11))
-                                                            .foregroundColor(selectedPlan == .monthly ? burntOrange : charcoalColor.opacity(0.4))
-                                                    } else {
-                                                        Text("$11.99/mo")
-                                                            .font(.system(size: 11))
-                                                            .foregroundColor(selectedPlan == .monthly ? burntOrange : charcoalColor.opacity(0.4))
-                                                    }
-                                                }
-                                                .frame(maxWidth: .infinity)
-                                                .frame(height: 42)
-                                            }
-                                            
-                                            // Yearly Button
-                                            Button(action: {
-                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                                    selectedPlan = .yearly
-                                                }
-                                            }) {
-                                                VStack(spacing: 2) {
-                                                    HStack(spacing: 4) {
-                                                        Text("Yearly")
-                                                            .font(.system(size: 14, weight: .medium))
-                                                            .foregroundColor(selectedPlan == .yearly ? charcoalColor : charcoalColor.opacity(0.6))
-                                                        
-                                                        Text("SAVE 40%")
-                                                            .font(.system(size: 9, weight: .semibold))
-                                                            .foregroundColor(.white)
-                                                            .padding(.horizontal, 6)
-                                                            .padding(.vertical, 2)
-                                                            .background(
-                                                                LinearGradient(
-                                                                    colors: [burntOrange, sunsetRose],
-                                                                    startPoint: .leading,
-                                                                    endPoint: .trailing
-                                                                )
-                                                            )
-                                                            .clipShape(Capsule())
-                                                    }
-                                                    
-                                                    if let yearlyPackage = revenueCatManager.getYearlyPackage() {
-                                                        Text(yearlyPackage.storeProduct.localizedPriceString)
-                                                            .font(.system(size: 11))
-                                                            .foregroundColor(selectedPlan == .yearly ? burntOrange : charcoalColor.opacity(0.4))
-                                                    } else {
-                                                        Text("$79.99/year")
-                                                            .font(.system(size: 11))
-                                                            .foregroundColor(selectedPlan == .yearly ? burntOrange : charcoalColor.opacity(0.4))
-                                                    }
-                                                }
-                                                .frame(maxWidth: .infinity)
-                                                .frame(height: 42)
-                                            }
-                                        }
-                                        .padding(4)
-                                    }
-                                }
-                                .frame(height: 50)
-                                .padding(.horizontal, 20)
-                                .padding(.bottom, 28)
-                            }
-                            .padding(.top, 8)
-                            .padding(.bottom, 16)
-                        }
+                        Spacer(minLength: 0)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.white)
-                    .cornerRadius(32, corners: [.topLeft, .topRight])
-                    .frame(maxHeight: UIScreen.main.bounds.height * 0.9)
-                    .ignoresSafeArea(edges: .top)
                     
-                    // Fixed Bottom CTA
-                    VStack(spacing: 8) {
-                        Button(action: {
-                            Task {
-                                await handlePurchase()
+                    // White card overlapping hero, rounded top corners (no feature list)
+                    VStack(spacing: 0) {
+                        VStack(spacing: 10) {
+                            PlanCard(
+                                title: "Annual Plan",
+                                subtitle: annualSubtitle,
+                                price: yearlyPriceString,
+                                originalPrice: yearlyOriginalPriceString,
+                                isSelected: selectedPlan == .yearly,
+                                badge: "MOST POPULAR",
+                                badgeColor: burntOrange
+                            ) {
+                                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                    selectedPlan = .yearly
+                                }
                             }
+                            PlanCard(
+                                title: "Monthly Plan",
+                                subtitle: monthlySubtitle,
+                                price: monthlyPriceString,
+                                originalPrice: nil,
+                                isSelected: selectedPlan == .monthly,
+                                badge: nil,
+                                badgeColor: .clear
+                            ) {
+                                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                    selectedPlan = .monthly
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        .padding(.bottom, 12)
+                        
+                        Text("Your next adventure starts here.")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(charcoalColor.opacity(0.7))
+                            .padding(.bottom, 8)
+                        
+                        Button(action: {
+                            Task { await handlePurchase() }
                         }) {
                             HStack(spacing: 8) {
                                 if isPurchasing {
@@ -262,154 +155,220 @@ struct PaywallScreen: View {
                                     Image(systemName: "crown.fill")
                                         .font(.system(size: 18))
                                 }
-                                
-                                Text(isPurchasing ? "Processing..." : "Subscribe")
-                                    .font(.system(size: 16, weight: .semibold))
+                                Text(isPurchasing ? "Processing..." : "Get Drift Pro")
+                                    .font(.system(size: 17, weight: .semibold))
                             }
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(
-                                LinearGradient(
-                                    colors: [burntOrange, warmMuted],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 20))
-                            .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 3)
+                            .padding(.vertical, 16)
+                            .background(forestGreen)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
                         .disabled(isPurchasing || revenueCatManager.isLoading)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 6)
                         
                         if let error = purchaseError {
                             Text(error)
                                 .font(.system(size: 12))
                                 .foregroundColor(.red)
                                 .multilineTextAlignment(.center)
+                                .padding(.bottom, 4)
                         }
                         
-                        Text("Cancel anytime. No commitment required.")
-                            .font(.system(size: 10))
+                        Spacer(minLength: 0)
+                        
+                        Text("Cancel anytime.")
+                            .font(.system(size: 12))
                             .foregroundColor(charcoalColor.opacity(0.5))
+                            .padding(.bottom, geometry.safeAreaInsets.bottom + 12)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.white)
-                    .overlay(
-                        Rectangle()
-                            .frame(height: 1)
-                            .foregroundColor(Color.gray.opacity(0.1)),
-                        alignment: .top
-                    )
+                    .padding(.top, heroHeight - cardOverlap)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.white)
             }
-            .presentationDragIndicator(.hidden)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-            .zIndex(1000)
             .onAppear {
-                Task {
-                    await revenueCatManager.loadOfferings()
-                }
+                Task { await revenueCatManager.loadOfferings() }
             }
         }
     }
     
-    // MARK: - Purchase Handler
+    private var annualSubtitle: String {
+        guard let pkg = revenueCatManager.getYearlyPackage() else { return "$5.83/month • Save 42%" }
+        let product = pkg.storeProduct
+        let perMonth = NSDecimalNumber(decimal: product.price).doubleValue / 12
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = product.priceFormatter?.currencyCode ?? "USD"
+        let perMonthStr = formatter.string(from: NSNumber(value: perMonth)) ?? "$5.83"
+        return "\(perMonthStr)/month • Save 42%"
+    }
+    
+    private var monthlySubtitle: String? {
+        nil
+    }
+    
+    private var yearlyPriceString: String {
+        revenueCatManager.getYearlyPackage()?.storeProduct.localizedPriceString ?? "$69.99"
+    }
+    
+    private var yearlyOriginalPriceString: String? {
+        guard let pkg = revenueCatManager.getYearlyPackage() else { return "$119.88" }
+        let product = pkg.storeProduct
+        let yearly = NSDecimalNumber(decimal: product.price).doubleValue
+        let monthly: Double = {
+            guard let p = revenueCatManager.getMonthlyPackage()?.storeProduct else { return 9.99 }
+            return NSDecimalNumber(decimal: p.price).doubleValue
+        }()
+        let fullYear = monthly * 12
+        guard fullYear > yearly else { return nil }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = product.priceFormatter?.currencyCode ?? "USD"
+        return formatter.string(from: NSNumber(value: fullYear)) ?? "$119.88"
+    }
+    
+    private var monthlyPriceString: String {
+        revenueCatManager.getMonthlyPackage()?.storeProduct.localizedPriceString ?? "$9.99"
+    }
     
     private func handlePurchase() async {
         isPurchasing = true
         purchaseError = nil
-        
         guard let package = revenueCatManager.getPackage(for: selectedPlan) else {
             purchaseError = "Product not available. Please try again later."
             isPurchasing = false
             return
         }
-        
         let result = await revenueCatManager.purchase(package: package)
-        
         switch result {
         case .success:
-            // Purchase successful, close paywall
-            withAnimation {
-                isOpen = false
-            }
+            withAnimation { isOpen = false }
         case .failure(let error):
-            if error.localizedDescription.contains("cancelled") {
-                // User cancelled, don't show error
-                purchaseError = nil
-            } else {
+            if !error.localizedDescription.contains("cancelled") {
                 purchaseError = error.localizedDescription
             }
         }
-        
         isPurchasing = false
     }
 }
 
-// MARK: - Helper Functions
+// MARK: - Feature chip (2x2 grid, larger text)
 
-private func formatCurrency(_ amount: Double) -> String {
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .currency
-    formatter.currencyCode = "USD"
-    return formatter.string(from: NSNumber(value: amount)) ?? "$\(String(format: "%.2f", amount))"
-}
-
-struct FeatureRow: View {
-    let icon: String
+private struct FeatureChip: View {
     let title: String
-    let description: String
-    let gradient: LinearGradient
-    
-    private let charcoalColor = Color("Charcoal")
+    let color: Color
     private let softGray = Color("SoftGray")
     
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // Icon
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(gradient)
-                    .frame(width: 40, height: 40)
-                
-                Image(systemName: icon)
-                    .font(.system(size: 18))
-                    .foregroundColor(.white)
-            }
-            
-            // Text
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(charcoalColor)
-                
-                Text(description)
-                    .font(.system(size: 12))
-                    .foregroundColor(charcoalColor.opacity(0.6))
-                    .lineSpacing(2)
-            }
-            
-            Spacer()
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 18))
+                .foregroundColor(color)
+            Text(title)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(Color("Charcoal"))
+            Spacer(minLength: 0)
         }
-        .padding(12)
-        .background(softGray.opacity(0.6))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(softGray.opacity(0.7))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+// MARK: - Plan card (same size for Annual and Monthly, larger text)
+
+private struct PlanCard: View {
+    let title: String
+    let subtitle: String?
+    let price: String
+    let originalPrice: String?
+    let isSelected: Bool
+    let badge: String?
+    let badgeColor: Color
+    let action: () -> Void
+    
+    private let charcoalColor = Color("Charcoal")
+    private let softGray = Color("SoftGray")
+    private let forestGreen = Color("ForestGreen")
+    
+    private let cardHeight: CGFloat = 92
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .center, spacing: 14) {
+                ZStack {
+                    Circle()
+                        .stroke(isSelected ? forestGreen : charcoalColor.opacity(0.3), lineWidth: 2)
+                        .frame(width: 24, height: 24)
+                    if isSelected {
+                        Circle()
+                            .fill(forestGreen)
+                            .frame(width: 14, height: 14)
+                    }
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    if let badge = badge, !badge.isEmpty {
+                        Text(badge)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(badgeColor)
+                            .clipShape(Capsule())
+                    }
+                    Text(title)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(charcoalColor)
+                    if let sub = subtitle, !sub.isEmpty {
+                        Text(sub)
+                            .font(.system(size: 13))
+                            .foregroundColor(charcoalColor.opacity(0.6))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(price)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(charcoalColor)
+                    if let orig = originalPrice {
+                        Text(orig)
+                            .font(.system(size: 12))
+                            .foregroundColor(charcoalColor.opacity(0.5))
+                            .strikethrough(true)
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity)
+            .frame(height: cardHeight)
+            .background(softGray.opacity(0.6))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(isSelected ? forestGreen : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
 #Preview {
     struct PreviewWrapper: View {
         @State private var showPaywall = true
-        
         var body: some View {
             ZStack {
                 Color.gray.opacity(0.3)
-                
                 PaywallScreen(isOpen: $showPaywall, source: .general)
             }
         }
     }
-    
     return PreviewWrapper()
 }
