@@ -21,6 +21,8 @@ struct AnimatedGIFView: UIViewRepresentable {
         let imageView = UIImageView()
         imageView.contentMode = contentMode
         imageView.clipsToBounds = true
+        imageView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        imageView.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
         
         // Try to load GIF from asset catalog (imageset or dataset)
         // First, try loading as a named image asset (works for both PNG and GIF in imagesets)

@@ -17,6 +17,8 @@ private enum NotificationCategory: String, CaseIterable, Identifiable {
     case newMatches
     case nearbyTravelers
     case eventUpdates
+    case eventMessages
+    case postReplies
 
     var id: String { rawValue }
 
@@ -65,6 +67,8 @@ struct NotificationsSettingsSheet: View {
             (.newMessages, "message.fill", skyBlue, "New messages"),
             (.nearbyTravelers, "person.2.fill", forestGreen, "Nearby travelers"),
             (.eventUpdates, "mappin.circle.fill", burntOrange, "Event updates"),
+            (.eventMessages, "bubble.left.and.bubble.right.fill", .purple, "Event chat messages"),
+            (.postReplies, "arrowshape.turn.up.left.fill", Color(red: 0.82, green: 0.48, blue: 0.08), "Post replies"),
         ]
         if isDatingEnabled {
             rows.insert((.newMatches, "heart.fill", Color(red: 0.93, green: 0.36, blue: 0.51), "New matches"), at: 1)

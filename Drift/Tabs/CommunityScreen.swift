@@ -245,15 +245,15 @@ struct CommunityScreen: View {
             .padding(16)
             .padding(.bottom, 120)
         }
-        .scrollContentBackground(.hidden)
-        .background(Color.clear)
-        .refreshable {
+        .refresher(style: .system, config: RefresherConfig(holdTime: .seconds(1)), refreshView: VanRefreshView.init) {
             do {
                 try await communityManager.fetchPosts(type: .help)
             } catch {
                 print("[CommunityScreen] Builder Help refresh failed: \(error)")
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Color.clear)
     }
 }
 

@@ -219,10 +219,8 @@ struct MessagesScreen: View {
                 softGray
                     .ignoresSafeArea()
 
-                ScrollView {
                 VStack(spacing: 0) {
-                    // Dating/Friends Toggle - only show if dating is enabled
-                    // Match exact positioning from DiscoverScreen
+                    // FIXED HEADER: Dating/Friends Toggle + Search Bar
                     VStack(spacing: 0) {
                         // Mode switcher row + My Friends button (top right)
                         HStack {
@@ -275,32 +273,36 @@ struct MessagesScreen: View {
                         .padding(.horizontal, 24)
                         .padding(.top, 10)
                         .padding(.bottom, 20)
-                    }
-                    
-                    // Search bar — hidden in empty state to match dating Discover empty layout
-                    if !visibleConversations.isEmpty {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 16))
-                                .foregroundColor(charcoalColor.opacity(0.4))
-                            TextField("Search messages", text: $searchText)
-                                .font(.system(size: 16))
-                                .foregroundColor(charcoalColor)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.gray.opacity(0.05))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .stroke(searchText.isEmpty ? Color.gray.opacity(0.2) : Color("BurntOrange"), lineWidth: 2)
-                                )
-                        )
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 16)
-                    }
 
+                        // Search bar — hidden in empty state to match dating Discover empty layout
+                        if !visibleConversations.isEmpty {
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(charcoalColor.opacity(0.4))
+                                TextField("Search messages", text: $searchText)
+                                    .font(.system(size: 16))
+                                    .foregroundColor(charcoalColor)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color.gray.opacity(0.05))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(searchText.isEmpty ? Color.gray.opacity(0.2) : Color("BurntOrange"), lineWidth: 2)
+                                    )
+                            )
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 16)
+                        }
+                    }
+                    .background(softGray)
+
+                    // SCROLLABLE CONTENT
+                    ScrollView {
+                    VStack(spacing: 0) {
                     // "X people like you" banner (only show in dating mode)
                     if selectedMode == .dating && !friendsManager.peopleLikedMe.isEmpty {
                         LikesYouBanner(
@@ -560,8 +562,9 @@ struct MessagesScreen: View {
                         .frame(height: LayoutConstants.tabBarBottomPadding + 32)
                 }
             }
-            .refreshable {
+            .refresher(style: .system, config: RefresherConfig(holdTime: .seconds(1)), refreshView: VanRefreshView.init) {
                 await refreshData()
+            }
             }
 
             // Error banner for hide/unhide/delete failures

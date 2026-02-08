@@ -18,6 +18,9 @@ struct CommunityGridView: View {
     var topSpacing: CGFloat = 120
     /// When true, shows a loading placeholder instead of the "No travelers nearby" empty state.
     var isLoading: Bool = false
+    /// Extra offset to push the refresh spinner below an overlay header.
+    var spinnerTopOffset: CGFloat = 0
+    var onRefresh: (() async -> Void)? = nil
     let onSelectProfile: (UserProfile) -> Void
     let onSelectEvent: (CommunityPost) -> Void
     let onConnect: (UUID) -> Void
@@ -31,25 +34,29 @@ struct CommunityGridView: View {
             // Show soft loading state instead of "No travelers nearby" during initial fetch
             ZStack {
                 softGray.ignoresSafeArea()
-                ProgressView()
-                    .tint(Color.gray.opacity(0.5))
-                    .scaleEffect(1.1)
+                VanProgressView(size: 50)
             }
         } else if profiles.isEmpty && events.isEmpty {
             emptyState
+        } else if let onRefresh = onRefresh {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    Color.clear.frame(height: topSpacing)
+                    eventsSection
+                    nearbyFriendsSection
+                }
+                .padding(.bottom, 100)
+            }
+            .refresher(style: .system, config: RefresherConfig(holdTime: .seconds(1), spinnerTopOffset: spinnerTopOffset), refreshView: VanRefreshView.init, action: onRefresh)
+            .background(softGray)
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Top spacing for overlay header
                     Color.clear.frame(height: topSpacing)
-
-                    // Events Section (horizontal scroll) - always show
                     eventsSection
-
-                    // Nearby Friends Section
                     nearbyFriendsSection
                 }
-                .padding(.bottom, 100) // Space for tab bar
+                .padding(.bottom, 100)
             }
             .background(softGray)
         }

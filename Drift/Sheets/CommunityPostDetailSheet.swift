@@ -107,9 +107,9 @@ struct CommunityPostDetailSheet: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 18, weight: .medium))
                         .foregroundColor(charcoal)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 36, height: 36)
                         .background(Color.white)
                         .clipShape(Circle())
                         .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
@@ -165,9 +165,9 @@ struct CommunityPostDetailSheet: View {
             dismiss()
         } label: {
             Image(systemName: "xmark")
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: 18, weight: .medium))
                 .foregroundColor(charcoal)
-                .frame(width: 32, height: 32)
+                .frame(width: 36, height: 36)
                 .background(Color.white)
                 .clipShape(Circle())
                 .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
@@ -471,9 +471,9 @@ struct CommunityPostDetailSheet: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 12)
-            .padding(.bottom, 4)
-            .background(softGray)
+            .padding(.bottom, 12)
         }
+        .background(softGray.ignoresSafeArea(edges: .bottom))
     }
 
     private var replyTextField: some View {
