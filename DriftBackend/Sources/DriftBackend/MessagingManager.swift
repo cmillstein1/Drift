@@ -363,8 +363,17 @@ public class MessagingManager: ObservableObject {
             conversations[index].lastMessage = newMessage
             conversations[index].updatedAt = Date()
 
+            // Update sender's lastReadAt so their own message doesn't show as unread
+            if var participants = conversations[index].participants,
+               let pIdx = participants.firstIndex(where: { $0.userId == userId }) {
+                participants[pIdx].lastReadAt = Date()
+                conversations[index].participants = participants
+            }
+
             // Re-sort conversations by updatedAt
             conversations.sort { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
+
+            updateUnreadCount(userId: userId)
         }
     }
 
@@ -508,12 +517,14 @@ public class MessagingManager: ObservableObject {
 
     private func updateParticipantFlag(conversationId: UUID, userId: UUID, update: (inout ConversationParticipant) -> Void) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-        var conv = conversations[idx]
-        guard var participants = conv.participants,
+        // Use explicit read → mutate → write-back so the @Published setter fires
+        // (in-place subscript mutation can use _modify accessor, bypassing objectWillChange).
+        var updated = conversations
+        guard var participants = updated[idx].participants,
               let pIdx = participants.firstIndex(where: { $0.userId == userId }) else { return }
         update(&participants[pIdx])
-        conv.participants = participants
-        conversations[idx] = conv
+        updated[idx].participants = participants
+        conversations = updated
     }
 
     /// Removes a conversation from the in-memory list after the user has left (so it doesn't reappear until next full fetch).

@@ -565,6 +565,7 @@ struct ProfileScreen: View {
     
     private func handleSignOut() async {
         isSigningOut = true
+        await PushNotificationManager.shared.clearFCMToken()
         do {
             try await supabaseManager.signOut()
         } catch {
