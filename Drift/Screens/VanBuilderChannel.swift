@@ -337,7 +337,7 @@ struct ChannelMessageBubble: View {
     }
 
     private var userAvatar: String {
-        message.user?.avatarUrl ?? ""
+        message.user?.primaryDisplayPhotoUrl ?? ""
     }
 
     var body: some View {

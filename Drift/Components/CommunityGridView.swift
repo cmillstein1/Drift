@@ -45,7 +45,7 @@ struct CommunityGridView: View {
                     eventsSection
                     nearbyFriendsSection
                 }
-                .padding(.bottom, 100)
+                .padding(.bottom, LayoutConstants.tabBarBottomPadding + 40)
             }
             .refresher(style: .system, config: RefresherConfig(holdTime: .seconds(1), spinnerTopOffset: spinnerTopOffset), refreshView: VanRefreshView.init, action: onRefresh)
             .background(softGray)
@@ -56,7 +56,7 @@ struct CommunityGridView: View {
                     eventsSection
                     nearbyFriendsSection
                 }
-                .padding(.bottom, 100)
+                .padding(.bottom, LayoutConstants.tabBarBottomPadding + 40)
             }
             .background(softGray)
         }

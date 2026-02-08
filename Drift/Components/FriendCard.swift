@@ -91,7 +91,7 @@ struct FriendCard: View {
                 HStack(alignment: .top, spacing: 16) {
                 // Profile Image (larger, 80x80 with rounded corners)
                 ZStack(alignment: .bottomTrailing) {
-                    CachedAsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? "")) { phase in
+                    CachedAsyncImage(url: URL(string: profile.primaryDisplayPhotoUrl ?? "")) { phase in
                         switch phase {
                         case .empty:
                             RoundedRectangle(cornerRadius: 16)

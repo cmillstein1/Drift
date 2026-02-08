@@ -165,7 +165,7 @@ struct MatchAnimationView: View {
 
                             // Matched user photo
                             ProfileCircle(
-                                imageUrl: matchedProfile.photos.first ?? matchedProfile.avatarUrl,
+                                imageUrl: matchedProfile.primaryDisplayPhotoUrl,
                                 initials: matchedProfile.initials,
                                 gradientColors: [burntOrange, sunsetRose],
                                 offsetX: 0
@@ -199,7 +199,7 @@ struct MatchAnimationView: View {
                         VStack(spacing: 16) {
                             HStack(spacing: 16) {
                                 // Small profile image
-                                CachedAsyncImage(url: URL(string: matchedProfile.photos.first ?? matchedProfile.avatarUrl ?? "")) { phase in
+                                CachedAsyncImage(url: URL(string: matchedProfile.primaryDisplayPhotoUrl ?? "")) { phase in
                                     if let image = phase.image {
                                         image
                                             .resizable()

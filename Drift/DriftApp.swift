@@ -73,29 +73,29 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         print("[FCM] Notification tapped: \(content.title) – \(content.body)")
         #endif
 
-        // Parse notification payload and route to the relevant screen
-        if let data = userInfo["data"] as? [String: Any] ?? (userInfo as? [String: Any]),
-           let type = (data["type"] as? String) ?? (userInfo["type"] as? String) {
+        // Parse notification payload and route to the relevant screen (deeplink).
+        // FCM puts custom data at top-level userInfo; also support nested userInfo["data"].
+        func string(_ key: String) -> String? {
+            (userInfo["data"] as? [String: Any])?[key] as? String
+                ?? userInfo[key] as? String
+        }
+        if let type = string("type") {
             Task { @MainActor in
                 switch type {
                 case "message":
-                    if let idString = (data["conversation_id"] as? String) ?? (userInfo["conversation_id"] as? String),
-                       let id = UUID(uuidString: idString) {
+                    if let idString = string("conversation_id"), let id = UUID(uuidString: idString) {
                         DeepLinkRouter.shared.pending = .conversation(id: id)
                     }
                 case "match":
-                    if let idString = (data["matched_user_id"] as? String) ?? (userInfo["matched_user_id"] as? String),
-                       let id = UUID(uuidString: idString) {
+                    if let idString = string("matched_user_id"), let id = UUID(uuidString: idString) {
                         DeepLinkRouter.shared.pending = .matchedUser(id: id)
                     }
                 case "event_join", "event_chat":
-                    if let idString = (data["post_id"] as? String) ?? (userInfo["post_id"] as? String),
-                       let id = UUID(uuidString: idString) {
+                    if let idString = string("post_id"), let id = UUID(uuidString: idString) {
                         DeepLinkRouter.shared.pending = .eventPost(id: id)
                     }
                 case "reply":
-                    if let idString = (data["post_id"] as? String) ?? (userInfo["post_id"] as? String),
-                       let id = UUID(uuidString: idString) {
+                    if let idString = string("post_id"), let id = UUID(uuidString: idString) {
                         DeepLinkRouter.shared.pending = .communityPost(id: id)
                     }
                 default:

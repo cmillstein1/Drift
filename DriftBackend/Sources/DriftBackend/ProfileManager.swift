@@ -574,7 +574,7 @@ public class ProfileManager: ObservableObject {
         let hasBirthday = profile.birthday != nil
         let hasOrientation = profile.orientation != nil && !profile.orientation!.isEmpty
         let hasLookingFor = profile.lookingFor == .dating || profile.lookingFor == .both
-        let hasPhotos = !profile.photos.isEmpty && profile.photos.count >= 2
+        let hasPhotos = !profile.displayPhotoUrls.isEmpty && profile.displayPhotoUrls.count >= 2
         let hasInterests = !profile.interests.isEmpty && profile.interests.count >= 3
         let hasBio = profile.bio != nil && !profile.bio!.isEmpty
         let hasPromptAnswers = profile.promptAnswers != nil && !profile.promptAnswers!.isEmpty && profile.promptAnswers!.count >= 3

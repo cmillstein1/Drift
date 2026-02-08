@@ -271,7 +271,7 @@ struct DiscoverMapPin: View {
     private let forestGreen = Color("ForestGreen")
 
     private var imageURL: String? {
-        profile.photos.first ?? profile.avatarUrl
+        profile.primaryDisplayPhotoUrl
     }
 
     var body: some View {

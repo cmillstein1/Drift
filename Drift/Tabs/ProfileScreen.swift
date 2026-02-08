@@ -236,7 +236,7 @@ struct ProfileScreen: View {
                     HStack(alignment: .bottom, spacing: 16) {
                         // Profile Photo
                         ZStack(alignment: .bottomTrailing) {
-                            CachedAsyncImage(url: URL(string: profile?.photos.first ?? profile?.avatarUrl ?? "")) { phase in
+                            CachedAsyncImage(url: URL(string: profile?.primaryDisplayPhotoUrl ?? "")) { phase in
                                 switch phase {
                                 case .empty:
                                     RoundedRectangle(cornerRadius: 28)

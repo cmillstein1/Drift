@@ -50,7 +50,7 @@ struct CommunityEventCard: View {
             // Bottom pill with event info
             HStack(spacing: 12) {
                 // Host avatar
-                CachedAsyncImage(url: URL(string: event.author?.avatarUrl ?? ""), targetSize: CGSize(width: 40, height: 40)) { phase in
+                CachedAsyncImage(url: URL(string: event.author?.primaryDisplayPhotoUrl ?? ""), targetSize: CGSize(width: 40, height: 40)) { phase in
                     switch phase {
                     case .empty:
                         Circle()

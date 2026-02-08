@@ -29,7 +29,7 @@ struct FriendRow: View {
             HStack(spacing: 16) {
                 ZStack(alignment: .bottomTrailing) {
                     // Avatar
-                    CachedAsyncImage(url: URL(string: friendProfile?.photos.first ?? friendProfile?.avatarUrl ?? ""), targetSize: CGSize(width: 56, height: 56)) { phase in
+                    CachedAsyncImage(url: URL(string: friendProfile?.primaryDisplayPhotoUrl ?? ""), targetSize: CGSize(width: 56, height: 56)) { phase in
                         switch phase {
                         case .empty:
                             Circle()

@@ -60,6 +60,11 @@ public struct Conversation: Codable, Identifiable, Hashable, Sendable {
         otherUser?.avatarUrl
     }
 
+    /// Avatar URL for display only (user-uploaded to our storage). Use this when showing the conversation in the UI.
+    public var displayAvatarUrl: String? {
+        otherUser?.primaryDisplayPhotoUrl
+    }
+
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }

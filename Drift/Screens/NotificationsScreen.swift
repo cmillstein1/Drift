@@ -244,7 +244,7 @@ struct NotificationsScreen: View {
         ZStack(alignment: .bottomTrailing) {
             // Main avatar
             if let profile = notification.actorProfile,
-               let avatarUrl = profile.avatarUrl,
+               let avatarUrl = profile.primaryDisplayPhotoUrl,
                let url = URL(string: avatarUrl) {
                 CachedAsyncImage(url: url) { image in
                     image

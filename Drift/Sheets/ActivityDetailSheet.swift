@@ -576,7 +576,7 @@ struct ActivityDetailSheet: View {
     private func attendeeRow(_ attendee: ActivityAttendee) -> some View {
         HStack(spacing: 12) {
             ZStack(alignment: .bottomTrailing) {
-                CachedAsyncImage(url: URL(string: attendee.profile?.avatarUrl ?? "")) { phase in
+                CachedAsyncImage(url: URL(string: attendee.profile?.primaryDisplayPhotoUrl ?? "")) { phase in
                     switch phase {
                     case .empty:
                         Circle().fill(Color.gray.opacity(0.2))

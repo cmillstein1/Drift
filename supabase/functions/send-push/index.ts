@@ -217,8 +217,16 @@ serve(async (req) => {
       )
     }
 
+    // Normalize data to string-only (FCM requires all data values to be strings)
+    const normalizedData: Record<string, string> = {}
+    if (data && typeof data === "object") {
+      for (const [k, v] of Object.entries(data)) {
+        if (v !== undefined && v !== null) normalizedData[k] = String(v)
+      }
+    }
+
     // Send the push notification
-    const sent = await sendFCMNotification(fcm_token, title, body, data)
+    const sent = await sendFCMNotification(fcm_token, title, body, Object.keys(normalizedData).length ? normalizedData : undefined)
 
     if (!sent) {
       return new Response(
