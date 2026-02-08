@@ -212,6 +212,7 @@ struct AboutMeScreen: View {
                 .opacity(buttonOpacity)
                 .offset(y: buttonOffset)
             }
+            .background(screenBackground)
         }
         .contentShape(Rectangle())
         .onTapGesture {
