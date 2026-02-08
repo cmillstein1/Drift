@@ -635,7 +635,6 @@ struct EventDetailSheet: View {
                 subtitle: "2 hours"
             )
             .frame(maxWidth: .infinity)
-            .frame(height: 180)
 
             // Attendees Card
             ZStack(alignment: .topTrailing) {
@@ -692,8 +691,9 @@ struct EventDetailSheet: View {
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(charcoal.opacity(0.6))
                     }
+                    Spacer(minLength: 0)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .padding(20)
                 Circle()
                     .fill(LinearGradient(
@@ -705,12 +705,12 @@ struct EventDetailSheet: View {
                     .blur(radius: 20)
                     .offset(x: 20, y: -20)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 24))
             .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 2)
-            .frame(maxWidth: .infinity)
-            .frame(height: 180)
         }
+        .frame(height: 180)
     }
 
     private func eventInfoCard(
@@ -748,8 +748,9 @@ struct EventDetailSheet: View {
                 Text(subtitle)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(charcoal.opacity(0.6))
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .padding(20)
             Circle()
                 .fill(LinearGradient(
@@ -761,6 +762,7 @@ struct EventDetailSheet: View {
                 .blur(radius: 20)
                 .offset(x: 20, y: -20)
         }
+        .frame(maxHeight: .infinity)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 24))
         .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 2)

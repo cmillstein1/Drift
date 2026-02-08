@@ -19,6 +19,7 @@ struct ActivitiesScreen: View {
     @State private var segmentIndex: Int = 0
     @State private var selectedActivity: Activity? = nil
     @StateObject private var activityManager = ActivityManager.shared
+    @State private var lastDataFetch: Date = .distantPast
 
     private var segmentOptions: [SegmentOption] {
         [
@@ -45,7 +46,8 @@ struct ActivitiesScreen: View {
 
     private let categories = ["All", "Outdoor", "Work", "Social", "Food & Drink"]
 
-    private func loadActivities() {
+    private func loadActivities(force: Bool = false) {
+        guard force || Date().timeIntervalSince(lastDataFetch) > 30 else { return }
         Task {
             do {
                 let category: ActivityCategory? = {
@@ -59,6 +61,7 @@ struct ActivitiesScreen: View {
                 }()
                 try await activityManager.fetchActivities(category: category)
                 await activityManager.subscribeToActivities()
+                lastDataFetch = Date()
             } catch {
                 print("Failed to load activities: \(error)")
             }
@@ -150,7 +153,7 @@ struct ActivitiesScreen: View {
                     loadActivities()
                 }
                 .onChange(of: selectedCategory) { _ in
-                    loadActivities()
+                    loadActivities(force: true)
                 }
 
                 if viewMode == .map {

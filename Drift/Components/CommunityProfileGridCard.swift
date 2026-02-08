@@ -23,7 +23,7 @@ struct CommunityProfileGridCard: View {
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             // Profile image
-            CachedAsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? "")) { phase in
+            CachedAsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? ""), targetSize: CGSize(width: 200, height: imageHeight)) { phase in
                 switch phase {
                 case .empty:
                     Rectangle()

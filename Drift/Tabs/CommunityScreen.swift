@@ -15,6 +15,7 @@ struct CommunityScreen: View {
     @State private var showNotificationsSheet: Bool = false
     @State private var selectedPost: CommunityPost? = nil
     @State private var selectedBuilderHelpCategory: HelpCategory? = nil
+    @State private var searchQuery: String = ""
     @StateObject private var communityManager = CommunityManager.shared
     @StateObject private var notificationsManager = NotificationsManager.shared
     @State private var lastDataFetch: Date = .distantPast
@@ -84,6 +85,29 @@ struct CommunityScreen: View {
                 }
                 .background(softGray)
 
+                // Search bar
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 16))
+                        .foregroundColor(charcoal.opacity(0.4))
+                    TextField("Search help topics...", text: $searchQuery)
+                        .font(.system(size: 16))
+                        .foregroundColor(charcoal)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 24)
+                        .fill(Color.gray.opacity(0.05))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24)
+                                .stroke(searchQuery.isEmpty ? Color.gray.opacity(0.2) : burntOrange, lineWidth: 2)
+                        )
+                )
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
+
                 // Builder Help content only
                 builderHelpContent
             }
@@ -115,11 +139,19 @@ struct CommunityScreen: View {
         }
     }
 
-    /// Help posts for Builder Help section, optionally filtered by category
+    /// Help posts for Builder Help section, optionally filtered by category and search
     private var helpPosts: [CommunityPost] {
-        let help = communityManager.posts.filter { $0.type == .help }
-        guard let cat = selectedBuilderHelpCategory else { return help }
-        return help.filter { $0.helpCategory == cat }
+        var result = communityManager.posts.filter { $0.type == .help }
+        if let cat = selectedBuilderHelpCategory {
+            result = result.filter { $0.helpCategory == cat }
+        }
+        if !searchQuery.isEmpty {
+            result = result.filter {
+                $0.title.localizedCaseInsensitiveContains(searchQuery) ||
+                $0.content.localizedCaseInsensitiveContains(searchQuery)
+            }
+        }
+        return result
     }
 
     private var builderHelpContent: some View {

@@ -24,7 +24,7 @@ struct CommunityEventCard: View {
         ZStack(alignment: .bottom) {
             // Large image
             if let imageUrl = eventImageUrl {
-                CachedAsyncImage(url: URL(string: imageUrl)) { phase in
+                CachedAsyncImage(url: URL(string: imageUrl), targetSize: CGSize(width: 280, height: 320)) { phase in
                     switch phase {
                     case .empty:
                         placeholderGradient
@@ -50,7 +50,7 @@ struct CommunityEventCard: View {
             // Bottom pill with event info
             HStack(spacing: 12) {
                 // Host avatar
-                CachedAsyncImage(url: URL(string: event.author?.avatarUrl ?? "")) { phase in
+                CachedAsyncImage(url: URL(string: event.author?.avatarUrl ?? ""), targetSize: CGSize(width: 40, height: 40)) { phase in
                     switch phase {
                     case .empty:
                         Circle()

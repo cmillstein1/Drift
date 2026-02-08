@@ -717,6 +717,13 @@ public class MessagingManager: ObservableObject {
         isSubscribingToConversations = true
         defer { isSubscribingToConversations = false }
 
+        do {
+            let accessToken = try await client.auth.session.accessToken
+            await client.realtimeV2.setAuth(accessToken)
+        } catch {
+            print("[Conversations] Could not set realtime auth: \(error)")
+        }
+
         let channel = client.realtimeV2.channel("conversations:\(userId)")
         conversationsChannel = channel
 
