@@ -33,7 +33,7 @@ public class MessagingManager: ObservableObject {
 
     /// Local participant state we just set (hide/unhide/leave). Preserved across refetches for a short window so the list doesn't flip back.
     private var recentParticipantState: [UUID: (hiddenAt: Date?, leftAt: Date?, at: Date)] = [:]
-    private let recentParticipantStateWindow: TimeInterval = 5
+    private let recentParticipantStateWindow: TimeInterval = 30
 
     private var client: SupabaseClient {
         SupabaseManager.shared.client
@@ -493,6 +493,34 @@ public class MessagingManager: ObservableObject {
             .execute()
         let now = Date()
         updateParticipantFlag(conversationId: conversationId, userId: userId) { $0.hiddenAt = nil }
+        recentParticipantState[conversationId] = (hiddenAt: nil, leftAt: nil, at: now)
+        updateUnreadCount(userId: userId)
+    }
+
+    /// Rejoins a conversation that was previously left or hidden, clearing both left_at and hidden_at.
+    public func rejoinConversation(_ conversationId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw MessagingError.notAuthenticated
+        }
+        struct RejoinPayload: Encodable {
+            enum CodingKeys: String, CodingKey { case left_at; case hidden_at }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encodeNil(forKey: .left_at)
+                try container.encodeNil(forKey: .hidden_at)
+            }
+        }
+        try await client
+            .from("conversation_participants")
+            .update(RejoinPayload())
+            .eq("conversation_id", value: conversationId)
+            .eq("user_id", value: userId)
+            .execute()
+        let now = Date()
+        updateParticipantFlag(conversationId: conversationId, userId: userId) {
+            $0.leftAt = nil
+            $0.hiddenAt = nil
+        }
         recentParticipantState[conversationId] = (hiddenAt: nil, leftAt: nil, at: now)
         updateUnreadCount(userId: userId)
     }

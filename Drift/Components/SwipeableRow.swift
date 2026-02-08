@@ -41,12 +41,15 @@ struct SwipeableRow<Content: View>: View {
                         .foregroundColor(.white)
                         .frame(width: buttonWidth)
                         .frame(maxHeight: .infinity)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     .background(actions[idx].tint)
                 }
             }
             .frame(width: totalReveal)
             .clipShape(RoundedRectangle(cornerRadius: 16))
+            .allowsHitTesting(isOpen)
 
             // Main content, draggable
             content
@@ -72,18 +75,6 @@ struct SwipeableRow<Content: View>: View {
                             }
                         }
                 )
-                // When swiped open, overlay an invisible tap catcher to close
-                .overlay {
-                    if isOpen {
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    offset = 0
-                                }
-                            }
-                    }
-                }
         }
     }
 }

@@ -259,11 +259,15 @@ struct MyFriendsSheet: View {
                     with: friendUserId,
                     type: .friends
                 )
+                // Auto-rejoin if the conversation was previously deleted or hidden
+                if conversation.hasLeft(for: currentUserId) || conversation.isHidden(for: currentUserId) {
+                    try await messagingManager.rejoinConversation(conversation.id)
+                }
                 try await messagingManager.fetchConversations()
                 await MainActor.run {
                     if let onSelect = onSelectConversation {
                         onSelect(conversation)
-                        dismiss()
+                        // Parent dismisses via showMyFriendsSheet = false
                     }
                 }
             } catch {
