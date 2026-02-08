@@ -111,8 +111,12 @@ struct DiscoverScreen: View {
     }
 
     /// Friends feed: only profiles looking for friends or both (client-side safeguard).
+    /// Exclude current user so we never show our own profile in the grid (e.g. from cache).
     private var friendsProfiles: [UserProfile] {
-        profileManager.discoverProfilesFriends.filter { $0.lookingFor == .friends || $0.lookingFor == .both }
+        let currentId = profileManager.currentProfile?.id
+        return profileManager.discoverProfilesFriends.filter {
+            ($0.lookingFor == .friends || $0.lookingFor == .both) && $0.id != currentId
+        }
     }
 
     /// Profiles still visible in the friends feed (not yet swiped/connected).
@@ -441,7 +445,7 @@ struct DiscoverScreen: View {
         .fullScreenCover(item: $matchedProfile) { profile in
             MatchAnimationView(
                 matchedProfile: profile,
-                currentUserAvatarUrl: profileManager.currentProfile?.avatarUrl,
+                currentUserAvatarUrl: profileManager.currentProfile?.primaryDisplayPhotoUrl,
                 onSendMessage: { messageText in
                     matchedProfile = nil
                     // Send the message if not empty

@@ -154,7 +154,7 @@ struct MessageDetailScreen: View {
                         HStack(spacing: 12) {
                             ZStack(alignment: .bottomTrailing) {
                                 // Avatar
-                                CachedAsyncImage(url: URL(string: conversation.avatarUrl ?? "")) { phase in
+                                CachedAsyncImage(url: URL(string: conversation.displayAvatarUrl ?? "")) { phase in
                                     switch phase {
                                     case .empty:
                                         Circle()

@@ -191,7 +191,7 @@ struct EventGroupChatSheet: View {
             HStack(spacing: -8) {
                 // Show up to 4 attendee avatars
                 ForEach(Array(attendees.prefix(4).enumerated()), id: \.element.id) { index, attendee in
-                    if let avatarUrl = attendee.avatarUrl, let url = URL(string: avatarUrl) {
+                    if let avatarUrl = attendee.primaryDisplayPhotoUrl, let url = URL(string: avatarUrl) {
                         CachedAsyncImage(url: url) { image in
                             image
                                 .resizable()
@@ -442,7 +442,7 @@ struct MessageBubble: View {
                 Spacer(minLength: 60)
             } else {
                 // Avatar
-                if let avatarUrl = message.author?.avatarUrl, let url = URL(string: avatarUrl) {
+                if let avatarUrl = message.author?.primaryDisplayPhotoUrl, let url = URL(string: avatarUrl) {
                     CachedAsyncImage(url: url) { image in
                         image
                             .resizable()

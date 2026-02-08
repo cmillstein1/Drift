@@ -321,7 +321,7 @@ struct BuilderScreen: View {
     // MARK: - Expert Avatar
     @ViewBuilder
     private func expertAvatar(expert: VanBuilderExpert) -> some View {
-        if let avatarUrl = expert.profile?.avatarUrl, let url = URL(string: avatarUrl) {
+        if let avatarUrl = expert.profile?.primaryDisplayPhotoUrl, let url = URL(string: avatarUrl) {
             CachedAsyncImage(url: url) { image in
                 image
                     .resizable()

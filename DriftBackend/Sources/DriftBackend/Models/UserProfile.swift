@@ -310,6 +310,29 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         }
         return String(name.prefix(2)).uppercased()
     }
+
+    // MARK: - User-uploaded photos only (Supabase storage)
+    /// Returns true if the URL is from our Supabase storage (avatars or photos bucket). Use this so we only display images users actually uploaded.
+    public static func isUserUploadedPhotoURL(_ url: String?) -> Bool {
+        guard let url = url, !url.isEmpty else { return false }
+        return url.contains("/object/public/avatars/") || url.contains("/object/public/photos/")
+    }
+
+    /// Photo URLs that are from user uploads (our storage) only. Use for display; excludes seed/external URLs.
+    public var displayPhotoUrls: [String] {
+        photos.filter { Self.isUserUploadedPhotoURL($0) }
+    }
+
+    /// Avatar URL only if it's a user upload (our storage). Nil for seed/external URLs.
+    public var displayAvatarUrl: String? {
+        guard Self.isUserUploadedPhotoURL(avatarUrl) else { return nil }
+        return avatarUrl
+    }
+
+    /// Single URL to show as the primary profile image (first uploaded photo, or uploaded avatar). Nil when no user-uploaded image — show placeholder.
+    public var primaryDisplayPhotoUrl: String? {
+        displayPhotoUrls.first ?? displayAvatarUrl
+    }
 }
 
 // MARK: - TravelStop

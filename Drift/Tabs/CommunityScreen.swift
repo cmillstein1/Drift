@@ -279,7 +279,7 @@ private struct BuilderHelpTopicCard: View {
             // Header: avatar, author, time, Solved badge
             HStack(alignment: .top) {
                 HStack(spacing: 12) {
-                    if let avatarUrl = post.author?.avatarUrl, let url = URL(string: avatarUrl) {
+                    if let avatarUrl = post.author?.primaryDisplayPhotoUrl, let url = URL(string: avatarUrl) {
                         CachedAsyncImage(url: url) { image in
                             image.resizable().aspectRatio(contentMode: .fill)
                         } placeholder: {
@@ -451,7 +451,7 @@ struct CommunityPostCard: View {
             // Post Header
             HStack(spacing: 12) {
                 // Avatar with type-specific color
-                if let avatarUrl = post.author?.avatarUrl, let url = URL(string: avatarUrl) {
+                if let avatarUrl = post.author?.primaryDisplayPhotoUrl, let url = URL(string: avatarUrl) {
                     CachedAsyncImage(url: url) { image in
                         image
                             .resizable()

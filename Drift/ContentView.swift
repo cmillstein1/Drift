@@ -159,6 +159,14 @@ struct ContentView: View {
             deepLinkRouter.pending = nil
             handleDeepLink(destination)
         }
+        .onAppear {
+            // Handle push notification deeplink when app was cold-started from notification tap
+            // (pending is set before ContentView exists, so onChange never fires)
+            if let destination = deepLinkRouter.pending {
+                deepLinkRouter.pending = nil
+                handleDeepLink(destination)
+            }
+        }
         .fullScreenCover(item: $deepLinkConversation) { conversation in
             NavigationStack {
                 MessageDetailScreen(

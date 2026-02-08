@@ -462,7 +462,7 @@ struct EventDetailSheet: View {
     private func pendingRequestRow(user: UserProfile) -> some View {
         HStack(spacing: 12) {
             // Avatar
-            if let avatarUrl = user.avatarUrl, let url = URL(string: avatarUrl) {
+            if let avatarUrl = user.primaryDisplayPhotoUrl, let url = URL(string: avatarUrl) {
                 CachedAsyncImage(url: url) { image in
                     image
                         .resizable()
@@ -981,7 +981,7 @@ struct EventDetailSheet: View {
                 ForEach(attendees, id: \.id) { attendee in
                     attendeeCard(
                         name: attendee.name ?? "Traveler",
-                        avatarUrl: attendee.avatarUrl,
+                        avatarUrl: attendee.primaryDisplayPhotoUrl,
                         isHost: attendee.id == post.authorId
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
