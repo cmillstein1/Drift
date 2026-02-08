@@ -304,6 +304,7 @@ struct EnterInviteCodeScreen: View {
     private func signOut() {
         isSigningOut = true
         Task {
+            await PushNotificationManager.shared.clearFCMToken()
             do {
                 try await supabaseManager.signOut()
             } catch {

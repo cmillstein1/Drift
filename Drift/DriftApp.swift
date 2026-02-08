@@ -254,6 +254,10 @@ struct DriftApp: App {
                             print("Failed to fetch profile: \(error)")
                         }
                     }
+                    // Re-send FCM token now that user is authenticated
+                    if let token = Messaging.messaging().fcmToken {
+                        await PushNotificationManager.shared.updateFCMToken(token)
+                    }
                 } else {
                     await revenueCatManager.logOut()
                 }

@@ -8,6 +8,7 @@
 import SwiftUI
 import DriftBackend
 import Auth
+import UserNotifications
 
 
 struct MessagesScreen: View {
@@ -585,6 +586,8 @@ struct MessagesScreen: View {
         }
         .onAppear {
             print("[Messages] MessagesScreen onAppear | isDatingEnabled: \(isDatingEnabled), selectedMode: \(selectedMode)")
+            // Clear app badge when opening Messages tab
+            UNUserNotificationCenter.current().setBadgeCount(0)
             // Default to friends if dating is not enabled
             if !isDatingEnabled {
                 selectedMode = .friends
