@@ -18,6 +18,7 @@ struct CreateCommunityPostSheet: View {
     @StateObject private var communityManager = CommunityManager.shared
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var supabaseManager = SupabaseManager.shared
+    @StateObject private var revenueCatManager = RevenueCatManager.shared
     @State private var selectedType: CommunityPostType? = .event
     @State private var title: String = ""
     @State private var details: String = ""
@@ -35,6 +36,7 @@ struct CreateCommunityPostSheet: View {
     @State private var isSubmitting: Bool = false
     @State private var selectedPhotos: [UIImage] = []
     @State private var showPhotoPicker: Bool = false
+    @State private var showPaywall: Bool = false
 
     private var isEditMode: Bool { existingPost != nil && existingPost?.type == .event }
 
@@ -93,6 +95,9 @@ struct CreateCommunityPostSheet: View {
                 latitude: $eventLatitude,
                 longitude: $eventLongitude
             )
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallScreen(isOpen: $showPaywall, source: .general)
         }
         .onAppear {
             if let restricted = restrictToPostType { selectedType = restricted }
@@ -498,7 +503,14 @@ extension CreateCommunityPostSheet {
                     iconColor: charcoal,
                     isSelected: eventPrivacy == .private,
                     accentColor: burntOrange,
-                    onTap: { eventPrivacy = .private }
+                    isProFeature: !revenueCatManager.hasProAccess,
+                    onTap: {
+                        if revenueCatManager.hasProAccess {
+                            eventPrivacy = .private
+                        } else {
+                            showPaywall = true
+                        }
+                    }
                 )
             }
 
@@ -800,9 +812,11 @@ struct PrivacyOptionButton: View {
     let iconColor: Color
     let isSelected: Bool
     let accentColor: Color
+    var isProFeature: Bool = false
     let onTap: () -> Void
 
     private let charcoal = Color("Charcoal")
+    private let burntOrange = Color("BurntOrange")
 
     var body: some View {
         Button(action: onTap) {
@@ -813,9 +827,21 @@ struct PrivacyOptionButton: View {
                     .frame(width: 24)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(charcoal)
+                    HStack(spacing: 6) {
+                        Text(title)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(charcoal)
+
+                        if isProFeature {
+                            Text("PRO")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(burntOrange)
+                                .clipShape(Capsule())
+                        }
+                    }
 
                     Text(description)
                         .font(.system(size: 12))

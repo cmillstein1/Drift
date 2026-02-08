@@ -56,7 +56,10 @@ struct ContentView: View {
     @ObservedObject private var messagingManager = MessagingManager.shared
     @ObservedObject private var appDataManager = AppDataManager.shared
     @ObservedObject private var friendsManager = FriendsManager.shared
+    @ObservedObject private var deepLinkRouter = DeepLinkRouter.shared
     @State private var selectedTab: AppTab = .discover
+    @State private var deepLinkConversation: Conversation?
+    @State private var deepLinkPost: CommunityPost?
 
     private let burntOrange = Color("BurntOrange")
     private let charcoal = Color("Charcoal")
@@ -139,7 +142,7 @@ struct ContentView: View {
             }
         }
         .onChange(of: selectedTab) { _, newTab in
-            // Tabs that don’t report scroll offset (Map, Community, Messages) should show tab bar when selected
+            // Tabs that don't report scroll offset (Map, Community, Messages) should show tab bar when selected
             switch newTab {
             case .map, .community, .messages:
                 if !tabBarVisibility.isVisible {
@@ -149,6 +152,83 @@ struct ContentView: View {
                 }
             case .discover, .profile:
                 break
+            }
+        }
+        .onChange(of: deepLinkRouter.pending) { _, destination in
+            guard let destination else { return }
+            deepLinkRouter.pending = nil
+            handleDeepLink(destination)
+        }
+        .fullScreenCover(item: $deepLinkConversation) { conversation in
+            NavigationStack {
+                MessageDetailScreen(
+                    conversation: conversation,
+                    onClose: { deepLinkConversation = nil }
+                )
+            }
+        }
+        .sheet(item: $deepLinkPost) { post in
+            if post.type == .event {
+                EventDetailSheet(initialPost: post)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.hidden)
+            } else {
+                CommunityPostDetailSheet(initialPost: post)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+        }
+    }
+
+    private func handleDeepLink(_ destination: DeepLinkRouter.Destination) {
+        switch destination {
+        case .conversation(let id):
+            selectedTab = .messages
+            if let conversation = messagingManager.conversations.first(where: { $0.id == id }) {
+                deepLinkConversation = conversation
+            } else {
+                Task {
+                    try? await messagingManager.fetchConversations()
+                    if let conversation = messagingManager.conversations.first(where: { $0.id == id }) {
+                        deepLinkConversation = conversation
+                    }
+                }
+            }
+
+        case .matchedUser(let userId):
+            selectedTab = .messages
+            Task {
+                do {
+                    let conversation = try await MessagingManager.shared.fetchOrCreateConversation(
+                        with: userId,
+                        type: .dating
+                    )
+                    deepLinkConversation = conversation
+                } catch {
+                    print("[DeepLink] Failed to open match conversation: \(error)")
+                }
+            }
+
+        case .eventPost(let id):
+            selectedTab = .community
+            Task {
+                do {
+                    let post = try await CommunityManager.shared.fetchPost(by: id)
+                    deepLinkPost = post
+                } catch {
+                    print("[DeepLink] Failed to fetch event post: \(error)")
+                }
+            }
+
+        case .communityPost(let id):
+            selectedTab = .community
+            Task {
+                do {
+                    let post = try await CommunityManager.shared.fetchPost(by: id)
+                    deepLinkPost = post
+                } catch {
+                    print("[DeepLink] Failed to fetch community post: \(error)")
+                }
             }
         }
     }

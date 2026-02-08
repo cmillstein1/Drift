@@ -13,7 +13,7 @@ struct SplashScreen: View {
             // Background color matching the app's design (fallback)
             Color(red: 0.98, green: 0.98, blue: 0.96)
                 .ignoresSafeArea()
-            
+
             // Splash image - fills entire screen
             Image("Drift_Splash")
                 .resizable()
@@ -21,6 +21,12 @@ struct SplashScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
                 .ignoresSafeArea(.all)
+
+            VStack {
+                Spacer()
+                VanProgressView(size: 60)
+                    .padding(.bottom, 50)
+            }
         }
     }
 }

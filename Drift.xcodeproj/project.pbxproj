@@ -18,6 +18,7 @@
 		166425072F2696EA00A5AD47 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 166425062F2696EA00A5AD47 /* FirebaseStorage */; };
 		16B755252F196AD80012C1F4 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 16B755242F196AD80012C1F4 /* RevenueCat */; };
 		16B755272F196AD80012C1F4 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 16B755262F196AD80012C1F4 /* RevenueCatUI */; };
+		264384492F38728100A52FE5 /* SwiftUIIntrospect in Frameworks */ = {isa = PBXBuildFile; productRef = AABB00022F480002AABB0002 /* SwiftUIIntrospect */; };
 		26E9DBC02F1C91820057D9BE /* DriftBackend in Frameworks */ = {isa = PBXBuildFile; productRef = 26E9DBBF2F1C91820057D9BE /* DriftBackend */; };
 /* End PBXBuildFile section */
 
@@ -82,6 +83,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				264384492F38728100A52FE5 /* SwiftUIIntrospect in Frameworks */,
 				166425052F2696EA00A5AD47 /* FirebaseRemoteConfig in Frameworks */,
 				166425012F2696EA00A5AD47 /* FirebaseMessaging in Frameworks */,
 				16B755252F196AD80012C1F4 /* RevenueCat in Frameworks */,
@@ -166,6 +168,7 @@
 				166425022F2696EA00A5AD47 /* FirebasePerformance */,
 				166425042F2696EA00A5AD47 /* FirebaseRemoteConfig */,
 				166425062F2696EA00A5AD47 /* FirebaseStorage */,
+				AABB00022F480002AABB0002 /* SwiftUIIntrospect */,
 			);
 			productName = Drift;
 			productReference = 16B754EC2F1961350012C1F4 /* Drift.app */;
@@ -253,6 +256,7 @@
 				16B755232F196AD80012C1F4 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 				26E9DBBE2F1C91820057D9BE /* XCLocalSwiftPackageReference "DriftBackend" */,
 				166424F52F2696EA00A5AD47 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				AABB00012F480001AABB0001 /* XCRemoteSwiftPackageReference "swiftui-introspect" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 16B754ED2F1961350012C1F4 /* Products */;
@@ -682,6 +686,14 @@
 				minimumVersion = 5.54.1;
 			};
 		};
+		AABB00012F480001AABB0001 /* XCRemoteSwiftPackageReference "swiftui-introspect" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/siteline/swiftui-introspect";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -743,6 +755,11 @@
 		26E9DBBF2F1C91820057D9BE /* DriftBackend */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DriftBackend;
+		};
+		AABB00022F480002AABB0002 /* SwiftUIIntrospect */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AABB00012F480001AABB0001 /* XCRemoteSwiftPackageReference "swiftui-introspect" */;
+			productName = SwiftUIIntrospect;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

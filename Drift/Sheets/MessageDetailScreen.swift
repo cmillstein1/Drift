@@ -355,7 +355,7 @@ struct MessageDetailScreen: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .background(Color.white)
+                .background(Color.white.ignoresSafeArea(edges: .bottom))
             }
         }
         .onAppear {

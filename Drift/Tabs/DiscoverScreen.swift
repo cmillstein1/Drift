@@ -655,8 +655,7 @@ struct DiscoverScreen: View {
         if isInitialLoading && visibleDatingProfiles.isEmpty {
             ZStack {
                 softGray.ignoresSafeArea()
-                ProgressView()
-                    .tint(Color.gray.opacity(0.5))
+                VanProgressView(size: 50)
             }
         } else if visibleDatingProfiles.isEmpty {
             ZStack {
@@ -691,6 +690,11 @@ struct DiscoverScreen: View {
             distanceMiles: distanceMiles(for:),
             sharedInterests: sharedInterestsForGrid,
             isLoading: isInitialLoading,
+            spinnerTopOffset: 100,
+            onRefresh: {
+                try? await communityManager.fetchPosts(type: .event)
+                preloadFriendsProfiles()
+            },
             onSelectProfile: { selectedFriendProfile = $0 },
             onSelectEvent: { selectedEvent = $0 },
             onConnect: { handleConnect(profileId: $0) }
@@ -733,8 +737,7 @@ struct DiscoverScreen: View {
             if isInitialLoading && visibleDatingProfiles.isEmpty {
                 ZStack {
                     Color.black.ignoresSafeArea()
-                    ProgressView()
-                        .tint(Color.white.opacity(0.4))
+                    VanProgressView(size: 50)
                 }
             } else if visibleDatingProfiles.isEmpty {
                 ZStack {
@@ -1213,6 +1216,10 @@ struct DiscoverScreen: View {
                 sharedInterests: sharedInterestsForGrid,
                 topSpacing: 60, // Smaller top spacing since no mode switcher in friends-only mode
                 isLoading: isInitialLoading,
+                onRefresh: {
+                    try? await communityManager.fetchPosts(type: .event)
+                    preloadFriendsProfiles()
+                },
                 onSelectProfile: { selectedFriendProfile = $0 },
                 onSelectEvent: { selectedEvent = $0 },
                 onConnect: { handleConnect(profileId: $0) }
