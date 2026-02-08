@@ -227,8 +227,13 @@ struct DiscoverFullScreenProfileView: View {
             get: { zoomedPhotoIndex != nil },
             set: { if !$0 { zoomedPhotoIndex = nil } }
         )) {
-            if let idx = zoomedPhotoIndex, idx < photos.count, let url = URL(string: photos[idx]) {
-                DiscoverZoomablePhotoView(imageURL: url, onDismiss: { zoomedPhotoIndex = nil })
+            let photoURLs = photos.compactMap { URL(string: $0) }
+            if !photoURLs.isEmpty {
+                DiscoverZoomablePhotoView(
+                    imageURLs: photoURLs,
+                    initialIndex: min(zoomedPhotoIndex ?? 0, photoURLs.count - 1),
+                    onDismiss: { zoomedPhotoIndex = nil }
+                )
             } else {
                 Color.clear
             }

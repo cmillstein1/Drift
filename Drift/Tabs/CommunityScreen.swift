@@ -97,16 +97,36 @@ struct CommunityScreen: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
                 .background(
-                    RoundedRectangle(cornerRadius: 24)
+                    RoundedRectangle(cornerRadius: 16)
                         .fill(Color.gray.opacity(0.05))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 24)
+                            RoundedRectangle(cornerRadius: 16)
                                 .stroke(searchQuery.isEmpty ? Color.gray.opacity(0.2) : burntOrange, lineWidth: 2)
                         )
                 )
                 .padding(.horizontal, 16)
                 .padding(.top, 4)
                 .padding(.bottom, 8)
+
+                // Category pills
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        categoryPill(label: "All", isSelected: selectedBuilderHelpCategory == nil) {
+                            selectedBuilderHelpCategory = nil
+                        }
+                        ForEach(HelpCategory.allCases, id: \.self) { category in
+                            categoryPill(
+                                label: category == .other ? "General" : category.displayName,
+                                isSelected: selectedBuilderHelpCategory == category
+                            ) {
+                                selectedBuilderHelpCategory = selectedBuilderHelpCategory == category ? nil : category
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 2)
+                }
+                .padding(.bottom, 12)
 
                 // Builder Help content only
                 builderHelpContent
@@ -139,6 +159,24 @@ struct CommunityScreen: View {
         }
     }
 
+    @ViewBuilder
+    private func categoryPill(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(isSelected ? .white : charcoal)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(isSelected ? burntOrange : Color.white)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(isSelected ? Color.clear : Color.gray.opacity(0.2), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
     /// Help posts for Builder Help section, optionally filtered by category and search
     private var helpPosts: [CommunityPost] {
         var result = communityManager.posts.filter { $0.type == .help }
@@ -157,36 +195,6 @@ struct CommunityScreen: View {
     private var builderHelpContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Filter by category
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Filter by category")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundColor(charcoal)
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        BuilderHelpCategoryButton(
-                            name: "Electrical",
-                            icon: "bolt.fill",
-                            assetImageName: "electrical",
-                            color: burntOrange,
-                            isSelected: selectedBuilderHelpCategory == .electrical
-                        ) { selectedBuilderHelpCategory = selectedBuilderHelpCategory == .electrical ? nil : .electrical }
-                        BuilderHelpCategoryButton(
-                            name: "Plumbing",
-                            icon: "drop.fill",
-                            assetImageName: "plumbing",
-                            color: Color("SkyBlue"),
-                            isSelected: selectedBuilderHelpCategory == .plumbing
-                        ) { selectedBuilderHelpCategory = selectedBuilderHelpCategory == .plumbing ? nil : .plumbing }
-                        BuilderHelpCategoryButton(
-                            name: "General",
-                            icon: "wrench.and.screwdriver.fill",
-                            assetImageName: "general",
-                            color: Color("ForestGreen"),
-                            isSelected: selectedBuilderHelpCategory == .other
-                        ) { selectedBuilderHelpCategory = selectedBuilderHelpCategory == .other ? nil : .other }
-                    }
-                }
-
                 // Recent Help Topics + Ask Question
                 HStack {
                     Text("Recent Help Topics")
@@ -246,45 +254,6 @@ struct CommunityScreen: View {
                 print("[CommunityScreen] Builder Help refresh failed: \(error)")
             }
         }
-    }
-}
-
-// MARK: - Builder Help Category Button
-
-private struct BuilderHelpCategoryButton: View {
-    let name: String
-    let icon: String
-    var assetImageName: String? = nil
-    let color: Color
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                if let asset = assetImageName {
-                    Image(asset)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 32, height: 32)
-                } else {
-                    Image(systemName: icon)
-                        .font(.system(size: 24))
-                        .foregroundColor(color)
-                }
-                Text(name)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(Color("Charcoal"))
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .padding(.horizontal, 8)
-            .background(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
-        }
-        .buttonStyle(.plain)
     }
 }
 
