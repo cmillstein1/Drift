@@ -41,21 +41,6 @@ struct MessagesScreen: View {
         friendsManager.friends
     }
 
-    // Friends who don't have a conversation yet — match by participant user IDs so we
-    // don't show "Tap to start chatting" when a conversation exists but otherUser (profile) is nil.
-    private var friendsWithoutConversation: [Friend] {
-        guard let currentUserId = supabaseManager.currentUser?.id else { return [] }
-        let conversationOtherUserIds = Set(
-            visibleConversations.compactMap { conv in
-                conv.participants?.first(where: { $0.userId != currentUserId })?.userId
-            }
-        )
-        return acceptedFriends.filter { friend in
-            let friendUserId = friend.requesterId == currentUserId ? friend.addresseeId : friend.requesterId
-            return !conversationOtherUserIds.contains(friendUserId)
-        }
-    }
-
     /// Loads conversation list only. Realtime subscription is done once in onAppear Task to avoid double-subscribe and "postgresChange after join".
     private func loadConversations() {
         print("[Messages] loadConversations() called")
@@ -139,6 +124,10 @@ struct MessagesScreen: View {
                     with: friendUserId,
                     type: .friends
                 )
+                // Auto-rejoin if the conversation was previously deleted or hidden
+                if conversation.hasLeft(for: currentUserId) || conversation.isHidden(for: currentUserId) {
+                    try await messagingManager.rejoinConversation(conversation.id)
+                }
                 // Refresh conversations list first
                 try await messagingManager.fetchConversations()
                 // Then open the conversation
@@ -362,29 +351,6 @@ struct MessagesScreen: View {
                         .padding(.bottom, 24)
                     }
 
-                    // Friends without conversation — only show when there are visible messages (otherwise we show empty state)
-                    if !visibleConversations.isEmpty && selectedMode == .friends && !friendsWithoutConversation.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Friends")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(charcoalColor)
-                                .padding(.horizontal, 16)
-
-                            VStack(spacing: 8) {
-                                ForEach(friendsWithoutConversation) { friend in
-                                    FriendRow(
-                                        friend: friend,
-                                        currentUserId: supabaseManager.currentUser?.id
-                                    ) {
-                                        startConversationWithFriend(friend)
-                                    }
-                                    .padding(.horizontal, 16)
-                                }
-                            }
-                        }
-                        .padding(.bottom, 24)
-                    }
-
                     // Main list: visible conversations (List with fixed height so it lays out inside ScrollView; swipe to Hide/Delete)
                     if !visibleConversations.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
@@ -461,7 +427,8 @@ struct MessagesScreen: View {
                                 tabBarVisibility.discoverStartInFriendsMode = (selectedMode == .friends)
                             }
                         )
-                        .frame(minHeight: UIScreen.main.bounds.height - 320)
+                        // Shrink empty state when hidden conversations exist so the Hidden section is visible
+                        .frame(minHeight: hiddenConversations.isEmpty ? UIScreen.main.bounds.height - 320 : 200)
                         .padding(.bottom, hiddenConversations.isEmpty ? 100 : 16)
                     }
 
@@ -619,8 +586,12 @@ struct MessagesScreen: View {
         }
         .sheet(isPresented: $showMyFriendsSheet, onDismiss: {
             if let conv = pendingConversationToOpen {
-                selectedConversation = conv
                 pendingConversationToOpen = nil
+                // Delay navigation push until sheet dismiss animation completes;
+                // SwiftUI drops navigationDestination pushes during sheet transitions.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    selectedConversation = conv
+                }
             }
         }) {
             MyFriendsSheet(onSelectConversation: { conversation in
@@ -642,6 +613,7 @@ struct MessagesScreen: View {
             }
             .onDisappear {
                 tabBarVisibility.isVisible = true
+                loadConversations()
             }
         }
         .fullScreenCover(item: $selectedProfileToView) { profile in
