@@ -265,7 +265,7 @@ struct NotificationsSettingsSheet: View {
                             )
                         }
                         .padding(.horizontal, 24)
-                        .padding(.bottom, 16)
+                        .padding(.bottom, 32)
                     }
 
 //                        // FCM token for testing in Firebase Console
