@@ -29,6 +29,8 @@ struct ExpertCategory: Identifiable {
 struct BuilderHelpScreen: View {
     @Environment(\.dismiss) var dismiss
     
+    @State private var searchQuery: String = ""
+
     @State private var experts: [Expert] = [
         Expert(
             id: 1,
@@ -77,7 +79,15 @@ struct BuilderHelpScreen: View {
     private let forestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
     private let desertSand = Color(red: 0.96, green: 0.87, blue: 0.73)
     private let skyBlue = Color(red: 0.53, green: 0.81, blue: 0.92)
-    
+
+    private var filteredExperts: [Expert] {
+        if searchQuery.isEmpty { return experts }
+        return experts.filter {
+            $0.name.localizedCaseInsensitiveContains(searchQuery) ||
+            $0.specialty.localizedCaseInsensitiveContains(searchQuery)
+        }
+    }
+
     var body: some View {
         ZStack {
             softGray
@@ -120,7 +130,29 @@ struct BuilderHelpScreen: View {
                         .foregroundColor(Color.gray.opacity(0.2)),
                     alignment: .bottom
                 )
-                
+
+                // Search bar
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 16))
+                        .foregroundColor(charcoalColor.opacity(0.4))
+                    TextField("Search experts...", text: $searchQuery)
+                        .font(.system(size: 16))
+                        .foregroundColor(charcoalColor)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 24)
+                        .fill(Color.gray.opacity(0.05))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24)
+                                .stroke(searchQuery.isEmpty ? Color.gray.opacity(0.2) : burntOrange, lineWidth: 2)
+                        )
+                )
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+
                 // Content
                 ScrollView {
                     VStack(spacing: 24) {
@@ -200,7 +232,7 @@ struct BuilderHelpScreen: View {
                                 .font(.system(size: 18, weight: .bold))
                                 .foregroundColor(charcoalColor)
                             
-                            ForEach(experts) { expert in
+                            ForEach(filteredExperts) { expert in
                                 ExpertCard(expert: expert)
                             }
                         }

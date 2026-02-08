@@ -61,11 +61,21 @@ struct CommunityGridView: View {
     private var eventsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Section header
-            Text("Upcoming Events")
-                .font(.campfire(.regular, size: 20))
-                .foregroundColor(charcoalColor)
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
+            HStack {
+                Text("Upcoming Events")
+                    .font(.campfire(.regular, size: 20))
+                    .foregroundColor(charcoalColor)
+                Spacer()
+                if !events.isEmpty {
+                    NavigationLink(destination: AllEventsSheet(events: events)) {
+                        Text("See All")
+                            .font(.system(size: 14))
+                            .foregroundColor(Color("BurntOrange"))
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
 
             if events.isEmpty {
                 // Empty state placeholder

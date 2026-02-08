@@ -18,7 +18,7 @@ struct FriendCardImage: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             // Profile Image
-            CachedAsyncImage(url: URL(string: imageUrl)) { image in
+            CachedAsyncImage(url: URL(string: imageUrl), targetSize: CGSize(width: 96, height: 96)) { image in
                 image
                     .resizable()
                     .aspectRatio(contentMode: .fill)

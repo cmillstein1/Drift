@@ -280,7 +280,7 @@ struct MessageDetailScreen: View {
                             }
                         }
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 16)
+                        .padding(.bottom, 60)
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .simultaneousGesture(

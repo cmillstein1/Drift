@@ -33,6 +33,10 @@ public class FriendsManager: ObservableObject {
         dailyLikeCount >= dailyLikeLimit
     }
 
+    /// Guards against duplicate concurrent fetches from rapid tab switches.
+    private var isFetchingFriends = false
+    private var isFetchingPendingRequests = false
+
     private var friendsChannel: RealtimeChannelV2?
     private var matchesChannel: RealtimeChannelV2?
     private var swipesChannel: RealtimeChannelV2?
@@ -85,10 +89,12 @@ public class FriendsManager: ObservableObject {
 
     /// Fetches accepted friends for the current user.
     public func fetchFriends() async throws {
+        guard !isFetchingFriends else { return }
         guard let userId = SupabaseManager.shared.currentUser?.id else {
             throw FriendsError.notAuthenticated
         }
 
+        isFetchingFriends = true
         isLoading = true
         errorMessage = nil
 
@@ -103,8 +109,10 @@ public class FriendsManager: ObservableObject {
 
             self.friends = friends
             isLoading = false
+            isFetchingFriends = false
         } catch {
             isLoading = false
+            isFetchingFriends = false
             if isURLCancelled(error) { return }
             errorMessage = error.localizedDescription
             throw error
@@ -114,10 +122,12 @@ public class FriendsManager: ObservableObject {
     /// Fetches pending incoming friend requests.
     /// - Parameter silent: When true, does not set `isLoading` (e.g. for realtime background refresh).
     public func fetchPendingRequests(silent: Bool = false) async throws {
+        guard !isFetchingPendingRequests else { return }
         guard let userId = SupabaseManager.shared.currentUser?.id else {
             throw FriendsError.notAuthenticated
         }
 
+        isFetchingPendingRequests = true
         if !silent {
             isLoading = true
             errorMessage = nil
@@ -134,8 +144,10 @@ public class FriendsManager: ObservableObject {
 
             self.pendingRequests = requests
             if !silent { isLoading = false }
+            isFetchingPendingRequests = false
         } catch {
             if !silent { isLoading = false }
+            isFetchingPendingRequests = false
             if isURLCancelled(error) { return }
             errorMessage = error.localizedDescription
             throw error
@@ -660,6 +672,13 @@ public class FriendsManager: ObservableObject {
         guard let userId = SupabaseManager.shared.currentUser?.id else { return }
         if friendsChannel != nil { return }
 
+        do {
+            let accessToken = try await client.auth.session.accessToken
+            await client.realtimeV2.setAuth(accessToken)
+        } catch {
+            print("[FriendRequests] Could not set realtime auth: \(error)")
+        }
+
         let channel = client.realtimeV2.channel("friends:\(userId)")
         friendsChannel = channel
 
@@ -700,6 +719,13 @@ public class FriendsManager: ObservableObject {
         guard let userId = SupabaseManager.shared.currentUser?.id else { return }
         if matchesChannel != nil { return }
 
+        do {
+            let accessToken = try await client.auth.session.accessToken
+            await client.realtimeV2.setAuth(accessToken)
+        } catch {
+            print("[Matches] Could not set realtime auth: \(error)")
+        }
+
         let channel = client.realtimeV2.channel("matches:\(userId)")
         matchesChannel = channel
 
@@ -723,6 +749,13 @@ public class FriendsManager: ObservableObject {
     public func subscribeToSwipes() async {
         guard let userId = SupabaseManager.shared.currentUser?.id else { return }
         if swipesChannel != nil { return }
+
+        do {
+            let accessToken = try await client.auth.session.accessToken
+            await client.realtimeV2.setAuth(accessToken)
+        } catch {
+            print("[Swipes] Could not set realtime auth: \(error)")
+        }
 
         let channel = client.realtimeV2.channel("swipes:\(userId)")
         swipesChannel = channel

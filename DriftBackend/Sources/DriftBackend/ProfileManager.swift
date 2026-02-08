@@ -22,6 +22,9 @@ public class ProfileManager: ObservableObject {
     /// The last error message, if any.
     @Published public var errorMessage: String?
 
+    /// Guards against duplicate concurrent discover profile fetches from rapid tab switches.
+    private var isFetchingDiscover = false
+
     /// In-memory profile cache with timestamps for TTL expiration.
     private var profileCache: [UUID: (profile: UserProfile, fetchedAt: Date)] = [:]
     /// Profiles are considered fresh for 60 seconds.
@@ -228,10 +231,12 @@ public class ProfileManager: ObservableObject {
         currentUserLat: Double? = nil,
         currentUserLon: Double? = nil
     ) async throws {
+        guard !isFetchingDiscover else { return }
         guard let userId = SupabaseManager.shared.currentUser?.id else {
             throw ProfileError.notAuthenticated
         }
 
+        isFetchingDiscover = true
         isLoading = true
         errorMessage = nil
 
@@ -315,8 +320,10 @@ public class ProfileManager: ObservableObject {
                 saveToDisk(profiles, key: "discover_friends_profiles")
             }
             isLoading = false
+            isFetchingDiscover = false
         } catch {
             isLoading = false
+            isFetchingDiscover = false
             errorMessage = error.localizedDescription
             throw error
         }
