@@ -54,10 +54,10 @@ struct AllEventsSheet: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .background(
-                        RoundedRectangle(cornerRadius: 24)
+                        RoundedRectangle(cornerRadius: 16)
                             .fill(Color.gray.opacity(0.05))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 24)
+                                RoundedRectangle(cornerRadius: 16)
                                     .stroke(searchQuery.isEmpty ? Color.gray.opacity(0.2) : burntOrange, lineWidth: 2)
                             )
                     )
@@ -83,6 +83,7 @@ struct AllEventsSheet: View {
                                 }
                             }
                         }
+                        .padding(.vertical, 2)
                     }
                 }
                 .padding(.horizontal, 16)

@@ -278,20 +278,23 @@ struct MessagesScreen: View {
                     
                     // Search bar — hidden in empty state to match dating Discover empty layout
                     if !visibleConversations.isEmpty {
-                        HStack(spacing: 12) {
+                        HStack {
                             Image(systemName: "magnifyingglass")
-                                .font(.system(size: 18))
+                                .font(.system(size: 16))
                                 .foregroundColor(charcoalColor.opacity(0.4))
-
                             TextField("Search messages", text: $searchText)
                                 .font(.system(size: 16))
                                 .foregroundColor(charcoalColor)
                         }
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 16)
+                        .padding(.vertical, 12)
                         .background(
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.white)
+                                .fill(Color.gray.opacity(0.05))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(searchText.isEmpty ? Color.gray.opacity(0.2) : Color("BurntOrange"), lineWidth: 2)
+                                )
                         )
                         .padding(.horizontal, 16)
                         .padding(.bottom, 16)

@@ -131,7 +131,12 @@ public class CommunityManager: ObservableObject {
                 }
             }
 
-            self.posts = posts
+            if let type = type {
+                // Replace only posts of the requested type, keep others
+                self.posts = self.posts.filter { $0.type != type } + posts
+            } else {
+                self.posts = posts
+            }
             isLoading = false
         } catch {
             isLoading = false
