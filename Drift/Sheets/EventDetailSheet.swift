@@ -241,43 +241,73 @@ struct EventDetailSheet: View {
 
     // MARK: - Hero Image Section
 
+    private let heroHeight: CGFloat = 280
+
     private var heroImageSection: some View {
-        ZStack(alignment: .top) {
-            // Hero Image
-            heroImage
-                .frame(height: 280)
-                .clipped()
+        GeometryReader { geo in
+            let minY = geo.frame(in: .scrollView).minY
+            let isOverscrolling = minY > 0
+            let stretchHeight = isOverscrolling ? heroHeight + minY : heroHeight
+            let offsetY = isOverscrolling ? -minY : 0
 
-            // Gradient overlay
-            LinearGradient(
-                gradient: Gradient(colors: [.black.opacity(0.2), .black.opacity(0.6)]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 280)
+            ZStack(alignment: .top) {
+                // Hero Image — stretches when overscrolling
+                heroImage
+                    .frame(width: geo.size.width, height: stretchHeight)
+                    .clipped()
 
-            // Top controls
-            HStack {
-                // Close button
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(charcoal)
-                        .frame(width: 40, height: 40)
-                        .background(.white.opacity(0.9))
-                        .clipShape(Circle())
-                }
+                // Gradient overlay
+                LinearGradient(
+                    gradient: Gradient(colors: [.black.opacity(0.2), .black.opacity(0.6)]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(width: geo.size.width, height: stretchHeight)
 
-                Spacer()
-
-                // Share button (only when event is public or current user is host)
-                if canShowShareEventButton {
+                // Top controls
+                HStack {
                     Button {
-                        shareEvent()
+                        dismiss()
                     } label: {
-                        Image(systemName: "square.and.arrow.up")
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(charcoal)
+                            .frame(width: 40, height: 40)
+                            .background(.white.opacity(0.9))
+                            .clipShape(Circle())
+                    }
+
+                    Spacer()
+
+                    if canShowShareEventButton {
+                        Button {
+                            shareEvent()
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(charcoal)
+                                .frame(width: 40, height: 40)
+                                .background(.white.opacity(0.9))
+                                .clipShape(Circle())
+                        }
+                    }
+
+                    Menu {
+                        Button {
+                            showReportSheet = true
+                        } label: {
+                            Label("Report", systemImage: "flag")
+                        }
+
+                        if isCurrentUserHost {
+                            Button(role: .destructive) {
+                                showDeleteConfirm = true
+                            } label: {
+                                Label("Delete Event", systemImage: "trash")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(charcoal)
                             .frame(width: 40, height: 40)
@@ -285,57 +315,35 @@ struct EventDetailSheet: View {
                             .clipShape(Circle())
                     }
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
 
-                // 3-dot menu
-                Menu {
-                    Button {
-                        showReportSheet = true
-                    } label: {
-                        Label("Report", systemImage: "flag")
-                    }
+                // Title overlay at bottom
+                VStack(alignment: .leading, spacing: 4) {
+                    Spacer()
 
-                    if isCurrentUserHost {
-                        Button(role: .destructive) {
-                            showDeleteConfirm = true
-                        } label: {
-                            Label("Delete Event", systemImage: "trash")
-                        }
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(charcoal)
-                        .frame(width: 40, height: 40)
-                        .background(.white.opacity(0.9))
-                        .clipShape(Circle())
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
-
-            // Title overlay at bottom
-            VStack(alignment: .leading, spacing: 4) {
-                Spacer()
-
-                Text(post.title)
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(.white)
-                    .lineLimit(2)
-
-                HStack(spacing: 4) {
-                    Text("Hosted by")
-                        .foregroundColor(.white.opacity(0.8))
-                    Text(post.author?.name ?? "Anonymous")
-                        .fontWeight(.semibold)
+                    Text(post.title)
+                        .font(.system(size: 28, weight: .bold))
                         .foregroundColor(.white)
+                        .lineLimit(2)
+
+                    HStack(spacing: 4) {
+                        Text("Hosted by")
+                            .foregroundColor(.white.opacity(0.8))
+                        Text(post.author?.name ?? "Anonymous")
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                    }
+                    .font(.system(size: 15))
                 }
-                .font(.system(size: 15))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
+                .frame(height: stretchHeight)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 24)
-            .padding(.bottom, 24)
-            .frame(height: 280)
+            .offset(y: offsetY)
         }
+        .frame(height: heroHeight)
     }
 
     @ViewBuilder
@@ -454,7 +462,7 @@ struct EventDetailSheet: View {
     private func pendingRequestRow(user: UserProfile) -> some View {
         HStack(spacing: 12) {
             // Avatar
-            if let avatarUrl = user.avatarUrl, let url = URL(string: avatarUrl) {
+            if let avatarUrl = user.primaryDisplayPhotoUrl, let url = URL(string: avatarUrl) {
                 CachedAsyncImage(url: url) { image in
                     image
                         .resizable()
@@ -635,7 +643,6 @@ struct EventDetailSheet: View {
                 subtitle: "2 hours"
             )
             .frame(maxWidth: .infinity)
-            .frame(height: 180)
 
             // Attendees Card
             ZStack(alignment: .topTrailing) {
@@ -692,8 +699,9 @@ struct EventDetailSheet: View {
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(charcoal.opacity(0.6))
                     }
+                    Spacer(minLength: 0)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .padding(20)
                 Circle()
                     .fill(LinearGradient(
@@ -705,12 +713,12 @@ struct EventDetailSheet: View {
                     .blur(radius: 20)
                     .offset(x: 20, y: -20)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 24))
             .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 2)
-            .frame(maxWidth: .infinity)
-            .frame(height: 180)
         }
+        .frame(height: 180)
     }
 
     private func eventInfoCard(
@@ -748,8 +756,9 @@ struct EventDetailSheet: View {
                 Text(subtitle)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(charcoal.opacity(0.6))
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .padding(20)
             Circle()
                 .fill(LinearGradient(
@@ -761,6 +770,7 @@ struct EventDetailSheet: View {
                 .blur(radius: 20)
                 .offset(x: 20, y: -20)
         }
+        .frame(maxHeight: .infinity)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 24))
         .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 2)
@@ -971,7 +981,7 @@ struct EventDetailSheet: View {
                 ForEach(attendees, id: \.id) { attendee in
                     attendeeCard(
                         name: attendee.name ?? "Traveler",
-                        avatarUrl: attendee.avatarUrl,
+                        avatarUrl: attendee.primaryDisplayPhotoUrl,
                         isHost: attendee.id == post.authorId
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)

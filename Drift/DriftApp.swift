@@ -72,6 +72,38 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         let content = response.notification.request.content
         print("[FCM] Notification tapped: \(content.title) – \(content.body)")
         #endif
+
+        // Parse notification payload and route to the relevant screen (deeplink).
+        // FCM puts custom data at top-level userInfo; also support nested userInfo["data"].
+        func string(_ key: String) -> String? {
+            (userInfo["data"] as? [String: Any])?[key] as? String
+                ?? userInfo[key] as? String
+        }
+        if let type = string("type") {
+            Task { @MainActor in
+                switch type {
+                case "message":
+                    if let idString = string("conversation_id"), let id = UUID(uuidString: idString) {
+                        DeepLinkRouter.shared.pending = .conversation(id: id)
+                    }
+                case "match":
+                    if let idString = string("matched_user_id"), let id = UUID(uuidString: idString) {
+                        DeepLinkRouter.shared.pending = .matchedUser(id: id)
+                    }
+                case "event_join", "event_chat":
+                    if let idString = string("post_id"), let id = UUID(uuidString: idString) {
+                        DeepLinkRouter.shared.pending = .eventPost(id: id)
+                    }
+                case "reply":
+                    if let idString = string("post_id"), let id = UUID(uuidString: idString) {
+                        DeepLinkRouter.shared.pending = .communityPost(id: id)
+                    }
+                default:
+                    break
+                }
+            }
+        }
+
         completionHandler()
     }
 
@@ -116,6 +148,7 @@ struct DriftApp: App {
     @StateObject private var profileManager: ProfileManager
     
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+    @State private var showSplash = true
 
     init() {
         // Initialize DriftBackend with API keys FIRST
@@ -145,38 +178,34 @@ struct DriftApp: App {
         return false
     }
 
+    /// All initial loading is done — destination view is ready to show
+    private var appIsReady: Bool {
+        if supabaseManager.isCheckingAuth { return false }
+        if !supabaseManager.isAuthenticated { return true }
+        if supabaseManager.hasRedeemedInvite == nil { return false }
+        if supabaseManager.hasRedeemedInvite == false { return true }
+        if profileManager.isLoading && profileManager.currentProfile == nil { return false }
+        return true
+    }
+
+    private func dismissSplashIfReady() {
+        guard appIsReady && showSplash else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.easeOut(duration: 0.5)) {
+                showSplash = false
+            }
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             ZStack {
-                // Show splash screen while checking auth status
-                if supabaseManager.isCheckingAuth {
-                    SplashScreen()
-                        .transition(.opacity)
-                        .zIndex(2)
-                } else if supabaseManager.isAuthenticated {
-                    // Resolve invite status first; if nil we need to check the backend
-                    if supabaseManager.hasRedeemedInvite == nil {
-                        ZStack {
-                            Color(red: 0.98, green: 0.98, blue: 0.96)
-                                .ignoresSafeArea()
-                            ProgressView()
-                        }
-                        .transition(.opacity)
-                        .task {
-                            let redeemed = await InviteManager.shared.hasUserRedeemedInvite()
-                            supabaseManager.hasRedeemedInvite = redeemed
-                        }
-                    } else if supabaseManager.hasRedeemedInvite == false {
+                // Content layer — renders destination underneath the splash overlay
+                if supabaseManager.isAuthenticated && !supabaseManager.isCheckingAuth {
+                    if supabaseManager.hasRedeemedInvite == false {
                         // User has not entered a code yet – show Enter Invite Code screen
                         EnterInviteCodeScreen()
                             .transition(.opacity)
-                    } else if profileManager.isLoading && profileManager.currentProfile == nil {
-                        // Wait for profile to load before deciding
-                        ZStack {
-                            Color(red: 0.98, green: 0.98, blue: 0.96)
-                                .ignoresSafeArea()
-                            ProgressView()
-                        }
                     } else if supabaseManager.isShowingOnboarding && UserDefaults.standard.object(forKey: "datingOnboardingStartStep") != nil {
                         // Partial dating onboarding - user switching from community to dating mode
                         OnboardingFlow {
@@ -187,7 +216,7 @@ struct DriftApp: App {
                         .transition(.opacity)
                         .zIndex(2)
                     } else if hasCompletedOnboarding {
-                        // User has completed onboarding - go straight to home (skip WelcomeSplash and onboarding)
+                        // User has completed onboarding - go straight to home
                         ContentView()
                             .transition(.asymmetric(
                                 insertion: .opacity.combined(with: .scale(scale: 0.95)),
@@ -231,15 +260,26 @@ struct DriftApp: App {
                                 supabaseManager.isShowingPreferenceSelection = true
                             }
                     }
-                } else {
+                } else if !supabaseManager.isCheckingAuth {
                     // Show sign-in screen (Apple / Google / Email)
                     WelcomeScreen()
+                }
+
+                // Splash overlay — stays on top until content is ready
+                if showSplash {
+                    SplashScreen()
+                        .transition(.opacity)
+                        .zIndex(10)
                 }
             }
             .animation(.easeInOut(duration: 0.6), value: hasCompletedOnboarding)
             .animation(.easeInOut(duration: 0.6), value: supabaseManager.isShowingOnboarding)
-            .animation(.easeInOut(duration: 0.3), value: supabaseManager.isCheckingAuth)
             .animation(.easeInOut(duration: 0.6), value: supabaseManager.hasRedeemedInvite)
+            .animation(.easeOut(duration: 0.5), value: showSplash)
+            .onChange(of: supabaseManager.isCheckingAuth) { _, _ in dismissSplashIfReady() }
+            .onChange(of: supabaseManager.hasRedeemedInvite) { _, _ in dismissSplashIfReady() }
+            .onChange(of: profileManager.isLoading) { _, _ in dismissSplashIfReady() }
+            .onChange(of: supabaseManager.isAuthenticated) { _, _ in dismissSplashIfReady() }
             .task(id: supabaseManager.isAuthenticated) {
                 if supabaseManager.isAuthenticated {
                     // Link RevenueCat to this user so subscription is recognized across devices
@@ -253,6 +293,15 @@ struct DriftApp: App {
                         } catch {
                             print("Failed to fetch profile: \(error)")
                         }
+                    }
+                    // Re-send FCM token now that user is authenticated
+                    if let token = Messaging.messaging().fcmToken {
+                        await PushNotificationManager.shared.updateFCMToken(token)
+                    }
+                    // Check invite status now that auth is ready
+                    if supabaseManager.hasRedeemedInvite == nil {
+                        let redeemed = await InviteManager.shared.hasUserRedeemedInvite()
+                        supabaseManager.hasRedeemedInvite = redeemed
                     }
                 } else {
                     await revenueCatManager.logOut()

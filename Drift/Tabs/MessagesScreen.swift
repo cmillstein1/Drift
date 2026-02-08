@@ -8,6 +8,7 @@
 import SwiftUI
 import DriftBackend
 import Auth
+import UserNotifications
 
 
 struct MessagesScreen: View {
@@ -38,21 +39,6 @@ struct MessagesScreen: View {
 
     private var acceptedFriends: [Friend] {
         friendsManager.friends
-    }
-
-    // Friends who don't have a conversation yet — match by participant user IDs so we
-    // don't show "Tap to start chatting" when a conversation exists but otherUser (profile) is nil.
-    private var friendsWithoutConversation: [Friend] {
-        guard let currentUserId = supabaseManager.currentUser?.id else { return [] }
-        let conversationOtherUserIds = Set(
-            visibleConversations.compactMap { conv in
-                conv.participants?.first(where: { $0.userId != currentUserId })?.userId
-            }
-        )
-        return acceptedFriends.filter { friend in
-            let friendUserId = friend.requesterId == currentUserId ? friend.addresseeId : friend.requesterId
-            return !conversationOtherUserIds.contains(friendUserId)
-        }
     }
 
     /// Loads conversation list only. Realtime subscription is done once in onAppear Task to avoid double-subscribe and "postgresChange after join".
@@ -138,6 +124,10 @@ struct MessagesScreen: View {
                     with: friendUserId,
                     type: .friends
                 )
+                // Auto-rejoin if the conversation was previously deleted or hidden
+                if conversation.hasLeft(for: currentUserId) || conversation.isHidden(for: currentUserId) {
+                    try await messagingManager.rejoinConversation(conversation.id)
+                }
                 // Refresh conversations list first
                 try await messagingManager.fetchConversations()
                 // Then open the conversation
@@ -218,10 +208,8 @@ struct MessagesScreen: View {
                 softGray
                     .ignoresSafeArea()
 
-                ScrollView {
                 VStack(spacing: 0) {
-                    // Dating/Friends Toggle - only show if dating is enabled
-                    // Match exact positioning from DiscoverScreen
+                    // FIXED HEADER: Dating/Friends Toggle + Search Bar
                     VStack(spacing: 0) {
                         // Mode switcher row + My Friends button (top right)
                         HStack {
@@ -274,29 +262,36 @@ struct MessagesScreen: View {
                         .padding(.horizontal, 24)
                         .padding(.top, 10)
                         .padding(.bottom, 20)
-                    }
-                    
-                    // Search bar — hidden in empty state to match dating Discover empty layout
-                    if !visibleConversations.isEmpty {
-                        HStack(spacing: 12) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 18))
-                                .foregroundColor(charcoalColor.opacity(0.4))
 
-                            TextField("Search messages", text: $searchText)
-                                .font(.system(size: 16))
-                                .foregroundColor(charcoalColor)
+                        // Search bar — hidden in empty state to match dating Discover empty layout
+                        if !visibleConversations.isEmpty {
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(charcoalColor.opacity(0.4))
+                                TextField("Search messages", text: $searchText)
+                                    .font(.system(size: 16))
+                                    .foregroundColor(charcoalColor)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color.gray.opacity(0.05))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(searchText.isEmpty ? Color.gray.opacity(0.2) : Color("BurntOrange"), lineWidth: 2)
+                                    )
+                            )
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 16)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.white)
-                        )
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 16)
                     }
+                    .background(softGray)
 
+                    // SCROLLABLE CONTENT
+                    ScrollView {
+                    VStack(spacing: 0) {
                     // "X people like you" banner (only show in dating mode)
                     if selectedMode == .dating && !friendsManager.peopleLikedMe.isEmpty {
                         LikesYouBanner(
@@ -349,29 +344,6 @@ struct MessagesScreen: View {
                                             selectedProfileToView = request.requesterProfile
                                         }
                                     )
-                                    .padding(.horizontal, 16)
-                                }
-                            }
-                        }
-                        .padding(.bottom, 24)
-                    }
-
-                    // Friends without conversation — only show when there are visible messages (otherwise we show empty state)
-                    if !visibleConversations.isEmpty && selectedMode == .friends && !friendsWithoutConversation.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Friends")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(charcoalColor)
-                                .padding(.horizontal, 16)
-
-                            VStack(spacing: 8) {
-                                ForEach(friendsWithoutConversation) { friend in
-                                    FriendRow(
-                                        friend: friend,
-                                        currentUserId: supabaseManager.currentUser?.id
-                                    ) {
-                                        startConversationWithFriend(friend)
-                                    }
                                     .padding(.horizontal, 16)
                                 }
                             }
@@ -455,7 +427,8 @@ struct MessagesScreen: View {
                                 tabBarVisibility.discoverStartInFriendsMode = (selectedMode == .friends)
                             }
                         )
-                        .frame(minHeight: UIScreen.main.bounds.height - 320)
+                        // Shrink empty state when hidden conversations exist so the Hidden section is visible
+                        .frame(minHeight: hiddenConversations.isEmpty ? UIScreen.main.bounds.height - 320 : 200)
                         .padding(.bottom, hiddenConversations.isEmpty ? 100 : 16)
                     }
 
@@ -556,8 +529,9 @@ struct MessagesScreen: View {
                         .frame(height: LayoutConstants.tabBarBottomPadding + 32)
                 }
             }
-            .refreshable {
+            .refresher(style: .system, config: RefresherConfig(holdTime: .seconds(1)), refreshView: VanRefreshView.init) {
                 await refreshData()
+            }
             }
 
             // Error banner for hide/unhide/delete failures
@@ -582,6 +556,8 @@ struct MessagesScreen: View {
         }
         .onAppear {
             print("[Messages] MessagesScreen onAppear | isDatingEnabled: \(isDatingEnabled), selectedMode: \(selectedMode)")
+            // Clear app badge when opening Messages tab
+            UNUserNotificationCenter.current().setBadgeCount(0)
             // Default to friends if dating is not enabled
             if !isDatingEnabled {
                 selectedMode = .friends
@@ -610,8 +586,12 @@ struct MessagesScreen: View {
         }
         .sheet(isPresented: $showMyFriendsSheet, onDismiss: {
             if let conv = pendingConversationToOpen {
-                selectedConversation = conv
                 pendingConversationToOpen = nil
+                // Delay navigation push until sheet dismiss animation completes;
+                // SwiftUI drops navigationDestination pushes during sheet transitions.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    selectedConversation = conv
+                }
             }
         }) {
             MyFriendsSheet(onSelectConversation: { conversation in
@@ -633,6 +613,7 @@ struct MessagesScreen: View {
             }
             .onDisappear {
                 tabBarVisibility.isVisible = true
+                loadConversations()
             }
         }
         .fullScreenCover(item: $selectedProfileToView) { profile in

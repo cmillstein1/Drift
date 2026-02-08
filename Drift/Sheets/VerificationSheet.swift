@@ -367,7 +367,7 @@ struct VerificationView: View {
         }
         
         // Get reference photo URL (use avatar or first photo)
-        guard let referenceURL = profile.avatarUrl ?? profile.photos.first, !referenceURL.isEmpty else {
+        guard let referenceURL = profile.primaryDisplayPhotoUrl, !referenceURL.isEmpty else {
             verificationResult = .failure("Please add a profile photo first")
             return
         }

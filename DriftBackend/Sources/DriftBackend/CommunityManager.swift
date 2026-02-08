@@ -18,6 +18,10 @@ public class CommunityManager: ObservableObject {
     @Published public var myPosts: [CommunityPost] = []
     /// Count of new interactions on user's posts since last viewed.
     @Published public var newInteractionCount: Int = 0
+    /// Events the current user has joined as an attendee.
+    @Published public var joinedEvents: [CommunityPost] = []
+    /// Number of joined events with unread chat messages.
+    @Published public var unreadEventChatCount: Int = 0
     /// Whether data is currently loading.
     @Published public var isLoading = false
     /// The last error message, if any.
@@ -131,7 +135,12 @@ public class CommunityManager: ObservableObject {
                 }
             }
 
-            self.posts = posts
+            if let type = type {
+                // Replace only posts of the requested type, keep others
+                self.posts = self.posts.filter { $0.type != type } + posts
+            } else {
+                self.posts = posts
+            }
             isLoading = false
         } catch {
             isLoading = false
@@ -243,6 +252,113 @@ public class CommunityManager: ObservableObject {
         let lastViewedKey = "myPostsLastViewed_\(userId.uuidString)"
         UserDefaults.standard.set(Date(), forKey: lastViewedKey)
         self.newInteractionCount = 0
+    }
+
+    // MARK: - Joined Events
+
+    /// Fetches events the current user has joined as a confirmed attendee (excludes own posts).
+    public func fetchJoinedEvents() async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+
+        // Fetch confirmed attendee records for this user
+        struct AttendeePostId: Decodable {
+            let postId: UUID
+            enum CodingKeys: String, CodingKey {
+                case postId = "post_id"
+            }
+        }
+
+        let attendeeRecords: [AttendeePostId] = try await client
+            .from("event_attendees")
+            .select("post_id")
+            .eq("user_id", value: userId)
+            .eq("status", value: "confirmed")
+            .execute()
+            .value
+
+        let postIds = attendeeRecords.map { $0.postId }
+
+        guard !postIds.isEmpty else {
+            self.joinedEvents = []
+            self.unreadEventChatCount = 0
+            return
+        }
+
+        // Fetch the actual posts, excluding user's own posts
+        var posts: [CommunityPost] = try await client
+            .from("community_posts")
+            .select("""
+                *,
+                author:profiles!author_id(*)
+            """)
+            .in("id", values: postIds.map { $0.uuidString })
+            .neq("author_id", value: userId)
+            .is("deleted_at", value: nil)
+            .order("event_datetime", ascending: true)
+            .execute()
+            .value
+
+        // Mark all as attending
+        for i in posts.indices {
+            posts[i].isAttendingEvent = true
+        }
+
+        self.joinedEvents = posts
+
+        // Calculate unread counts
+        await fetchUnreadEventChatCount()
+    }
+
+    /// Marks an event chat as read by saving the current timestamp.
+    public func markEventChatRead(_ eventId: UUID) {
+        guard let userId = SupabaseManager.shared.currentUser?.id else { return }
+        let key = "eventChatLastRead_\(userId.uuidString)_\(eventId.uuidString)"
+        UserDefaults.standard.set(Date(), forKey: key)
+    }
+
+    /// Fetches the count of joined events with unread chat messages.
+    public func fetchUnreadEventChatCount() async {
+        guard let userId = SupabaseManager.shared.currentUser?.id else { return }
+
+        var unreadCount = 0
+        for event in joinedEvents {
+            let key = "eventChatLastRead_\(userId.uuidString)_\(event.id.uuidString)"
+            let lastRead = UserDefaults.standard.object(forKey: key) as? Date ?? Date.distantPast
+
+            struct MessageCount: Decodable {
+                let count: Int
+            }
+
+            // Count messages after last-read timestamp, excluding user's own messages
+            do {
+                let messages: [EventMessage] = try await client
+                    .from("event_messages")
+                    .select("id, event_id, user_id, content, created_at")
+                    .eq("event_id", value: event.id)
+                    .neq("user_id", value: userId)
+                    .gt("created_at", value: ISO8601DateFormatter().string(from: lastRead))
+                    .execute()
+                    .value
+
+                if !messages.isEmpty {
+                    unreadCount += 1
+                }
+            } catch {
+                print("Failed to check unread for event \(event.id): \(error)")
+            }
+        }
+
+        self.unreadEventChatCount = unreadCount
+    }
+
+    /// Checks if a specific event has unread chat messages.
+    public func hasUnreadMessages(for eventId: UUID) -> Bool {
+        guard let userId = SupabaseManager.shared.currentUser?.id else { return false }
+        let key = "eventChatLastRead_\(userId.uuidString)_\(eventId.uuidString)"
+        // If we've never read, there could be unread messages
+        return UserDefaults.standard.object(forKey: key) == nil
     }
 
     /// Fetches a single post by ID with full details.
@@ -493,6 +609,7 @@ public class CommunityManager: ObservableObject {
         // Remove from local state
         posts.removeAll { $0.id == postId }
         myPosts.removeAll { $0.id == postId }
+        joinedEvents.removeAll { $0.id == postId }
     }
 
     // MARK: - Replies
@@ -1342,6 +1459,47 @@ public class CommunityManager: ObservableObject {
         eventMessagesChannel = nil
         onNewEventMessage = nil
     }
+
+    // MARK: - Event Chat Mutes
+
+    /// Check if the current user has muted an event chat.
+    public func isEventChatMuted(_ eventId: UUID) async throws -> Bool {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+        let response: [EventChatMute] = try await SupabaseManager.shared.client
+            .from("event_chat_mutes")
+            .select()
+            .eq("event_id", value: eventId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .execute()
+            .value
+        return !response.isEmpty
+    }
+
+    /// Mute an event chat for the current user.
+    public func muteEventChat(_ eventId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+        try await SupabaseManager.shared.client
+            .from("event_chat_mutes")
+            .insert(EventChatMuteRequest(eventId: eventId, userId: userId))
+            .execute()
+    }
+
+    /// Unmute an event chat for the current user.
+    public func unmuteEventChat(_ eventId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw CommunityError.notAuthenticated
+        }
+        try await SupabaseManager.shared.client
+            .from("event_chat_mutes")
+            .delete()
+            .eq("event_id", value: eventId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .execute()
+    }
 }
 
 // MARK: - Event Message Model
@@ -1384,6 +1542,32 @@ public struct EventMessage: Identifiable, Codable, Sendable {
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
         return formatter.string(from: date)
+    }
+}
+
+// MARK: - Event Chat Mute Models
+
+struct EventChatMute: Codable {
+    let id: UUID
+    let eventId: UUID
+    let userId: UUID
+    let createdAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case eventId = "event_id"
+        case userId = "user_id"
+        case createdAt = "created_at"
+    }
+}
+
+struct EventChatMuteRequest: Encodable {
+    let eventId: UUID
+    let userId: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case eventId = "event_id"
+        case userId = "user_id"
     }
 }
 

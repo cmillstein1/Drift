@@ -57,16 +57,11 @@ struct ProfileDetailView: View {
     private let forestGreen = Color("ForestGreen")
     private let desertSand = Color("DesertSand")
 
-    /// Profile photos only, deduplicated by URL (no avatar fallback mixed in; no duplicates).
+    /// User-uploaded photos only (Supabase storage).
     private var images: [String] {
-        if profile.photos.isEmpty {
-            return (profile.avatarUrl.map { [$0] } ?? []).filter { !$0.isEmpty }
-        }
-        var seen = Set<String>()
-        return profile.photos.filter { url in
-            guard !url.isEmpty else { return false }
-            return seen.insert(url).inserted
-        }
+        if !profile.displayPhotoUrls.isEmpty { return profile.displayPhotoUrls }
+        if let avatar = profile.displayAvatarUrl { return [avatar] }
+        return []
     }
 
     /// Single section divider height for even spacing (dating, friends, messages).
@@ -608,7 +603,7 @@ struct ProfileDetailView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 12) {
                 ZStack(alignment: .bottomTrailing) {
-                    if let urlString = profile.avatarUrl ?? profile.photos.first, let url = URL(string: urlString) {
+                    if let urlString = profile.primaryDisplayPhotoUrl, let url = URL(string: urlString) {
                         CachedAsyncImage(url: url) { phase in
                             if let image = phase.image {
                                 image

@@ -1,5 +1,5 @@
 {
-  "originHash" : "ac3381a261fd83f3435b61ac8a404838e02c1a62257eb1b914eac01e65f4f221",
+  "originHash" : "ab96315520f39ce7091bfe3703992804d1c84154c29c781646d7b521731c0a72",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -179,6 +179,15 @@
       "state" : {
         "revision" : "45eb0224913ea070ec4fba17291b9e7ecf4749ca",
         "version" : "1.5.1"
+      }
+    },
+    {
+      "identity" : "swiftui-introspect",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/siteline/swiftui-introspect",
+      "state" : {
+        "revision" : "807f73ce09a9b9723f12385e592b4e0aaebd3336",
+        "version" : "1.3.0"
       }
     },
     {

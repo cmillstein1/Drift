@@ -322,11 +322,10 @@ struct ActivityDetailSheet: View {
         HStack(alignment: .top, spacing: 16) {
             dateTimeCard
                 .frame(maxWidth: .infinity)
-                .frame(height: 180)
             attendeesCard
                 .frame(maxWidth: .infinity)
-                .frame(height: 180)
         }
+        .frame(height: 180)
         .padding(.horizontal, 0)
         .padding(.top, 24)
         .padding(.bottom, 24)
@@ -387,8 +386,9 @@ struct ActivityDetailSheet: View {
                     }
                 }
                 .frame(height: 8)
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .padding(20)
             Circle()
                 .fill(LinearGradient(
@@ -400,6 +400,7 @@ struct ActivityDetailSheet: View {
                 .blur(radius: 20)
                 .offset(x: 20, y: -20)
         }
+        .frame(maxHeight: .infinity)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 24))
         .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 2)
@@ -441,8 +442,9 @@ struct ActivityDetailSheet: View {
                 Text(subtitle)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(charcoalColor.opacity(0.6))
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .padding(20)
             Circle()
                 .fill(LinearGradient(
@@ -454,6 +456,7 @@ struct ActivityDetailSheet: View {
                 .blur(radius: 20)
                 .offset(x: 20, y: -20)
         }
+        .frame(maxHeight: .infinity)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 24))
         .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 2)
@@ -573,7 +576,7 @@ struct ActivityDetailSheet: View {
     private func attendeeRow(_ attendee: ActivityAttendee) -> some View {
         HStack(spacing: 12) {
             ZStack(alignment: .bottomTrailing) {
-                CachedAsyncImage(url: URL(string: attendee.profile?.avatarUrl ?? "")) { phase in
+                CachedAsyncImage(url: URL(string: attendee.profile?.primaryDisplayPhotoUrl ?? "")) { phase in
                     switch phase {
                     case .empty:
                         Circle().fill(Color.gray.opacity(0.2))

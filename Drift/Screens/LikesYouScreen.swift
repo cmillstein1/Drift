@@ -82,7 +82,7 @@ struct LikesYouScreen: View {
         .fullScreenCover(item: $matchedProfile) { matched in
             MatchAnimationView(
                 matchedProfile: matched,
-                currentUserAvatarUrl: profileManager.currentProfile?.avatarUrl,
+                currentUserAvatarUrl: profileManager.currentProfile?.primaryDisplayPhotoUrl,
                 onSendMessage: { messageText in
                     matchedProfile = nil
                     // Send the message if not empty
@@ -179,7 +179,7 @@ struct LikeYouCard: View {
             GeometryReader { geo in
                 ZStack(alignment: .bottom) {
                     // Profile image
-                    CachedAsyncImage(url: URL(string: profile.photos.first ?? profile.avatarUrl ?? "")) { phase in
+                    CachedAsyncImage(url: URL(string: profile.primaryDisplayPhotoUrl ?? "")) { phase in
                         if let image = phase.image {
                             image
                                 .resizable()

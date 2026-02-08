@@ -33,7 +33,7 @@ public class MessagingManager: ObservableObject {
 
     /// Local participant state we just set (hide/unhide/leave). Preserved across refetches for a short window so the list doesn't flip back.
     private var recentParticipantState: [UUID: (hiddenAt: Date?, leftAt: Date?, at: Date)] = [:]
-    private let recentParticipantStateWindow: TimeInterval = 5
+    private let recentParticipantStateWindow: TimeInterval = 30
 
     private var client: SupabaseClient {
         SupabaseManager.shared.client
@@ -363,8 +363,17 @@ public class MessagingManager: ObservableObject {
             conversations[index].lastMessage = newMessage
             conversations[index].updatedAt = Date()
 
+            // Update sender's lastReadAt so their own message doesn't show as unread
+            if var participants = conversations[index].participants,
+               let pIdx = participants.firstIndex(where: { $0.userId == userId }) {
+                participants[pIdx].lastReadAt = Date()
+                conversations[index].participants = participants
+            }
+
             // Re-sort conversations by updatedAt
             conversations.sort { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
+
+            updateUnreadCount(userId: userId)
         }
     }
 
@@ -488,6 +497,34 @@ public class MessagingManager: ObservableObject {
         updateUnreadCount(userId: userId)
     }
 
+    /// Rejoins a conversation that was previously left or hidden, clearing both left_at and hidden_at.
+    public func rejoinConversation(_ conversationId: UUID) async throws {
+        guard let userId = SupabaseManager.shared.currentUser?.id else {
+            throw MessagingError.notAuthenticated
+        }
+        struct RejoinPayload: Encodable {
+            enum CodingKeys: String, CodingKey { case left_at; case hidden_at }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encodeNil(forKey: .left_at)
+                try container.encodeNil(forKey: .hidden_at)
+            }
+        }
+        try await client
+            .from("conversation_participants")
+            .update(RejoinPayload())
+            .eq("conversation_id", value: conversationId)
+            .eq("user_id", value: userId)
+            .execute()
+        let now = Date()
+        updateParticipantFlag(conversationId: conversationId, userId: userId) {
+            $0.leftAt = nil
+            $0.hiddenAt = nil
+        }
+        recentParticipantState[conversationId] = (hiddenAt: nil, leftAt: nil, at: now)
+        updateUnreadCount(userId: userId)
+    }
+
     /// Leaves (deletes) a conversation for the current user. Removes from list.
     public func leaveConversation(_ conversationId: UUID) async throws {
         guard let userId = SupabaseManager.shared.currentUser?.id else {
@@ -508,12 +545,14 @@ public class MessagingManager: ObservableObject {
 
     private func updateParticipantFlag(conversationId: UUID, userId: UUID, update: (inout ConversationParticipant) -> Void) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-        var conv = conversations[idx]
-        guard var participants = conv.participants,
+        // Use explicit read → mutate → write-back so the @Published setter fires
+        // (in-place subscript mutation can use _modify accessor, bypassing objectWillChange).
+        var updated = conversations
+        guard var participants = updated[idx].participants,
               let pIdx = participants.firstIndex(where: { $0.userId == userId }) else { return }
         update(&participants[pIdx])
-        conv.participants = participants
-        conversations[idx] = conv
+        updated[idx].participants = participants
+        conversations = updated
     }
 
     /// Removes a conversation from the in-memory list after the user has left (so it doesn't reappear until next full fetch).
@@ -716,6 +755,13 @@ public class MessagingManager: ObservableObject {
         if isSubscribingToConversations { return }
         isSubscribingToConversations = true
         defer { isSubscribingToConversations = false }
+
+        do {
+            let accessToken = try await client.auth.session.accessToken
+            await client.realtimeV2.setAuth(accessToken)
+        } catch {
+            print("[Conversations] Could not set realtime auth: \(error)")
+        }
 
         let channel = client.realtimeV2.channel("conversations:\(userId)")
         conversationsChannel = channel

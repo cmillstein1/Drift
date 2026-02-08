@@ -35,6 +35,7 @@ enum PaywallSource {
     case createActivity
     case expertHelp
     case likesYou
+    case undo
     case general
 }
 

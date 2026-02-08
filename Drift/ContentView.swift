@@ -55,27 +55,36 @@ struct ContentView: View {
     @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
     @ObservedObject private var messagingManager = MessagingManager.shared
     @ObservedObject private var appDataManager = AppDataManager.shared
+    @ObservedObject private var friendsManager = FriendsManager.shared
+    @ObservedObject private var deepLinkRouter = DeepLinkRouter.shared
     @State private var selectedTab: AppTab = .discover
+    @State private var deepLinkConversation: Conversation?
+    @State private var deepLinkPost: CommunityPost?
 
     private let burntOrange = Color("BurntOrange")
     private let charcoal = Color("Charcoal")
 
     var body: some View {
+        NavigationStack {
         ZStack(alignment: .bottom) {
-            // Tab content — extend into bottom safe area so no visible bar above tab bar (Discover soft gray fills it)
-            Group {
-                switch selectedTab {
-                case .discover:
-                    DiscoverScreen()
-                case .community:
-                    CommunityScreen()
-                case .map:
-                    MapScreen()
-                case .messages:
-                    MessagesScreen()
-                case .profile:
-                    ProfileScreen()
-                }
+            // Tab content — views stay alive across tab switches (like UITabBarController).
+            // Preserves scroll positions and avoids unnecessary onAppear reloads.
+            ZStack {
+                DiscoverScreen()
+                    .opacity(selectedTab == .discover ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .discover)
+                CommunityScreen()
+                    .opacity(selectedTab == .community ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .community)
+                MapScreen()
+                    .opacity(selectedTab == .map ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .map)
+                MessagesScreen()
+                    .opacity(selectedTab == .messages ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .messages)
+                ProfileScreen()
+                    .opacity(selectedTab == .profile ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .profile)
             }
             .ignoresSafeArea(edges: .bottom)
 
@@ -85,6 +94,8 @@ struct ContentView: View {
                 .opacity(tabBarVisibility.isVisible ? 1 : 0)
                 .allowsHitTesting(tabBarVisibility.isVisible)
                 .animation(.easeInOut(duration: 0.25), value: tabBarVisibility.isVisible)
+        }
+        .toolbar(.hidden, for: .navigationBar)
         }
         .ignoresSafeArea(.keyboard)
         .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offsetY in
@@ -131,7 +142,7 @@ struct ContentView: View {
             }
         }
         .onChange(of: selectedTab) { _, newTab in
-            // Tabs that don’t report scroll offset (Map, Community, Messages) should show tab bar when selected
+            // Tabs that don't report scroll offset (Map, Community, Messages) should show tab bar when selected
             switch newTab {
             case .map, .community, .messages:
                 if !tabBarVisibility.isVisible {
@@ -141,6 +152,91 @@ struct ContentView: View {
                 }
             case .discover, .profile:
                 break
+            }
+        }
+        .onChange(of: deepLinkRouter.pending) { _, destination in
+            guard let destination else { return }
+            deepLinkRouter.pending = nil
+            handleDeepLink(destination)
+        }
+        .onAppear {
+            // Handle push notification deeplink when app was cold-started from notification tap
+            // (pending is set before ContentView exists, so onChange never fires)
+            if let destination = deepLinkRouter.pending {
+                deepLinkRouter.pending = nil
+                handleDeepLink(destination)
+            }
+        }
+        .fullScreenCover(item: $deepLinkConversation) { conversation in
+            NavigationStack {
+                MessageDetailScreen(
+                    conversation: conversation,
+                    onClose: { deepLinkConversation = nil }
+                )
+            }
+        }
+        .sheet(item: $deepLinkPost) { post in
+            if post.type == .event {
+                EventDetailSheet(initialPost: post)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.hidden)
+            } else {
+                CommunityPostDetailSheet(initialPost: post)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+        }
+    }
+
+    private func handleDeepLink(_ destination: DeepLinkRouter.Destination) {
+        switch destination {
+        case .conversation(let id):
+            selectedTab = .messages
+            if let conversation = messagingManager.conversations.first(where: { $0.id == id }) {
+                deepLinkConversation = conversation
+            } else {
+                Task {
+                    try? await messagingManager.fetchConversations()
+                    if let conversation = messagingManager.conversations.first(where: { $0.id == id }) {
+                        deepLinkConversation = conversation
+                    }
+                }
+            }
+
+        case .matchedUser(let userId):
+            selectedTab = .messages
+            Task {
+                do {
+                    let conversation = try await MessagingManager.shared.fetchOrCreateConversation(
+                        with: userId,
+                        type: .dating
+                    )
+                    deepLinkConversation = conversation
+                } catch {
+                    print("[DeepLink] Failed to open match conversation: \(error)")
+                }
+            }
+
+        case .eventPost(let id):
+            selectedTab = .community
+            Task {
+                do {
+                    let post = try await CommunityManager.shared.fetchPost(by: id)
+                    deepLinkPost = post
+                } catch {
+                    print("[DeepLink] Failed to fetch event post: \(error)")
+                }
+            }
+
+        case .communityPost(let id):
+            selectedTab = .community
+            Task {
+                do {
+                    let post = try await CommunityManager.shared.fetchPost(by: id)
+                    deepLinkPost = post
+                } catch {
+                    print("[DeepLink] Failed to fetch community post: \(error)")
+                }
             }
         }
     }
@@ -176,7 +272,7 @@ struct ContentView: View {
                                 }
                                 .foregroundColor(selectedTab == tab ? burntOrange : charcoal.opacity(0.5))
 
-                                if tab == .messages && messagingManager.unreadCount > 0 {
+                                if tab == .messages && (messagingManager.unreadCount > 0 || friendsManager.pendingRequests.count > 0) {
                                     Circle()
                                         .fill(burntOrange)
                                         .frame(width: 8, height: 8)

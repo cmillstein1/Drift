@@ -69,16 +69,11 @@ struct DiscoverFullScreenProfileView: View {
         )
     }
 
-    /// All photos (deduplicated)
+    /// User-uploaded photos only (Supabase storage)
     private var photos: [String] {
-        if profile.photos.isEmpty {
-            return (profile.avatarUrl.map { [$0] } ?? []).filter { !$0.isEmpty }
-        }
-        var seen = Set<String>()
-        return profile.photos.filter { url in
-            guard !url.isEmpty else { return false }
-            return seen.insert(url).inserted
-        }
+        if !profile.displayPhotoUrls.isEmpty { return profile.displayPhotoUrls }
+        if let avatar = profile.displayAvatarUrl { return [avatar] }
+        return []
     }
 
     var body: some View {
@@ -227,8 +222,13 @@ struct DiscoverFullScreenProfileView: View {
             get: { zoomedPhotoIndex != nil },
             set: { if !$0 { zoomedPhotoIndex = nil } }
         )) {
-            if let idx = zoomedPhotoIndex, idx < photos.count, let url = URL(string: photos[idx]) {
-                DiscoverZoomablePhotoView(imageURL: url, onDismiss: { zoomedPhotoIndex = nil })
+            let photoURLs = photos.compactMap { URL(string: $0) }
+            if !photoURLs.isEmpty {
+                DiscoverZoomablePhotoView(
+                    imageURLs: photoURLs,
+                    initialIndex: min(zoomedPhotoIndex ?? 0, photoURLs.count - 1),
+                    onDismiss: { zoomedPhotoIndex = nil }
+                )
             } else {
                 Color.clear
             }
@@ -253,31 +253,45 @@ struct DiscoverFullScreenProfileView: View {
         let currentHeight = max(totalCollapsedHeight, min(totalExpandedHeight, baseHeight - dragOffset))
 
         VStack(spacing: 0) {
-            // Drag handle with UIKit pan overlay for smooth tracking (extended hit area)
-            VStack(spacing: 0) {
-                Capsule()
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(width: 36, height: 4)
-                    .padding(.top, 8)
-                    .padding(.bottom, 8)
-                Color.clear.frame(height: 12)
-            }
-            .frame(height: 36)
-            .contentShape(Rectangle())
-            .overlay {
-                DiscoverPanGestureView(
-                    scrollState: scrollState,
-                    onChanged: { translation in
-                        dragOffset = translation
-                    },
-                    onEnded: { translation in
-                        handleDrawerDragEnd(translation, totalCollapsedHeight: totalCollapsedHeight, totalExpandedHeight: totalExpandedHeight)
-                    }
-                )
-            }
+            // Drag handle — full-width hit area with UIKit pan gesture (no buttons here)
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: 28)
+                .overlay {
+                    Capsule()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 36, height: 4)
+                }
+                .contentShape(Rectangle())
+                .overlay {
+                    DiscoverPanGestureView(
+                        scrollState: scrollState,
+                        onChanged: { translation in
+                            dragOffset = translation
+                        },
+                        onEnded: { translation in
+                            handleDrawerDragEnd(translation, totalCollapsedHeight: totalCollapsedHeight, totalExpandedHeight: totalExpandedHeight)
+                        }
+                    )
+                }
 
+            // Collapsed content (name + buttons) — SwiftUI drag gesture so buttons remain tappable
             collapsedDrawerContent
                 .padding(.horizontal, 20)
+                .padding(.bottom, 12)
+                .contentShape(Rectangle())
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 10, coordinateSpace: .local)
+                        .onChanged { value in
+                            // Only handle primarily vertical drags
+                            if abs(value.translation.height) > abs(value.translation.width) {
+                                dragOffset = value.translation.height
+                            }
+                        }
+                        .onEnded { value in
+                            handleDrawerDragEnd(value.translation.height, totalCollapsedHeight: totalCollapsedHeight, totalExpandedHeight: totalExpandedHeight)
+                        }
+                )
 
             if drawerExpanded {
                 expandedDrawerContent(
@@ -315,6 +329,7 @@ struct DiscoverFullScreenProfileView: View {
             drawerExpanded = expand
             dragOffset = 0
         }
+        scrollState.isExpanded = expand
     }
 
     // MARK: - Collapsed Drawer Content (horizontal ellipsis above buttons; name not truncated)

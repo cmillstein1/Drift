@@ -4,7 +4,22 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const cors = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
 
+function isSixDigitCode(s: string): boolean {
+  return /^\d{6}$/.test((s ?? '').trim())
+}
+
 serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      },
+    })
+  }
+
   try {
     const body = await req.json().catch(() => ({}))
     const { code, userId, validateOnly, checkUserStatus } = body
@@ -29,18 +44,54 @@ serve(async (req) => {
         return new Response(JSON.stringify({ success: false, hasRedeemed: false, error: 'Unauthorized' }), { status: 401, headers: cors })
       }
       const serviceClient = createClient(supabaseUrl, serviceKey)
-      const { data: rows } = await serviceClient
-        .from('invitations')
-        .select('id')
-        .eq('used_by', user.id)
-        .limit(1)
-      const hasRedeemed = Array.isArray(rows) && rows.length > 0
+      const invResult = await serviceClient.from('invitations').select('id').eq('used_by', user.id).limit(1)
+      let adminRedeemed = false
+      try {
+        const adminResult = await serviceClient.from('admin_invite_redemptions').select('user_id').eq('user_id', user.id).limit(1)
+        adminRedeemed = Array.isArray(adminResult.data) && adminResult.data.length > 0
+      } catch {
+        // admin_invite_redemptions may not exist yet
+      }
+      const hasRedeemed = (Array.isArray(invResult.data) && invResult.data.length > 0) || adminRedeemed
       return new Response(JSON.stringify({ success: true, hasRedeemed }), { status: 200, headers: cors })
     }
 
     // Validate/redeem mode: require code
-    if (!code) {
+    if (code === undefined || code === null) {
       return new Response(JSON.stringify({ success: false, error: 'Code required' }), { status: 400, headers: cors })
+    }
+
+    // Handle code as string or number (JSON may send numbers)
+    const rawCode = String(code).trim()
+    const normalizedCode = rawCode.toUpperCase()
+    const adminInviteCode = Deno.env.get('ADMIN_INVITE_CODE')?.trim()
+
+    // Universal admin code: 6 digits only (same format as normal invites). Multi-use for judges / Apple review / hackathon. Remove env var to disable.
+    if (adminInviteCode && isSixDigitCode(adminInviteCode) && isSixDigitCode(rawCode) && rawCode === adminInviteCode) {
+      if (validateOnly === true) {
+        return new Response(
+          JSON.stringify({ success: true, error: null }),
+          { status: 200, headers: cors }
+        )
+      }
+      if (!userId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'User ID required for redemption' }),
+          { status: 400, headers: cors }
+        )
+      }
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
+      const { error: insertError } = await supabaseClient
+        .from('admin_invite_redemptions')
+        .upsert({ user_id: userId }, { onConflict: 'user_id' })
+      if (insertError) throw insertError
+      return new Response(
+        JSON.stringify({ success: true, invitation: { code: normalizedCode } }),
+        { status: 200, headers: cors }
+      )
     }
 
     const supabaseClient = createClient(
@@ -52,7 +103,7 @@ serve(async (req) => {
     const { data: invitation, error: fetchError } = await supabaseClient
       .from('invitations')
       .select('*')
-      .eq('code', code.toUpperCase())
+      .eq('code', normalizedCode)
       .single()
 
     if (fetchError || !invitation) {

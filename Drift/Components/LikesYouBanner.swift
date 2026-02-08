@@ -68,7 +68,7 @@ struct LikesYouBanner: View {
                 // Stacked avatars: show actual profile photo, blurred when user doesn't have Drift Pro
                 HStack(spacing: -12) {
                     ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
-                        let photoURL = profile.photos.first ?? profile.avatarUrl ?? ""
+                        let photoURL = profile.primaryDisplayPhotoUrl ?? ""
                         avatarView(urlString: photoURL, profile: profile, hasProAccess: hasProAccess)
                             .zIndex(Double(profiles.count - index))
                     }

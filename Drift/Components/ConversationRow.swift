@@ -62,7 +62,7 @@ struct ConversationRow: View {
             HStack(spacing: 16) {
                 ZStack(alignment: .bottomTrailing) {
                     // Avatar
-                    CachedAsyncImage(url: URL(string: conversation.avatarUrl ?? "")) { phase in
+                    CachedAsyncImage(url: URL(string: conversation.displayAvatarUrl ?? ""), targetSize: CGSize(width: 56, height: 56)) { phase in
                         switch phase {
                         case .empty:
                             Circle()

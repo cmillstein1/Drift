@@ -44,16 +44,11 @@ struct FriendDetailView: View {
     private let desertSand = Color("DesertSand")
     private let softGray = Color("SoftGray")
     
-    /// All profile photos, deduplicated by URL (same logic as ProfileDetailView). No placeholder slots.
+    /// User-uploaded photos only (Supabase storage).
     private var images: [String] {
-        if profile.photos.isEmpty {
-            return (profile.avatarUrl.map { [$0] } ?? []).filter { !$0.isEmpty }
-        }
-        var seen = Set<String>()
-        return profile.photos.filter { url in
-            guard !url.isEmpty else { return false }
-            return seen.insert(url).inserted
-        }
+        if !profile.displayPhotoUrls.isEmpty { return profile.displayPhotoUrls }
+        if let avatar = profile.displayAvatarUrl { return [avatar] }
+        return []
     }
     
     private var hasMultipleImages: Bool {

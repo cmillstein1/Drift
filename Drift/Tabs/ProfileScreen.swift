@@ -24,6 +24,7 @@ struct ProfileScreen: View {
     @State private var showGenerateInvite = false
     @State private var showNotificationsSheet = false
     @State private var showMyPostsSheet = false
+    @State private var showEventsJoinedSheet = false
     @State private var navigationPath: [String] = []
     @StateObject private var communityManager = CommunityManager.shared
     @State private var lastProfileFetch: Date = .distantPast
@@ -83,6 +84,9 @@ struct ProfileScreen: View {
 
                             // My Posts
                             myPostsButton
+
+                            // Events Joined
+                            eventsJoinedButton
 
                             // Settings Menu
                             settingsMenuSection
@@ -157,11 +161,16 @@ struct ProfileScreen: View {
             }
             .sheet(isPresented: $showNotificationsSheet) {
                 NotificationsSettingsSheet(isPresented: $showNotificationsSheet)
-                    .presentationDetents([.height(560), .large])
+                    .presentationDetents([.height(680), .large])
                     .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showMyPostsSheet) {
                 MyPostsSheet()
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showEventsJoinedSheet) {
+                EventsJoinedSheet()
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
             }
@@ -176,6 +185,7 @@ struct ProfileScreen: View {
                     }
                     await revenueCatManager.loadCustomerInfo()
                     try? await communityManager.fetchNewInteractionCount()
+                    try? await communityManager.fetchJoinedEvents()
                     lastProfileFetch = Date()
                 }
             }
@@ -226,7 +236,7 @@ struct ProfileScreen: View {
                     HStack(alignment: .bottom, spacing: 16) {
                         // Profile Photo
                         ZStack(alignment: .bottomTrailing) {
-                            CachedAsyncImage(url: URL(string: profile?.photos.first ?? profile?.avatarUrl ?? "")) { phase in
+                            CachedAsyncImage(url: URL(string: profile?.primaryDisplayPhotoUrl ?? "")) { phase in
                                 switch phase {
                                 case .empty:
                                     RoundedRectangle(cornerRadius: 28)
@@ -442,6 +452,53 @@ struct ProfileScreen: View {
         .buttonStyle(PlainButtonStyle())
     }
 
+    // MARK: - Events Joined Button
+
+    private var eventsJoinedButton: some View {
+        Button(action: {
+            showEventsJoinedSheet = true
+        }) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.purple.opacity(0.1))
+                        .frame(width: 40, height: 40)
+
+                    Image(systemName: "calendar.badge.checkmark")
+                        .font(.system(size: 16))
+                        .foregroundColor(.purple)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Events Joined")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(charcoalColor)
+                    Text("Events you're attending")
+                        .font(.system(size: 13))
+                        .foregroundColor(charcoalColor.opacity(0.5))
+                }
+
+                Spacer()
+
+                // Unread notification dot
+                if communityManager.unreadEventChatCount > 0 {
+                    Circle()
+                        .fill(burntOrange)
+                        .frame(width: 10, height: 10)
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(charcoalColor.opacity(0.4))
+            }
+            .padding(16)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
     // MARK: - Settings Menu Section
 
     private var settingsMenuSection: some View {
@@ -565,6 +622,7 @@ struct ProfileScreen: View {
     
     private func handleSignOut() async {
         isSigningOut = true
+        await PushNotificationManager.shared.clearFCMToken()
         do {
             try await supabaseManager.signOut()
         } catch {

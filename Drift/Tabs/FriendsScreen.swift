@@ -16,6 +16,7 @@ struct FriendsScreen: View {
     @ObservedObject private var discoveryLocation = DiscoveryLocationProvider.shared
 
     @State private var isLoading = true
+    @State private var lastDataFetch: Date = .distantPast
     @State private var swipedIds: [UUID] = []
     @State private var showMessageSheet = false
     @State private var selectedProfileForMessage: UserProfile? = nil
@@ -38,26 +39,35 @@ struct FriendsScreen: View {
         } ?? []
     }
 
-    private func loadProfiles() {
+    private func loadProfiles(force: Bool = false) {
         guard let currentUserId = supabaseManager.currentUser?.id else {
             isLoading = false
             return
         }
+        guard force || Date().timeIntervalSince(lastDataFetch) > 30 else { return }
         isLoading = true
         Task {
             do {
-                swipedIds = try await friendsManager.fetchSwipedUserIds()
-                try await friendsManager.fetchSentRequests()
-                try await friendsManager.fetchFriends()
+                // Run independent fetches in parallel
+                async let swipedTask = friendsManager.fetchSwipedUserIds()
+                async let sentTask: () = friendsManager.fetchSentRequests()
+                async let friendsTask: () = friendsManager.fetchFriends()
+                async let blockedTask = (try? friendsManager.fetchBlockedExclusionUserIds()) ?? []
+
+                swipedIds = try await swipedTask
+                _ = try await sentTask
+                _ = try await friendsTask
+                let blockedIds = await blockedTask
+
                 let friendIds = friendsManager.friends.map { friend in
                     friend.requesterId == currentUserId ? friend.addresseeId : friend.requesterId
                 }
-                let blockedIds = (try? await friendsManager.fetchBlockedExclusionUserIds()) ?? []
                 let excludeIds = swipedIds + friendIds + blockedIds
                 try await profileManager.fetchDiscoverProfiles(
                     lookingFor: .friends,
                     excludeIds: excludeIds
                 )
+                lastDataFetch = Date()
             } catch {
                 print("Failed to load friends profiles: \(error)")
             }
@@ -214,7 +224,7 @@ struct FriendsScreen: View {
                     // Load More Button
                     if !profiles.isEmpty {
                         Button(action: {
-                            loadProfiles()
+                            loadProfiles(force: true)
                         }) {
                             Text("Load More Friends")
                                 .font(.system(size: 14, weight: .medium))

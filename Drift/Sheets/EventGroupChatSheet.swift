@@ -19,6 +19,8 @@ struct EventGroupChatSheet: View {
     @State private var attendees: [UserProfile] = []
     @State private var isLoading: Bool = true
     @State private var errorMessage: String? = nil
+    @State private var isMuted: Bool = false
+    @State private var showReportSheet: Bool = false
     @FocusState private var isInputFocused: Bool
 
     private let charcoal = Color("Charcoal")
@@ -47,6 +49,16 @@ struct EventGroupChatSheet: View {
             loadMessages()
             loadAttendees()
             subscribeToMessages()
+            loadMuteStatus()
+        }
+        .sheet(isPresented: $showReportSheet) {
+            ReportSheet(
+                targetName: post.title,
+                targetUserId: post.authorId,
+                post: post
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
         .onDisappear {
             Task {
@@ -112,8 +124,21 @@ struct EventGroupChatSheet: View {
 
                 HStack(spacing: 8) {
                     // More options
-                    Button {
-                        // Show options menu
+                    Menu {
+                        Button {
+                            toggleMute()
+                        } label: {
+                            Label(
+                                isMuted ? "Unmute Conversation" : "Mute Conversation",
+                                systemImage: isMuted ? "bell.fill" : "bell.slash"
+                            )
+                        }
+
+                        Button {
+                            showReportSheet = true
+                        } label: {
+                            Label("Report Conversation", systemImage: "flag")
+                        }
                     } label: {
                         Image(systemName: "ellipsis")
                             .font(.system(size: 16, weight: .medium))
@@ -166,7 +191,7 @@ struct EventGroupChatSheet: View {
             HStack(spacing: -8) {
                 // Show up to 4 attendee avatars
                 ForEach(Array(attendees.prefix(4).enumerated()), id: \.element.id) { index, attendee in
-                    if let avatarUrl = attendee.avatarUrl, let url = URL(string: avatarUrl) {
+                    if let avatarUrl = attendee.primaryDisplayPhotoUrl, let url = URL(string: avatarUrl) {
                         CachedAsyncImage(url: url) { image in
                             image
                                 .resizable()
@@ -356,6 +381,27 @@ struct EventGroupChatSheet: View {
         }
     }
 
+    private func loadMuteStatus() {
+        Task {
+            isMuted = (try? await communityManager.isEventChatMuted(post.id)) ?? false
+        }
+    }
+
+    private func toggleMute() {
+        Task {
+            do {
+                if isMuted {
+                    try await communityManager.unmuteEventChat(post.id)
+                } else {
+                    try await communityManager.muteEventChat(post.id)
+                }
+                isMuted.toggle()
+            } catch {
+                print("Failed to toggle mute: \(error)")
+            }
+        }
+    }
+
     private func sendMessage() {
         guard !messageText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         let content = messageText
@@ -396,7 +442,7 @@ struct MessageBubble: View {
                 Spacer(minLength: 60)
             } else {
                 // Avatar
-                if let avatarUrl = message.author?.avatarUrl, let url = URL(string: avatarUrl) {
+                if let avatarUrl = message.author?.primaryDisplayPhotoUrl, let url = URL(string: avatarUrl) {
                     CachedAsyncImage(url: url) { image in
                         image
                             .resizable()

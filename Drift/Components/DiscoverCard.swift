@@ -63,7 +63,7 @@ struct DiscoverCard: View {
     }
 
     private var mainPhotoURL: String? {
-        profile.photos.first ?? profile.avatarUrl
+        profile.primaryDisplayPhotoUrl
     }
 
     private var displayInterests: [String] {

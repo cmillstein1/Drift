@@ -154,7 +154,7 @@ struct MessageDetailScreen: View {
                         HStack(spacing: 12) {
                             ZStack(alignment: .bottomTrailing) {
                                 // Avatar
-                                CachedAsyncImage(url: URL(string: conversation.avatarUrl ?? "")) { phase in
+                                CachedAsyncImage(url: URL(string: conversation.displayAvatarUrl ?? "")) { phase in
                                     switch phase {
                                     case .empty:
                                         Circle()
@@ -280,7 +280,7 @@ struct MessageDetailScreen: View {
                             }
                         }
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 16)
+                        .padding(.bottom, 60)
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .simultaneousGesture(
@@ -355,7 +355,7 @@ struct MessageDetailScreen: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .background(Color.white)
+                .background(Color.white.ignoresSafeArea(edges: .bottom))
             }
         }
         .onAppear {

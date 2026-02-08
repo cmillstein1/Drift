@@ -15,6 +15,7 @@ struct CommunityScreen: View {
     @State private var showNotificationsSheet: Bool = false
     @State private var selectedPost: CommunityPost? = nil
     @State private var selectedBuilderHelpCategory: HelpCategory? = nil
+    @State private var searchQuery: String = ""
     @StateObject private var communityManager = CommunityManager.shared
     @StateObject private var notificationsManager = NotificationsManager.shared
     @State private var lastDataFetch: Date = .distantPast
@@ -84,6 +85,49 @@ struct CommunityScreen: View {
                 }
                 .background(softGray)
 
+                // Search bar
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 16))
+                        .foregroundColor(charcoal.opacity(0.4))
+                    TextField("Search help topics...", text: $searchQuery)
+                        .font(.system(size: 16))
+                        .foregroundColor(charcoal)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.gray.opacity(0.05))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(searchQuery.isEmpty ? Color.gray.opacity(0.2) : burntOrange, lineWidth: 2)
+                        )
+                )
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
+
+                // Category pills
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        categoryPill(label: "All", isSelected: selectedBuilderHelpCategory == nil) {
+                            selectedBuilderHelpCategory = nil
+                        }
+                        ForEach(HelpCategory.allCases, id: \.self) { category in
+                            categoryPill(
+                                label: category == .other ? "General" : category.displayName,
+                                isSelected: selectedBuilderHelpCategory == category
+                            ) {
+                                selectedBuilderHelpCategory = selectedBuilderHelpCategory == category ? nil : category
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 2)
+                }
+                .padding(.bottom, 12)
+
                 // Builder Help content only
                 builderHelpContent
             }
@@ -115,46 +159,42 @@ struct CommunityScreen: View {
         }
     }
 
-    /// Help posts for Builder Help section, optionally filtered by category
+    @ViewBuilder
+    private func categoryPill(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(isSelected ? .white : charcoal)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(isSelected ? burntOrange : Color.white)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(isSelected ? Color.clear : Color.gray.opacity(0.2), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Help posts for Builder Help section, optionally filtered by category and search
     private var helpPosts: [CommunityPost] {
-        let help = communityManager.posts.filter { $0.type == .help }
-        guard let cat = selectedBuilderHelpCategory else { return help }
-        return help.filter { $0.helpCategory == cat }
+        var result = communityManager.posts.filter { $0.type == .help }
+        if let cat = selectedBuilderHelpCategory {
+            result = result.filter { $0.helpCategory == cat }
+        }
+        if !searchQuery.isEmpty {
+            result = result.filter {
+                $0.title.localizedCaseInsensitiveContains(searchQuery) ||
+                $0.content.localizedCaseInsensitiveContains(searchQuery)
+            }
+        }
+        return result
     }
 
     private var builderHelpContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Filter by category
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Filter by category")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundColor(charcoal)
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        BuilderHelpCategoryButton(
-                            name: "Electrical",
-                            icon: "bolt.fill",
-                            assetImageName: "electrical",
-                            color: burntOrange,
-                            isSelected: selectedBuilderHelpCategory == .electrical
-                        ) { selectedBuilderHelpCategory = selectedBuilderHelpCategory == .electrical ? nil : .electrical }
-                        BuilderHelpCategoryButton(
-                            name: "Plumbing",
-                            icon: "drop.fill",
-                            assetImageName: "plumbing",
-                            color: Color("SkyBlue"),
-                            isSelected: selectedBuilderHelpCategory == .plumbing
-                        ) { selectedBuilderHelpCategory = selectedBuilderHelpCategory == .plumbing ? nil : .plumbing }
-                        BuilderHelpCategoryButton(
-                            name: "General",
-                            icon: "wrench.and.screwdriver.fill",
-                            assetImageName: "general",
-                            color: Color("ForestGreen"),
-                            isSelected: selectedBuilderHelpCategory == .other
-                        ) { selectedBuilderHelpCategory = selectedBuilderHelpCategory == .other ? nil : .other }
-                    }
-                }
-
                 // Recent Help Topics + Ask Question
                 HStack {
                     Text("Recent Help Topics")
@@ -205,54 +245,15 @@ struct CommunityScreen: View {
             .padding(16)
             .padding(.bottom, 120)
         }
-        .scrollContentBackground(.hidden)
-        .background(Color.clear)
-        .refreshable {
+        .refresher(style: .system, config: RefresherConfig(holdTime: .seconds(1)), refreshView: VanRefreshView.init) {
             do {
                 try await communityManager.fetchPosts(type: .help)
             } catch {
                 print("[CommunityScreen] Builder Help refresh failed: \(error)")
             }
         }
-    }
-}
-
-// MARK: - Builder Help Category Button
-
-private struct BuilderHelpCategoryButton: View {
-    let name: String
-    let icon: String
-    var assetImageName: String? = nil
-    let color: Color
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                if let asset = assetImageName {
-                    Image(asset)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 32, height: 32)
-                } else {
-                    Image(systemName: icon)
-                        .font(.system(size: 24))
-                        .foregroundColor(color)
-                }
-                Text(name)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(Color("Charcoal"))
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .padding(.horizontal, 8)
-            .background(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
-        }
-        .buttonStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color.clear)
     }
 }
 
@@ -278,7 +279,7 @@ private struct BuilderHelpTopicCard: View {
             // Header: avatar, author, time, Solved badge
             HStack(alignment: .top) {
                 HStack(spacing: 12) {
-                    if let avatarUrl = post.author?.avatarUrl, let url = URL(string: avatarUrl) {
+                    if let avatarUrl = post.author?.primaryDisplayPhotoUrl, let url = URL(string: avatarUrl) {
                         CachedAsyncImage(url: url) { image in
                             image.resizable().aspectRatio(contentMode: .fill)
                         } placeholder: {
@@ -450,7 +451,7 @@ struct CommunityPostCard: View {
             // Post Header
             HStack(spacing: 12) {
                 // Avatar with type-specific color
-                if let avatarUrl = post.author?.avatarUrl, let url = URL(string: avatarUrl) {
+                if let avatarUrl = post.author?.primaryDisplayPhotoUrl, let url = URL(string: avatarUrl) {
                     CachedAsyncImage(url: url) { image in
                         image
                             .resizable()
