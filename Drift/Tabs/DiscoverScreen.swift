@@ -60,6 +60,12 @@ struct DiscoverScreen: View {
     /// Stamp overlay shown during swipe animation ("LIKE" or "NOPE")
     @State private var showLikeStamp: Bool = false
     @State private var showNopeStamp: Bool = false
+    /// Last profile that was passed (X'd) in dating mode — enables undo/reverse
+    @State private var lastPassedProfile: UserProfile? = nil
+    /// Stamp overlay for undo animation
+    @State private var showUndoStamp: Bool = false
+    /// Paywall for undo (Drift Pro only)
+    @State private var showUndoPaywall: Bool = false
 
     /// Top spacer so first card clears the overlay (safe area + mode switcher + subtitle + padding).
     private let topNavBarHeight: CGFloat = 120
@@ -358,6 +364,14 @@ struct DiscoverScreen: View {
             // Load cached profiles from disk immediately to prevent empty-state flash
             profileManager.loadCachedDiscoverProfiles()
 
+            #if DEBUG
+            // Inject mock dating profiles for testing
+            if profileManager.discoverProfiles.isEmpty {
+                profileManager.discoverProfiles = Self.mockDatingProfiles
+                isInitialLoading = false
+            }
+            #endif
+
             // Request device location for distance filtering (dating & friends)
             DiscoveryLocationProvider.shared.requestLocation()
 
@@ -408,6 +422,8 @@ struct DiscoverScreen: View {
         .onChange(of: mode) { newMode in
             // Reset profile transition opacity
             profileTransitionOpacity = 1.0
+            // Clear reverse state when switching modes
+            lastPassedProfile = nil
 
             // Keep tab bar visible in both modes
             tabBarVisibility.isVisible = true
@@ -502,6 +518,11 @@ struct DiscoverScreen: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showUndoPaywall) {
+            PaywallScreen(isOpen: $showUndoPaywall, source: .undo)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     /// Current user's location: profile city/state (lat/lon) first, then device location as fallback.
@@ -537,9 +558,25 @@ struct DiscoverScreen: View {
                         if mode == .friends {
                             discoverCreateEventButton
                         } else {
+                            if lastPassedProfile != nil {
+                                Button {
+                                    reverseLastPass()
+                                } label: {
+                                    Image(systemName: "arrow.uturn.backward")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.gray)
+                                        .frame(width: 40, height: 40)
+                                        .background(Color.white)
+                                        .clipShape(Circle())
+                                        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
+                                }
+                                .buttonStyle(.plain)
+                                .transition(.scale.combined(with: .opacity))
+                            }
                             unifiedDiscoverMapButton
                         }
                     }
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: lastPassedProfile != nil)
                     .padding(.horizontal, 24)
                     .padding(.top, 70)
                     .padding(.bottom, 20)
@@ -625,7 +662,10 @@ struct DiscoverScreen: View {
                     .tint(Color.gray.opacity(0.5))
             }
         } else if visibleDatingProfiles.isEmpty {
-            emptyState
+            ZStack {
+                emptyState
+                swipeStampOverlay
+            }
         } else if let profile = currentFullScreenProfile {
             ZStack {
                 DiscoverFullScreenProfileView(
@@ -701,7 +741,10 @@ struct DiscoverScreen: View {
                             .tint(Color.white.opacity(0.4))
                     }
                 } else if visibleDatingProfiles.isEmpty {
-                    emptyState
+                    ZStack {
+                        emptyState
+                        swipeStampOverlay
+                    }
                 } else if let profile = currentFullScreenProfile {
                     ZStack {
                         DiscoverFullScreenProfileView(
@@ -721,10 +764,23 @@ struct DiscoverScreen: View {
                     }
                 }
 
-                // Top overlay: map button
+                // Top overlay: reverse button + map button
                 VStack {
                     HStack {
                         Spacer()
+                        if lastPassedProfile != nil {
+                            Button {
+                                reverseLastPass()
+                            } label: {
+                                Image(systemName: "arrow.uturn.backward")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 40, height: 40)
+                                    .background(Color.black.opacity(0.4))
+                                    .clipShape(Circle())
+                            }
+                            .transition(.scale.combined(with: .opacity))
+                        }
                         NavigationLink {
                             DiscoverMapSheet(
                                 profiles: profiles,
@@ -747,6 +803,7 @@ struct DiscoverScreen: View {
                     .padding(.top, 60)
                     Spacer()
                 }
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: lastPassedProfile != nil)
                 .opacity(visibleDatingProfiles.isEmpty ? 0 : 1)
             }
             .ignoresSafeArea(edges: .top)
@@ -784,6 +841,12 @@ struct DiscoverScreen: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             showLikeStamp = false
             showNopeStamp = false
+            // Track last passed profile for undo (only for passes, not likes)
+            if !isLike {
+                lastPassedProfile = profile
+            } else {
+                lastPassedProfile = nil
+            }
             swipedIds.append(profile.id)
             profileTransitionOpacity = 0
 
@@ -818,6 +881,53 @@ struct DiscoverScreen: View {
                 }
             } catch {
                 print("[DISCOVER] Failed to record swipe: \(error)")
+            }
+        }
+    }
+
+    /// Reverse the last pass (undo the X) — Drift Pro only. Removes from local swipedIds and deletes backend swipe record.
+    private func reverseLastPass() {
+        guard let profile = lastPassedProfile else { return }
+
+        // Gate behind Drift Pro
+        if !revenueCatManager.hasProAccess {
+            showUndoPaywall = true
+            return
+        }
+
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+
+        // 1. Show undo stamp
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+            showUndoStamp = true
+        }
+
+        // 2. Fade out current profile
+        withAnimation(.easeOut(duration: 0.25).delay(0.15)) {
+            profileTransitionOpacity = 0
+        }
+
+        // 3. After animation, swap back to the reversed profile
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            showUndoStamp = false
+            // Remove the passed profile from swipedIds so it reappears
+            swipedIds.removeAll { $0 == profile.id }
+            lastPassedProfile = nil
+            profileTransitionOpacity = 0
+
+            // Fade in the restored profile
+            withAnimation(.easeIn(duration: 0.3)) {
+                profileTransitionOpacity = 1
+            }
+        }
+
+        // Delete the swipe record from backend
+        Task {
+            do {
+                try await friendsManager.deleteSwipe(on: profile.id)
+            } catch {
+                print("[DISCOVER] Failed to delete swipe for reverse: \(error)")
             }
         }
     }
@@ -996,6 +1106,39 @@ struct DiscoverScreen: View {
                     .transition(.scale.combined(with: .opacity))
                     .allowsHitTesting(false)
             }
+            if showUndoStamp {
+                HStack(spacing: 10) {
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.system(size: 32, weight: .heavy))
+                    Text("UNDO")
+                        .font(.system(size: 44, weight: .heavy))
+                }
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color(red: 0.4, green: 0.7, blue: 1.0), Color(red: 0.3, green: 0.5, blue: 0.9)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color(red: 0.4, green: 0.7, blue: 1.0), Color(red: 0.3, green: 0.5, blue: 0.9)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 4
+                        )
+                )
+                .rotationEffect(.degrees(-10))
+                .opacity(showUndoStamp ? 1 : 0)
+                .scaleEffect(showUndoStamp ? 1 : 0.5)
+                .transition(.scale.combined(with: .opacity))
+                .allowsHitTesting(false)
+            }
         }
         .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
     }
@@ -1005,35 +1148,60 @@ struct DiscoverScreen: View {
     private var emptyState: some View {
         let discoveryMode = supabaseManager.getDiscoveryMode()
 
-        VStack(spacing: 0) {
-            // Mode switcher at top — match Messages tab (safe area + 10pt)
-            if discoveryMode == .both {
-                HStack {
-                    modeSwitcher(style: .light)
-                    Spacer()
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 70)
-                .padding(.bottom, 20)
-
-                // Subtitle under segment (dating)
-                Text("Stories from travelers looking to date")
-                    .font(.system(size: 12))
-                    .foregroundColor(inkSub)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        ZStack {
+            VStack(spacing: 0) {
+                // Mode switcher at top — match Messages tab (safe area + 10pt)
+                if discoveryMode == .both {
+                    HStack {
+                        modeSwitcher(style: .light)
+                        Spacer()
+                    }
                     .padding(.horizontal, 24)
-                    .padding(.vertical, 16)
+                    .padding(.top, 70)
+                    .padding(.bottom, 20)
+
+                    // Subtitle under segment (dating)
+                    Text("Stories from travelers looking to date")
+                        .font(.system(size: 12))
+                        .foregroundColor(inkSub)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 16)
+                }
+
+                Spacer()
+
+                DiscoverEndOfFeedView()
+
+                // Reverse button below the end-of-feed view
+                if lastPassedProfile != nil {
+                    Button {
+                        reverseLastPass()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.uturn.backward")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text("Go back")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .foregroundColor(charcoal)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Color.white)
+                        .clipShape(Capsule())
+                        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
+                    }
+                    .transition(.scale.combined(with: .opacity))
+                    .padding(.top, 20)
+                }
+
+                Spacer()
             }
-
-            Spacer()
-
-            DiscoverEndOfFeedView()
-
-            Spacer()
+            .padding(.bottom, tabBarVisibility.isVisible ? LayoutConstants.tabBarBottomPadding : 24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(.bottom, tabBarVisibility.isVisible ? LayoutConstants.tabBarBottomPadding : 24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(softGray)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: lastPassedProfile != nil)
     }
 
     // MARK: - Friends View (Community grid) — used when discoveryMode == .friends only
@@ -1149,6 +1317,118 @@ struct DiscoverScreen: View {
                 .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
         }
     }
+
+    // MARK: - Mock Dating Profiles (DEBUG only)
+    #if DEBUG
+    private static let mockDatingProfiles: [UserProfile] = [
+        UserProfile(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            name: "Sarah",
+            age: 27,
+            bio: "Full-time van lifer chasing sunsets along the Pacific Coast. Photographer by trade, adventurer by heart.",
+            photos: [
+                "https://picsum.photos/seed/sarah1/600/900",
+                "https://picsum.photos/seed/sarah2/600/900",
+                "https://picsum.photos/seed/sarah3/600/900"
+            ],
+            location: "Big Sur, CA",
+            verified: true,
+            lifestyle: .vanLife,
+            travelPace: .moderate,
+            nextDestination: "Portland, OR",
+            interests: ["Photography", "Hiking", "Surf", "Coffee"],
+            lookingFor: .dating,
+            promptAnswers: [
+                DriftBackend.PromptAnswer(prompt: "A simple pleasure I enjoy", answer: "Morning coffee with a mountain view from the van door."),
+                DriftBackend.PromptAnswer(prompt: "Dating on the road looks like", answer: "Sharing a campfire, cooking dinner together, and stargazing.")
+            ]
+        ),
+        UserProfile(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+            name: "Maya",
+            age: 30,
+            bio: "Digital nomad and yoga teacher. Currently parked near Joshua Tree. Always looking for new trails and good conversation.",
+            photos: [
+                "https://picsum.photos/seed/maya1/600/900",
+                "https://picsum.photos/seed/maya2/600/900"
+            ],
+            location: "Joshua Tree, CA",
+            lifestyle: .digitalNomad,
+            travelPace: .slow,
+            nextDestination: "Sedona, AZ",
+            interests: ["Yoga", "Rock Climbing", "Reading", "Van Life"],
+            lookingFor: .dating,
+            promptAnswers: [
+                DriftBackend.PromptAnswer(prompt: "My ideal weekend", answer: "A sunrise hike followed by a lazy afternoon reading in the hammock.")
+            ],
+            workStyle: .remote
+        ),
+        UserProfile(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!,
+            name: "Jordan",
+            age: 25,
+            bio: "RV life with my golden retriever. I build websites by day and build campfires by night.",
+            photos: [
+                "https://picsum.photos/seed/jordan1/600/900",
+                "https://picsum.photos/seed/jordan2/600/900",
+                "https://picsum.photos/seed/jordan3/600/900",
+                "https://picsum.photos/seed/jordan4/600/900"
+            ],
+            location: "Moab, UT",
+            verified: true,
+            lifestyle: .rvLife,
+            travelPace: .fast,
+            interests: ["Mountain Biking", "Photography", "Dogs", "Remote Work"],
+            lookingFor: .both,
+            rigInfo: "2022 Airstream Basecamp",
+            promptAnswers: [
+                DriftBackend.PromptAnswer(prompt: "A simple pleasure I enjoy", answer: "My dog's excitement every time we pull into a new campground."),
+                DriftBackend.PromptAnswer(prompt: "The way to my heart is", answer: "Good trail beta and homemade guacamole.")
+            ],
+            workStyle: .remote,
+            morningPerson: true
+        ),
+        UserProfile(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000004")!,
+            name: "Elena",
+            age: 29,
+            bio: "Former city girl turned full-time traveler. Trading my apartment for an Airstream was the best decision I ever made.",
+            photos: [
+                "https://picsum.photos/seed/elena1/600/900",
+                "https://picsum.photos/seed/elena2/600/900"
+            ],
+            location: "Bend, OR",
+            lifestyle: .vanLife,
+            travelPace: .moderate,
+            nextDestination: "Glacier National Park",
+            interests: ["Skiing", "Cooking", "Stargazing", "Hiking"],
+            lookingFor: .dating,
+            promptAnswers: [
+                DriftBackend.PromptAnswer(prompt: "Dating on the road looks like", answer: "Exploring farmers markets and cooking a meal together with whatever we find.")
+            ],
+            homeBase: "Denver, CO"
+        ),
+        UserProfile(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000005")!,
+            name: "Alex",
+            age: 32,
+            bio: "Slow-traveling through the Southwest in a converted Sprinter. Writer, climber, desert lover.",
+            photos: [
+                "https://picsum.photos/seed/alex1/600/900"
+            ],
+            location: "Flagstaff, AZ",
+            lifestyle: .vanLife,
+            travelPace: .slow,
+            interests: ["Writing", "Rock Climbing", "Desert", "Minimalism"],
+            lookingFor: .dating,
+            promptAnswers: [
+                DriftBackend.PromptAnswer(prompt: "A simple pleasure I enjoy", answer: "Watching thunderstorms roll across the desert from the comfort of my van.")
+            ],
+            workStyle: .remote,
+            morningPerson: false
+        ),
+    ]
+    #endif
 }
 
 // MARK: - Interest Item

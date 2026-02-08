@@ -64,7 +64,8 @@ struct DiscoverPanGestureView: UIViewRepresentable {
             }
         }
 
-        /// Only begin gesture if dragging down AND at top, OR dragging up (to expand)
+        /// Only begin gesture if dragging down AND at top/collapsed, OR dragging up when collapsed (to expand).
+        /// When already expanded, upward drags are left to the scroll view.
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             guard let panGesture = gestureRecognizer as? UIPanGestureRecognizer else {
                 return false
@@ -74,9 +75,11 @@ struct DiscoverPanGestureView: UIViewRepresentable {
             let isDraggingDown = velocity.y > 0
             let isDraggingUp = velocity.y < 0
             let isAtTop = scrollState.isAtTop
+            let isExpanded = scrollState.isExpanded
 
             if isDraggingUp {
-                return true
+                // Only capture upward drags to expand when drawer is collapsed
+                return !isExpanded
             } else if isDraggingDown {
                 return isAtTop
             }
@@ -94,4 +97,6 @@ struct DiscoverPanGestureView: UIViewRepresentable {
 
 final class DiscoverScrollState: ObservableObject {
     @Published var isAtTop: Bool = true
+    /// Whether the drawer is currently expanded (used by pan gesture to decide if upward drags should be captured).
+    @Published var isExpanded: Bool = false
 }

@@ -568,6 +568,22 @@ public class FriendsManager: ObservableObject {
         }
     }
 
+    /// Deletes a swipe record for the given user (used for undo/reverse).
+    ///
+    /// - Parameter userId: The ID of the user whose swipe record should be removed.
+    public func deleteSwipe(on userId: UUID) async throws {
+        guard let currentUserId = SupabaseManager.shared.currentUser?.id else {
+            throw FriendsError.notAuthenticated
+        }
+
+        try await client
+            .from("swipes")
+            .delete()
+            .eq("swiper_id", value: currentUserId)
+            .eq("swiped_id", value: userId)
+            .execute()
+    }
+
     /// Fetches IDs of profiles the user has already swiped on.
     ///
     /// - Returns: Array of user IDs that have been swiped.
