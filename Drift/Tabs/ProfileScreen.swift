@@ -161,7 +161,7 @@ struct ProfileScreen: View {
             }
             .sheet(isPresented: $showNotificationsSheet) {
                 NotificationsSettingsSheet(isPresented: $showNotificationsSheet)
-                    .presentationDetents([.height(560), .large])
+                    .presentationDetents([.height(680), .large])
                     .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showMyPostsSheet) {
