@@ -19,8 +19,10 @@ struct DiscoverScreen: View {
     @StateObject private var communityManager = CommunityManager.shared
     @StateObject private var revenueCatManager = RevenueCatManager.shared
     @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
+    @StateObject private var notificationsManager = NotificationsManager.shared
 
-    @State private var swipedIds: [UUID] = []
+    @State private var showNotificationsSheet: Bool = false
+    @State private var swipedIds: Set<UUID> = []
     @State private var likedFadingId: UUID? = nil
     @State private var currentIndex: Int = 0
     @State private var mode: DiscoverMode = .dating
@@ -65,6 +67,10 @@ struct DiscoverScreen: View {
     @State private var showUndoStamp: Bool = false
     /// Paywall for undo (Drift Pro only)
     @State private var showUndoPaywall: Bool = false
+    /// Task references for cancellation on disappear
+    @State private var loadProfilesTask: Task<Void, Never>?
+    @State private var preloadFriendsTask: Task<Void, Never>?
+    @State private var recycleProfilesTask: Task<Void, Never>?
 
     /// Top spacer so first card clears the overlay (safe area + mode switcher + subtitle + padding).
     private let topNavBarHeight: CGFloat = 120
@@ -164,14 +170,14 @@ struct DiscoverScreen: View {
         let coord = DiscoveryLocationProvider.shared.lastCoordinate
         let lookingFor: LookingFor = targetMode == .dating ? .dating : .friends
 
-        Task {
+        loadProfilesTask = Task {
             do {
                 let (swiped, blocked) = try await fetchExclusionIds()
                 // Always set swipedIds - it's shared across modes
-                swipedIds = swiped
+                swipedIds = Set(swiped)
                 try await profileManager.fetchDiscoverProfiles(
                     lookingFor: lookingFor,
-                    excludeIds: swipedIds + blocked,
+                    excludeIds: Array(swipedIds) + blocked,
                     currentUserLat: coord?.latitude,
                     currentUserLon: coord?.longitude
                 )
@@ -189,14 +195,14 @@ struct DiscoverScreen: View {
     private func recycleProfiles() {
         // Reset the current index to recycle through profiles again
         // Clear local swipedIds so we can see all profiles again
-        swipedIds = []
+        swipedIds = Set()
         currentIndex = 0
 
         // Reload profiles without excluding any (use device location for distance when available)
         let coord = DiscoveryLocationProvider.shared.lastCoordinate
         let targetMode = mode
         let lookingFor: LookingFor = targetMode == .dating ? .dating : .friends
-        Task {
+        recycleProfilesTask = Task {
             do {
                 guard mode == targetMode else { return }
                 try await profileManager.fetchDiscoverProfiles(
@@ -214,7 +220,7 @@ struct DiscoverScreen: View {
     /// Preload friends profiles in background for instant tab switching.
     private func preloadFriendsProfiles() {
         let coord = DiscoveryLocationProvider.shared.lastCoordinate
-        Task {
+        preloadFriendsTask = Task {
             do {
                 let (swiped, blocked) = try await fetchExclusionIds()
                 guard let currentUserId = supabaseManager.currentUser?.id else { return }
@@ -295,7 +301,7 @@ struct DiscoverScreen: View {
                 likedFadingId = profile.id
             }
         } else {
-            swipedIds.append(profile.id)
+            swipedIds.insert(profile.id)
         }
 
         Task {
@@ -311,7 +317,7 @@ struct DiscoverScreen: View {
                 if isLike {
                     try await Task.sleep(nanoseconds: 350_000_000)
                     await MainActor.run {
-                        swipedIds.append(profile.id)
+                        swipedIds.insert(profile.id)
                         likedFadingId = nil
                         if let match = match {
                             matchedProfile = match.otherUserProfile
@@ -328,7 +334,7 @@ struct DiscoverScreen: View {
             } catch {
                 if isLike {
                     await MainActor.run {
-                        swipedIds.append(profile.id)
+                        swipedIds.insert(profile.id)
                         likedFadingId = nil
                     }
                 }
@@ -418,11 +424,14 @@ struct DiscoverScreen: View {
         }
         .onDisappear {
             tabBarVisibility.isVisible = true
+            loadProfilesTask?.cancel()
+            preloadFriendsTask?.cancel()
+            recycleProfilesTask?.cancel()
             Task {
                 await FriendsManager.shared.unsubscribe()
             }
         }
-        .onChange(of: mode) { newMode in
+        .onChange(of: mode) { _, newMode in
             // Reset profile transition opacity
             profileTransitionOpacity = 1.0
             // Clear reverse state when switching modes
@@ -526,6 +535,13 @@ struct DiscoverScreen: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
+        .fullScreenCover(isPresented: $showNotificationsSheet, onDismiss: {
+            Task {
+                await notificationsManager.fetchNotifications()
+            }
+        }) {
+            NotificationsScreen()
+        }
     }
 
     /// Current user's location: profile city/state (lat/lon) first, then device location as fallback.
@@ -558,6 +574,7 @@ struct DiscoverScreen: View {
                     modeSwitcher(style: .light)
                     Spacer()
                     if mode == .friends {
+                        discoverNotificationsButton
                         discoverCreateEventButton
                     } else {
                         if lastPassedProfile != nil {
@@ -600,6 +617,35 @@ struct DiscoverScreen: View {
     private var unifiedOverlayVisible: Bool {
         let hasEvents = communityManager.posts.contains { $0.type == .event }
         return (mode == .dating && !visibleDatingProfiles.isEmpty) || (mode == .friends && (!visibleFriendsProfiles.isEmpty || hasEvents))
+    }
+
+    /// Bell button for notifications. Same style as CommunityScreen.
+    private var discoverNotificationsButton: some View {
+        Button {
+            showNotificationsSheet = true
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "bell.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(charcoal)
+                    .frame(width: 40, height: 40)
+                    .background(Color.white)
+                    .clipShape(Circle())
+                    .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
+
+                if notificationsManager.unreadCount > 0 {
+                    Circle()
+                        .fill(burntOrange)
+                        .frame(width: 10, height: 10)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white, lineWidth: 2)
+                        )
+                        .offset(x: 2, y: -2)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     /// "+" button for creating a new event (Community tab only). Same style as CommunityScreen; no Help option.
@@ -840,7 +886,8 @@ struct DiscoverScreen: View {
         }
 
         // 3. After fade out, swap to next profile and fade in
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.4))
             showLikeStamp = false
             showNopeStamp = false
             // Track last passed profile for undo (only for passes, not likes)
@@ -849,7 +896,7 @@ struct DiscoverScreen: View {
             } else {
                 lastPassedProfile = nil
             }
-            swipedIds.append(profile.id)
+            swipedIds.insert(profile.id)
             profileTransitionOpacity = 0
 
             // Fade in next profile
@@ -911,10 +958,11 @@ struct DiscoverScreen: View {
         }
 
         // 3. After animation, swap back to the reversed profile
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.4))
             showUndoStamp = false
             // Remove the passed profile from swipedIds so it reappears
-            swipedIds.removeAll { $0 == profile.id }
+            swipedIds.remove(profile.id)
             lastPassedProfile = nil
             profileTransitionOpacity = 0
 
@@ -937,7 +985,7 @@ struct DiscoverScreen: View {
     /// Handle connect for full-screen friends view
     private func handleFullScreenFriendsConnect(profile: UserProfile) {
         // Advance to next profile immediately (no black screen)
-        swipedIds.append(profile.id)
+        swipedIds.insert(profile.id)
         profileTransitionOpacity = 1
 
         Task {
@@ -961,7 +1009,7 @@ struct DiscoverScreen: View {
     /// Handle pass for full-screen friends view
     private func handleFullScreenFriendsPass(profile: UserProfile) {
         // Advance to next profile immediately (no black screen)
-        swipedIds.append(profile.id)
+        swipedIds.insert(profile.id)
         profileTransitionOpacity = 1
 
         if visibleFriendsProfiles.isEmpty {
@@ -1229,10 +1277,11 @@ struct DiscoverScreen: View {
                 onConnect: { handleConnect(profileId: $0) }
             )
 
-            // Top overlay: create event "+" button only (no mode switcher for friends-only mode)
+            // Top overlay: notifications + create event buttons (no mode switcher for friends-only mode)
             VStack {
                 HStack {
                     Spacer()
+                    discoverNotificationsButton
                     discoverCreateEventButton
                 }
                 .padding(.horizontal, 16)

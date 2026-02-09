@@ -1,4 +1,5 @@
 import Combine
+import CryptoKit
 import Foundation
 import Supabase
 
@@ -36,9 +37,15 @@ public class SupabaseManager: ObservableObject {
     /// Whether the current user has already redeemed an invite code. `nil` = not yet checked.
     @Published public var hasRedeemedInvite: Bool?
 
+    /// The current raw nonce for Apple Sign-In, stored between request configuration and token exchange.
+    private var currentNonce: String?
+
     private init() {
+        guard let supabaseURL = URL(string: _BackendConfiguration.shared.supabaseURL) else {
+            fatalError("Invalid Supabase URL: \(_BackendConfiguration.shared.supabaseURL). Check SupabaseConfig.swift.")
+        }
         self.client = SupabaseClient(
-            supabaseURL: URL(string: _BackendConfiguration.shared.supabaseURL)!,
+            supabaseURL: supabaseURL,
             supabaseKey: _BackendConfiguration.shared.supabaseAnonKey
         )
         Task {
@@ -115,21 +122,33 @@ public class SupabaseManager: ObservableObject {
     /// - Throws: An error if sign up fails.
     public func signUpWithEmail(email: String, password: String) async throws {
         let session = try await client.auth.signUp(email: email, password: password)
-        await MainActor.run {
-            self.currentUser = session.user
-            let hasPreference = self.hasSelectedPreference()
-            if hasPreference {
-                let hasCompletedOnboarding = self.parseOnboardingStatus(from: session.user.userMetadata)
-                self.isShowingWelcomeSplash = false
-                self.isShowingOnboarding = !hasCompletedOnboarding
-                self.isShowingPreferenceSelection = false
-            } else {
-                self.isShowingWelcomeSplash = true
-                self.isShowingOnboarding = false
-                self.isShowingPreferenceSelection = false
-            }
-            self.isAuthenticated = true
+        self.currentUser = session.user
+        let hasPreference = self.hasSelectedPreference()
+        if hasPreference {
+            let hasCompletedOnboarding = self.parseOnboardingStatus(from: session.user.userMetadata)
+            self.isShowingWelcomeSplash = false
+            self.isShowingOnboarding = !hasCompletedOnboarding
+            self.isShowingPreferenceSelection = false
+        } else {
+            self.isShowingWelcomeSplash = true
+            self.isShowingOnboarding = false
+            self.isShowingPreferenceSelection = false
         }
+        self.isAuthenticated = true
+    }
+
+    /// Generates a random nonce for Apple Sign-In and returns the SHA256-hashed version.
+    ///
+    /// Call this in the `onRequest` closure of `SignInWithAppleButton` and set
+    /// the returned hash as `request.nonce`. The raw nonce is stored internally
+    /// and passed automatically during `signInWithApple(identityToken:authorizationCode:)`.
+    ///
+    /// - Returns: The SHA256-hashed nonce string to set on `ASAuthorizationAppleIDRequest.nonce`.
+    public func prepareAppleSignInNonce() -> String {
+        let rawNonce = generateRandomNonce()
+        self.currentNonce = rawNonce
+        let hashed = SHA256.hash(data: Data(rawNonce.utf8))
+        return hashed.map { String(format: "%02x", $0) }.joined()
     }
 
     /// Signs in a user with Apple Sign In credentials.
@@ -143,34 +162,32 @@ public class SupabaseManager: ObservableObject {
             credentials: .init(
                 provider: .apple,
                 idToken: identityToken,
-                nonce: nil
+                nonce: currentNonce
             )
         )
-        let timeSinceCreation = Date().timeIntervalSince(session.user.createdAt)
-        let isNewUser = timeSinceCreation < 5.0
+        currentNonce = nil
         let userMetadata = session.user.userMetadata
         let hasCompletedOnboarding = parseOnboardingStatus(from: userMetadata)
-        let shouldShowSplash = isNewUser || !hasCompletedOnboarding
-        await MainActor.run {
-            self.currentUser = session.user
-            let hasPreference = self.hasSelectedPreference()
-            if shouldShowSplash {
-                if hasPreference {
-                    self.isShowingWelcomeSplash = false
-                    self.isShowingPreferenceSelection = false
-                    self.isShowingOnboarding = !hasCompletedOnboarding
-                } else {
-                    self.isShowingWelcomeSplash = true
-                    self.isShowingPreferenceSelection = false
-                    self.isShowingOnboarding = false
-                }
-            } else {
+        let isNewUser = !hasCompletedOnboarding
+        let shouldShowSplash = isNewUser
+        self.currentUser = session.user
+        let hasPreference = self.hasSelectedPreference()
+        if shouldShowSplash {
+            if hasPreference {
                 self.isShowingWelcomeSplash = false
-                self.isShowingPreferenceSelection = !hasPreference
+                self.isShowingPreferenceSelection = false
+                self.isShowingOnboarding = true
+            } else {
+                self.isShowingWelcomeSplash = true
+                self.isShowingPreferenceSelection = false
                 self.isShowingOnboarding = false
             }
-            self.isAuthenticated = true
+        } else {
+            self.isShowingWelcomeSplash = false
+            self.isShowingPreferenceSelection = !hasPreference
+            self.isShowingOnboarding = false
         }
+        self.isAuthenticated = true
     }
 
     /// Signs in a user with Google Sign In using OAuth.
@@ -181,41 +198,38 @@ public class SupabaseManager: ObservableObject {
         // This must match what's configured in Info.plist (CFBundleURLSchemes)
         // AND in Supabase dashboard under Authentication > URL Configuration
         let redirectURL = URL(string: "com.drift.app://auth/callback")!
-        
+
         // Start OAuth flow - Supabase Swift will open ASWebAuthenticationSession
         // The callback will be handled via the URL scheme
         let session = try await client.auth.signInWithOAuth(
             provider: .google,
             redirectTo: redirectURL
         )
-        
+
         // The session is returned after OAuth completes
-        let timeSinceCreation = Date().timeIntervalSince(session.user.createdAt)
-        let isNewUser = timeSinceCreation < 5.0
         let userMetadata = session.user.userMetadata
         let hasCompletedOnboarding = parseOnboardingStatus(from: userMetadata)
-        let shouldShowSplash = isNewUser || !hasCompletedOnboarding
-        
-        await MainActor.run {
-            self.currentUser = session.user
-            let hasPreference = self.hasSelectedPreference()
-            if shouldShowSplash {
-                if hasPreference {
-                    self.isShowingWelcomeSplash = false
-                    self.isShowingPreferenceSelection = false
-                    self.isShowingOnboarding = !hasCompletedOnboarding
-                } else {
-                    self.isShowingWelcomeSplash = true
-                    self.isShowingPreferenceSelection = false
-                    self.isShowingOnboarding = false
-                }
-            } else {
+        let isNewUser = !hasCompletedOnboarding
+        let shouldShowSplash = isNewUser
+
+        self.currentUser = session.user
+        let hasPreference = self.hasSelectedPreference()
+        if shouldShowSplash {
+            if hasPreference {
                 self.isShowingWelcomeSplash = false
-                self.isShowingPreferenceSelection = !hasPreference
+                self.isShowingPreferenceSelection = false
+                self.isShowingOnboarding = true
+            } else {
+                self.isShowingWelcomeSplash = true
+                self.isShowingPreferenceSelection = false
                 self.isShowingOnboarding = false
             }
-            self.isAuthenticated = true
+        } else {
+            self.isShowingWelcomeSplash = false
+            self.isShowingPreferenceSelection = !hasPreference
+            self.isShowingOnboarding = false
         }
+        self.isAuthenticated = true
     }
 
     /// Signs out the current user.
@@ -343,6 +357,14 @@ public class SupabaseManager: ObservableObject {
     }
 
     // MARK: - Private
+
+    /// Generates a cryptographically random nonce string (32 random bytes, hex-encoded).
+    private func generateRandomNonce(byteCount: Int = 32) -> String {
+        var randomBytes = [UInt8](repeating: 0, count: byteCount)
+        let status = SecRandomCopyBytes(kSecRandomDefault, byteCount, &randomBytes)
+        precondition(status == errSecSuccess, "Failed to generate random bytes for nonce")
+        return randomBytes.map { String(format: "%02x", $0) }.joined()
+    }
 
     private func parseOnboardingStatus(from metadata: [String: Any]) -> Bool {
         guard let value = metadata["onboarding_completed"] else {

@@ -47,7 +47,9 @@ public class RevenueCatManager: NSObject, ObservableObject {
     // MARK: - Configuration
 
     private func configureRevenueCat() {
+        #if DEBUG
         Purchases.logLevel = .debug
+        #endif
         Purchases.configure(withAPIKey: _BackendConfiguration.shared.revenueCatAPIKey)
         Purchases.shared.delegate = self
         Task {

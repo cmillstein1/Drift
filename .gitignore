@@ -104,6 +104,8 @@ Drift/Network/VerifyFaceIDConfig.swift
 Drift/VerifyFaceIDConfig.swift
 **/UnsplashConfig.swift
 Drift/Network/UnsplashConfig.swift
+**/GoogleService-Info.plist
+GoogleService-Info.plist
 *.env
 .env.local
 .env.*.local

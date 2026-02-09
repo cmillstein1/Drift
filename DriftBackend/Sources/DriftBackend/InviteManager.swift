@@ -42,18 +42,12 @@ public class InviteManager: ObservableObject {
             // Ensure we have a valid session - this will throw if not authenticated
             let session = try await client.auth.session
             
-            let accessToken = session.accessToken
-            
-            print("🔐 [InviteManager] Session found")
-            print("🔐 [InviteManager] User ID: \(session.user.id)")
-            print("🔐 [InviteManager] Access token length: \(accessToken.count)")
-            print("🔐 [InviteManager] Access token prefix: \(String(accessToken.prefix(30)))...")
-            print("🔐 [InviteManager] Access token starts with 'Bearer': \(accessToken.hasPrefix("Bearer "))")
-            print("🔐 [InviteManager] Full access token (first 100 chars): \(String(accessToken.prefix(100)))")
-            
             struct EmptyBody: Encodable {}
-            
+
+            #if DEBUG
+            print("🔐 [InviteManager] Session found, user ID: \(session.user.id)")
             print("📤 [InviteManager] Using Supabase client functions.invoke (should auto-handle auth)...")
+            #endif
             
             // Use the Supabase client's built-in function invocation
             // This should automatically handle authentication correctly
@@ -62,20 +56,24 @@ public class InviteManager: ObservableObject {
                 options: FunctionInvokeOptions(body: EmptyBody())
             )
             
+            #if DEBUG
             print("✅ [InviteManager] Successfully generated invite code: \(invitation.code)")
+            #endif
             
             self.currentInviteCode = invitation.code
             self.isGenerating = false
             self.error = nil
         } catch {
+            #if DEBUG
             print("❌ [InviteManager] Failed to generate invite code: \(error)")
             print("❌ [InviteManager] Error type: \(type(of: error))")
             print("❌ [InviteManager] Error description: \(error.localizedDescription)")
-            
+
             if let urlError = error as? URLError {
                 print("❌ [InviteManager] URLError code: \(urlError.code.rawValue)")
                 print("❌ [InviteManager] URLError description: \(urlError.localizedDescription)")
             }
+            #endif
             
             let errorMessage = error.localizedDescription
             if errorMessage.contains("401") || errorMessage.contains("Unauthorized") {
@@ -117,10 +115,14 @@ public class InviteManager: ObservableObject {
             // Check if it's an auth error - this means the edge function needs to be updated
             let errorMessage = error.localizedDescription
             if errorMessage.contains("401") || errorMessage.contains("Unauthorized") {
+                #if DEBUG
                 print("⚠️ Edge function requires auth for validation. Update your redeem-invite function to allow validation without auth when validateOnly: true")
+                #endif
                 // Still return false, but log the issue
             }
+            #if DEBUG
             print("Invite code validation error: \(errorMessage)")
+            #endif
             return false
         }
     }
@@ -177,7 +179,9 @@ public class InviteManager: ObservableObject {
             )
             return response.hasRedeemed
         } catch {
+            #if DEBUG
             print("Invite status check error: \(error.localizedDescription)")
+            #endif
             return false
         }
     }
@@ -193,7 +197,18 @@ public struct Invitation: Codable {
     public let createdAt: Date?
     public let expiresAt: Date?
     public let isUsed: Bool
-    
+
+    private static let iso8601FractionalFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        return formatter
+    }()
+
     enum CodingKeys: String, CodingKey {
         case id, code
         case createdBy = "created_by"
@@ -201,7 +216,7 @@ public struct Invitation: Codable {
         case expiresAt = "expires_at"
         case isUsed = "is_used"
     }
-    
+
     public init(id: UUID, code: String, createdBy: UUID, createdAt: Date?, expiresAt: Date?, isUsed: Bool) {
         self.id = id
         self.code = code
@@ -210,28 +225,26 @@ public struct Invitation: Codable {
         self.expiresAt = expiresAt
         self.isUsed = isUsed
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        
+
         id = try container.decode(UUID.self, forKey: .id)
         code = try container.decode(String.self, forKey: .code)
         createdBy = try container.decode(UUID.self, forKey: .createdBy)
         isUsed = try container.decode(Bool.self, forKey: .isUsed)
-        
+
         // Handle dates as ISO8601 strings from edge function
         if let createdAtString = try container.decodeIfPresent(String.self, forKey: .createdAt) {
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            createdAt = formatter.date(from: createdAtString) ?? ISO8601DateFormatter().date(from: createdAtString)
+            createdAt = Self.iso8601FractionalFormatter.date(from: createdAtString)
+                ?? Self.iso8601Formatter.date(from: createdAtString)
         } else {
             createdAt = nil
         }
-        
+
         if let expiresAtString = try container.decodeIfPresent(String.self, forKey: .expiresAt) {
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            expiresAt = formatter.date(from: expiresAtString) ?? ISO8601DateFormatter().date(from: expiresAtString)
+            expiresAt = Self.iso8601FractionalFormatter.date(from: expiresAtString)
+                ?? Self.iso8601Formatter.date(from: expiresAtString)
         } else {
             expiresAt = nil
         }

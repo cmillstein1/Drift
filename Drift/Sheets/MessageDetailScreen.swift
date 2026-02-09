@@ -23,7 +23,6 @@ struct MessageDetailScreen: View {
     @State private var lastTypingSentAt: Date?
     @State private var profileToShowFromMessage: UserProfile?
     @State private var isLoadingProfileForMessage: Bool = false
-    @State private var pollingTask: Task<Void, Never>?
     @State private var messageToReport: Message?
     @State private var showMessageReportSheet = false
 
@@ -365,7 +364,6 @@ struct MessageDetailScreen: View {
             }
         }
         .onDisappear {
-            stopPolling()
             messagingManager.sendStoppedTypingIndicator()
             Task {
                 await messagingManager.unsubscribeFromMessages()
@@ -423,28 +421,10 @@ struct MessageDetailScreen: View {
             do {
                 try await messagingManager.fetchMessages(for: conversation.id)
                 await messagingManager.subscribeToMessages(conversationId: conversation.id)
-                // Start polling as fallback for realtime (quota exceeded workaround)
-                startPolling()
             } catch {
                 print("Failed to load messages: \(error)")
             }
         }
-    }
-
-    private func startPolling() {
-        pollingTask?.cancel()
-        pollingTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(3))
-                guard !Task.isCancelled else { break }
-                try? await messagingManager.fetchMessages(for: conversation.id)
-            }
-        }
-    }
-
-    private func stopPolling() {
-        pollingTask?.cancel()
-        pollingTask = nil
     }
 
     private func handleSend() {
@@ -500,11 +480,15 @@ struct ChatMessageBubble: View {
 
     private let charcoalColor = Color("Charcoal")
 
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        return f
+    }()
+
     private var timeString: String {
         guard let createdAt = message.createdAt else { return "" }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        return formatter.string(from: createdAt)
+        return Self.timeFormatter.string(from: createdAt)
     }
 
     var body: some View {

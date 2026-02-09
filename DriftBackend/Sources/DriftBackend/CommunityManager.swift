@@ -31,12 +31,24 @@ public class CommunityManager: ObservableObject {
     private var repliesChannel: RealtimeChannelV2?
     private var eventMessagesChannel: RealtimeChannelV2?
     private var attendeesChannel: RealtimeChannelV2?
+    private var myAttendeeChangesChannel: RealtimeChannelV2?
 
     /// Callback for new event messages (used by UI to append messages)
     public var onNewEventMessage: ((EventMessage) -> Void)?
 
     /// Callback for attendee status changes (used by UI to refresh attendees/requests)
     public var onAttendeeChange: ((UUID) -> Void)?
+
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        return formatter
+    }()
+
+    private static let iso8601FractionalFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 
     private var client: SupabaseClient {
         SupabaseManager.shared.client
@@ -230,7 +242,7 @@ public class CommunityManager: ObservableObject {
             .in("post_id", values: postIdStrings)
             .neq("author_id", value: userId) // Exclude user's own replies
             .is("deleted_at", value: nil)
-            .gt("created_at", value: ISO8601DateFormatter().string(from: lastViewed))
+            .gt("created_at", value: Self.iso8601Formatter.string(from: lastViewed))
             .execute()
             .value
 
@@ -338,7 +350,7 @@ public class CommunityManager: ObservableObject {
                     .select("id, event_id, user_id, content, created_at")
                     .eq("event_id", value: event.id)
                     .neq("user_id", value: userId)
-                    .gt("created_at", value: ISO8601DateFormatter().string(from: lastRead))
+                    .gt("created_at", value: Self.iso8601Formatter.string(from: lastRead))
                     .execute()
                     .value
 
@@ -346,7 +358,9 @@ public class CommunityManager: ObservableObject {
                     unreadCount += 1
                 }
             } catch {
+                #if DEBUG
                 print("Failed to check unread for event \(event.id): \(error)")
+                #endif
             }
         }
 
@@ -516,11 +530,11 @@ public class CommunityManager: ObservableObject {
         isDatingEvent: Bool? = nil
     ) async throws {
         var updates: [String: AnyEncodable] = [
-            "updated_at": AnyEncodable(ISO8601DateFormatter().string(from: Date()))
+            "updated_at": AnyEncodable(Self.iso8601Formatter.string(from: Date()))
         ]
         if let title = title { updates["title"] = AnyEncodable(title) }
         if let content = content { updates["content"] = AnyEncodable(content) }
-        if let datetime = datetime { updates["event_datetime"] = AnyEncodable(ISO8601DateFormatter().string(from: datetime)) }
+        if let datetime = datetime { updates["event_datetime"] = AnyEncodable(Self.iso8601Formatter.string(from: datetime)) }
         if let location = location { updates["event_location"] = AnyEncodable(location) }
         if let exactLocation = exactLocation { updates["event_exact_location"] = AnyEncodable(exactLocation) }
         if let latitude = latitude { updates["event_latitude"] = AnyEncodable(latitude) }
@@ -711,7 +725,7 @@ public class CommunityManager: ObservableObject {
 
         try await client
             .from("post_replies")
-            .update(["deleted_at": ISO8601DateFormatter().string(from: Date())])
+            .update(["deleted_at": Self.iso8601Formatter.string(from: Date())])
             .eq("id", value: replyId)
             .eq("author_id", value: userId)
             .execute()
@@ -1042,7 +1056,7 @@ public class CommunityManager: ObservableObject {
             .update(SolvedUpdate(
                 is_solved: true,
                 best_answer_id: bestAnswerId.uuidString,
-                updated_at: ISO8601DateFormatter().string(from: Date())
+                updated_at: Self.iso8601Formatter.string(from: Date())
             ))
             .eq("id", value: postId)
             .eq("author_id", value: userId)  // Only author can mark as solved
@@ -1149,7 +1163,9 @@ public class CommunityManager: ObservableObject {
                             }
                         }
                     } catch {
+                        #if DEBUG
                         print("Failed to fetch new reply: \(error)")
+                        #endif
                     }
                 }
             }
@@ -1198,13 +1214,17 @@ public class CommunityManager: ObservableObject {
         await channel.subscribe()
         attendeesChannel = channel
 
+        #if DEBUG
         print("[EventAttendees] Subscribed to realtime channel for event: \(eventId)")
+        #endif
 
         Task { [weak self] in
             for await change in changes {
                 guard let self = self else { return }
 
+                #if DEBUG
                 print("[EventAttendees] Received change: \(change)")
+                #endif
 
                 // Extract post_id from the change
                 var postIdString: String? = nil
@@ -1222,11 +1242,15 @@ public class CommunityManager: ObservableObject {
                 guard let postIdStr = postIdString,
                       let postId = UUID(uuidString: postIdStr),
                       postId == eventId else {
+                    #if DEBUG
                     print("[EventAttendees] Change for different event, ignoring")
+                    #endif
                     continue
                 }
 
+                #if DEBUG
                 print("[EventAttendees] Notifying UI of attendee change")
+                #endif
                 await MainActor.run {
                     self.onAttendeeChange?(eventId)
                 }
@@ -1234,10 +1258,12 @@ public class CommunityManager: ObservableObject {
         }
     }
 
-    /// Unsubscribes from attendees channel.
+    /// Unsubscribes from attendees channel and my-attendee-changes channel.
     public func unsubscribeFromAttendees() async {
         await attendeesChannel?.unsubscribe()
         attendeesChannel = nil
+        await myAttendeeChangesChannel?.unsubscribe()
+        myAttendeeChangesChannel = nil
         onAttendeeChange = nil
     }
 
@@ -1247,7 +1273,7 @@ public class CommunityManager: ObservableObject {
         guard let userId = SupabaseManager.shared.currentUser?.id else { return }
 
         // Unsubscribe from any existing channel first
-        await attendeesChannel?.unsubscribe()
+        await myAttendeeChangesChannel?.unsubscribe()
 
         let channel = client.realtimeV2.channel("my_attendees_\(userId.uuidString.prefix(8))")
 
@@ -1258,9 +1284,11 @@ public class CommunityManager: ObservableObject {
         )
 
         await channel.subscribe()
-        attendeesChannel = channel
+        myAttendeeChangesChannel = channel
 
+        #if DEBUG
         print("[MyAttendees] Subscribed to realtime channel for user: \(userId)")
+        #endif
 
         Task { [weak self] in
             for await change in changes {
@@ -1284,7 +1312,9 @@ public class CommunityManager: ObservableObject {
                     continue
                 }
 
+                #if DEBUG
                 print("[MyAttendees] Change detected for current user, refreshing posts...")
+                #endif
 
                 // Refresh posts to update attendance/pending status
                 await MainActor.run {
@@ -1382,13 +1412,17 @@ public class CommunityManager: ObservableObject {
         await channel.subscribe()
         eventMessagesChannel = channel
 
+        #if DEBUG
         print("[EventMessages] Subscribed to realtime channel")
+        #endif
 
         Task { [weak self] in
             for await insertion in insertions {
                 guard let self = self else { return }
 
+                #if DEBUG
                 print("[EventMessages] Received insertion: \(insertion.record)")
+                #endif
 
                 // Extract values from record
                 guard let idString = insertion.record["id"]?.stringValue,
@@ -1398,23 +1432,31 @@ public class CommunityManager: ObservableObject {
                       let userIdString = insertion.record["user_id"]?.stringValue,
                       let userId = UUID(uuidString: userIdString),
                       let content = insertion.record["content"]?.stringValue else {
+                    #if DEBUG
                     print("[EventMessages] Failed to parse message record")
+                    #endif
                     continue
                 }
 
                 // Only handle messages for this event
                 guard msgEventId == eventId else {
+                    #if DEBUG
                     print("[EventMessages] Message for different event, ignoring")
+                    #endif
                     continue
                 }
 
                 // Don't notify for our own messages (already added locally)
                 if userId == SupabaseManager.shared.currentUser?.id {
+                    #if DEBUG
                     print("[EventMessages] Own message, skipping")
+                    #endif
                     continue
                 }
 
+                #if DEBUG
                 print("[EventMessages] Processing message from user: \(userId)")
+                #endif
 
                 // Fetch the author profile
                 var author: UserProfile? = nil
@@ -1427,13 +1469,13 @@ public class CommunityManager: ObservableObject {
                         .execute()
                         .value
                 } catch {
+                    #if DEBUG
                     print("[EventMessages] Failed to fetch author: \(error)")
+                    #endif
                 }
 
                 let createdAt = insertion.record["created_at"]?.stringValue.flatMap { str -> Date? in
-                    let formatter = ISO8601DateFormatter()
-                    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                    return formatter.date(from: str)
+                    Self.iso8601FractionalFormatter.date(from: str)
                 }
 
                 let newMessage = EventMessage(
@@ -1446,7 +1488,9 @@ public class CommunityManager: ObservableObject {
                 )
 
                 await MainActor.run {
+                    #if DEBUG
                     print("[EventMessages] Calling onNewEventMessage callback")
+                    #endif
                     self.onNewEventMessage?(newMessage)
                 }
             }
@@ -1537,11 +1581,15 @@ public struct EventMessage: Identifiable, Codable, Sendable {
         self.author = author
     }
 
-    public var formattedTime: String {
-        guard let date = createdAt else { return "" }
+    private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
-        return formatter.string(from: date)
+        return formatter
+    }()
+
+    public var formattedTime: String {
+        guard let date = createdAt else { return "" }
+        return Self.timeFormatter.string(from: date)
     }
 }
 

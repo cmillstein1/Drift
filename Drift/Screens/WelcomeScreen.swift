@@ -338,7 +338,9 @@ struct WelcomeScreen: View {
                 identityToken: identityToken,
                 authorizationCode: authorizationCode
             )
+            #if DEBUG
             print("Apple Sign In successful")
+            #endif
             // Mark that we signed in with Apple so onboarding skips the name step (Guideline 4.0)
             UserDefaults.standard.set(true, forKey: "last_sign_in_was_apple")
             // Use first name from Apple when provided (only on first authorization)
@@ -347,11 +349,15 @@ struct WelcomeScreen: View {
                     try await ProfileManager.shared.fetchCurrentProfile()
                     try await ProfileManager.shared.updateProfile(ProfileUpdateRequest(name: firstName))
                 } catch {
+                    #if DEBUG
                     print("Could not save Apple name to profile: \(error)")
+                    #endif
                 }
             }
         } catch {
+            #if DEBUG
             print("Apple Sign In error: \(error)")
+            #endif
             if error.localizedDescription.contains("Unacceptable audience") {
                 errorMessage = "Apple Sign In configuration error. Please check Supabase dashboard settings."
             } else {
@@ -378,28 +384,51 @@ struct WelcomeScreen: View {
     private func handleEmailAuth() async {
         isLoading = true
         errorMessage = nil
-        
+
         guard !email.isEmpty, !password.isEmpty else {
             errorMessage = "Please enter both email and password"
             isLoading = false
             return
         }
-        
-        print("🔑 handleEmailAuth called - isSignUp: \(isSignUp)")
-        
+
+        // Basic email format validation
+        let trimmedEmail = email.trimmingCharacters(in: .whitespaces)
+        if !trimmedEmail.contains("@") || !trimmedEmail.contains(".") {
+            errorMessage = "Please enter a valid email address"
+            isLoading = false
+            return
+        }
+
+        // Password length validation (Supabase default minimum is 6)
+        if password.count < 6 {
+            errorMessage = "Password must be at least 6 characters"
+            isLoading = false
+            return
+        }
+
+        #if DEBUG
+        print("handleEmailAuth called - isSignUp: \(isSignUp)")
+        #endif
+
         do {
             if isSignUp {
-                print("📝 Calling signUpWithEmail...")
+                #if DEBUG
+                print("Calling signUpWithEmail...")
+                #endif
                 try await supabaseManager.signUpWithEmail(email: email, password: password)
             } else {
-                print("🔐 Calling signInWithEmail...")
+                #if DEBUG
+                print("Calling signInWithEmail...")
+                #endif
                 try await supabaseManager.signInWithEmail(email: email, password: password)
             }
         } catch {
-            print("❌ Auth error: \(error.localizedDescription)")
+            #if DEBUG
+            print("Auth error: \(error.localizedDescription)")
+            #endif
             errorMessage = error.localizedDescription
         }
-        
+
         isLoading = false
     }
 }

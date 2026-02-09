@@ -28,6 +28,7 @@ struct MessagesScreen: View {
     @State private var hiddenSectionExpanded = false
     @State private var showMyFriendsSheet = false
     @State private var pendingConversationToOpen: Conversation?
+    @State private var screenHeight: CGFloat = 800
 
     private var conversations: [Conversation] {
         messagingManager.conversations
@@ -43,13 +44,19 @@ struct MessagesScreen: View {
 
     /// Loads conversation list only. Realtime subscription is done once in onAppear Task to avoid double-subscribe and "postgresChange after join".
     private func loadConversations() {
+        #if DEBUG
         print("[Messages] loadConversations() called")
+        #endif
         Task {
             do {
                 try await messagingManager.fetchConversations()
+                #if DEBUG
                 print("[Messages] loadConversations() completed OK, list count: \(messagingManager.conversations.count)")
+                #endif
             } catch {
+                #if DEBUG
                 print("[Messages] loadConversations() failed: \(error)")
+                #endif
             }
         }
     }
@@ -59,7 +66,9 @@ struct MessagesScreen: View {
             do {
                 try await friendsManager.fetchPendingRequests()
             } catch {
+                #if DEBUG
                 print("Failed to load friend requests: \(error)")
+                #endif
             }
         }
     }
@@ -69,7 +78,9 @@ struct MessagesScreen: View {
             do {
                 try await friendsManager.fetchFriends()
             } catch {
+                #if DEBUG
                 print("Failed to load friends: \(error)")
+                #endif
             }
         }
     }
@@ -79,7 +90,9 @@ struct MessagesScreen: View {
             do {
                 try await friendsManager.fetchPeopleLikedMe()
             } catch {
+                #if DEBUG
                 print("Failed to load likes: \(error)")
+                #endif
             }
         }
     }
@@ -92,7 +105,9 @@ struct MessagesScreen: View {
                 // Refresh conversations after matches are processed
                 try await messagingManager.fetchConversations()
             } catch {
+                #if DEBUG
                 print("Failed to load matches: \(error)")
+                #endif
             }
         }
     }
@@ -109,7 +124,9 @@ struct MessagesScreen: View {
         } catch {
             let nsError = error as NSError
             if nsError.domain != NSURLErrorDomain || nsError.code != NSURLErrorCancelled {
+                #if DEBUG
                 print("Failed to refresh: \(error)")
+                #endif
             }
         }
     }
@@ -135,7 +152,9 @@ struct MessagesScreen: View {
                     selectedConversation = conversation
                 }
             } catch {
+                #if DEBUG
                 print("Failed to create conversation: \(error)")
+                #endif
             }
         }
     }
@@ -146,7 +165,9 @@ struct MessagesScreen: View {
                 _ = try await friendsManager.respondToFriendRequest(request.id, accept: true)
                 // Conversations are refreshed inside respondToFriendRequest
             } catch {
+                #if DEBUG
                 print("Failed to accept request: \(error)")
+                #endif
             }
         }
     }
@@ -156,7 +177,9 @@ struct MessagesScreen: View {
             do {
                 try await friendsManager.respondToFriendRequest(request.id, accept: false)
             } catch {
+                #if DEBUG
                 print("Failed to decline request: \(error)")
+                #endif
             }
         }
     }
@@ -203,7 +226,6 @@ struct MessagesScreen: View {
     }
     
     var body: some View {
-        NavigationStack {
             ZStack(alignment: .top) {
                 softGray
                     .ignoresSafeArea()
@@ -428,7 +450,7 @@ struct MessagesScreen: View {
                             }
                         )
                         // Shrink empty state when hidden conversations exist so the Hidden section is visible
-                        .frame(minHeight: hiddenConversations.isEmpty ? UIScreen.main.bounds.height - 320 : 200)
+                        .frame(minHeight: hiddenConversations.isEmpty ? screenHeight - 320 : 200)
                         .padding(.bottom, hiddenConversations.isEmpty ? 100 : 16)
                     }
 
@@ -554,8 +576,17 @@ struct MessagesScreen: View {
                 .padding(.top, 8)
             }
         }
+        .background(
+            GeometryReader { geometry in
+                Color.clear
+                    .onAppear { screenHeight = geometry.size.height }
+                    .onChange(of: geometry.size.height) { _, newHeight in screenHeight = newHeight }
+            }
+        )
         .onAppear {
+            #if DEBUG
             print("[Messages] MessagesScreen onAppear | isDatingEnabled: \(isDatingEnabled), selectedMode: \(selectedMode)")
+            #endif
             // Clear app badge when opening Messages tab
             UNUserNotificationCenter.current().setBadgeCount(0)
             // Default to friends if dating is not enabled
@@ -570,10 +601,14 @@ struct MessagesScreen: View {
             }
         }
         .onChange(of: selectedMode) { _, newMode in
+            #if DEBUG
             print("[Messages] selectedMode changed → \(newMode) | visible: \(visibleConversations.count), hidden: \(hiddenConversations.count)")
+            #endif
         }
         .onChange(of: messagingManager.conversations.count) { _, newCount in
+            #if DEBUG
             print("[Messages] conversations.count changed → total: \(newCount) | visible: \(visibleConversations.count), hidden: \(hiddenConversations.count)")
+            #endif
         }
         // Note: Realtime subscriptions are managed by AppDataManager at the ContentView level
         .sheet(isPresented: $showLikesYouScreen) {
@@ -638,7 +673,6 @@ struct MessagesScreen: View {
                 showBackButton: true,
                 showLikeAndPassButtons: true
             )
-        }
         }
     }
 }

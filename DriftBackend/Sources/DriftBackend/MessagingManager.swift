@@ -35,6 +35,19 @@ public class MessagingManager: ObservableObject {
     private var recentParticipantState: [UUID: (hiddenAt: Date?, leftAt: Date?, at: Date)] = [:]
     private let recentParticipantStateWindow: TimeInterval = 30
 
+    // MARK: - Static Formatters (avoid re-creating per call)
+
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        return f
+    }()
+
+    private static let timeBubbleFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        return f
+    }()
+
     private var client: SupabaseClient {
         SupabaseManager.shared.client
     }
@@ -46,12 +59,16 @@ public class MessagingManager: ObservableObject {
     /// Fetches all conversations for the current user.
     public func fetchConversations() async throws {
         guard let userId = SupabaseManager.shared.currentUser?.id else {
+            #if DEBUG
             print("[Messages] fetchConversations skipped: no current user (not authenticated)")
+            #endif
             throw MessagingError.notAuthenticated
         }
         guard !isLoading else { return }
 
+        #if DEBUG
         print("[Messages] fetchConversations started (userId: \(userId.uuidString.prefix(8))...)")
+        #endif
         isLoading = true
 
         do {
@@ -70,6 +87,7 @@ public class MessagingManager: ObservableObject {
             } catch {
                 let nsError = error as NSError
                 let isCancelled = nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+                #if DEBUG
                 if !isCancelled {
                     if let decodingError = error as? DecodingError {
                         switch decodingError {
@@ -88,10 +106,13 @@ public class MessagingManager: ObservableObject {
                         print("[Messages] fetchConversations request/parse error: \(error)")
                     }
                 }
+                #endif
                 throw error
             }
 
+            #if DEBUG
             print("[Messages] API returned \(conversations.count) conversation(s) | types: \(conversations.map { $0.type.rawValue })")
+            #endif
 
             // Batch-fetch last message for all conversations in a single query
             let conversationIds = conversations.map { $0.id }
@@ -104,6 +125,7 @@ public class MessagingManager: ObservableObject {
                     .select("*, sender:profiles!sender_id(*)")
                     .in("conversation_id", values: conversationIds)
                     .order("created_at", ascending: false)
+                    .limit(conversationIds.count * 2)
                     .execute()
                     .value
 
@@ -130,13 +152,17 @@ public class MessagingManager: ObservableObject {
                 let myParticipant = conv.participants?.first(where: { $0.userId == userId })
                 let hiddenAt = myParticipant?.hiddenAt
                 let leftAt = myParticipant?.leftAt
+                #if DEBUG
                 if idx < 3 {
                     print("[Messages]   [\(idx)] conv \(conv.id.uuidString.prefix(8))... participants: \(conv.participants?.count ?? 0), hiddenAt: \(hiddenAt != nil ? "set" : "nil"), leftAt: \(leftAt != nil ? "set" : "nil"), otherUser: \(conv.otherUser != nil ? "yes" : "no")")
                 }
+                #endif
             }
+            #if DEBUG
             if conversations.count > 3 {
                 print("[Messages]   ... and \(conversations.count - 3) more")
             }
+            #endif
 
             // Preserve recent hide/unhide/leave state so a refetch (realtime, onAppear) doesn't overwrite the UI
             let now = Date()
@@ -166,7 +192,9 @@ public class MessagingManager: ObservableObject {
             let visibleCount = filtered.filter { !$0.isHidden(for: userId) }.count
             let hiddenCount = filtered.filter { $0.isHidden(for: userId) }.count
 
+            #if DEBUG
             print("[Messages] After filter (not left): \(filtered.count) | visible: \(visibleCount), hidden: \(hiddenCount) | current list had: \(self.conversations.count) | types: \(filtered.map { $0.type.rawValue })")
+            #endif
 
             // Never overwrite the list with empty once we have data (avoids "message shows up then disappears" from a second refetch returning empty)
             let willAssign: Bool
@@ -177,11 +205,15 @@ public class MessagingManager: ObservableObject {
             } else {
                 willAssign = false
             }
+            #if DEBUG
             print("[Messages] Assign list? \(willAssign) (filtered.isEmpty=\(filtered.isEmpty), conversations.isEmpty=\(self.conversations.isEmpty))")
+            #endif
 
             if willAssign {
                 self.conversations = filtered
+                #if DEBUG
                 print("[Messages] conversations set to \(self.conversations.count) item(s)")
+                #endif
             }
 
             self.updateUnreadCount(userId: userId)
@@ -190,10 +222,14 @@ public class MessagingManager: ObservableObject {
             isLoading = false
             let nsError = error as NSError
             if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                #if DEBUG
                 print("[Messages] fetchConversations cancelled (request cancelled)")
+                #endif
                 return
             }
+            #if DEBUG
             print("[Messages] fetchConversations failed: \(error)")
+            #endif
             errorMessage = error.localizedDescription
             throw error
         }
@@ -213,7 +249,8 @@ public class MessagingManager: ObservableObject {
             throw MessagingError.notAuthenticated
         }
 
-        // Check for existing conversation
+        // Check for existing conversation — filter to conversations the current user participates in
+        // by using the conversation_participants join, rather than fetching ALL conversations of this type.
         let existing: [Conversation] = try await client
             .from("conversations")
             .select("""
@@ -221,6 +258,8 @@ public class MessagingManager: ObservableObject {
                 participants:conversation_participants(*)
             """)
             .eq("type", value: type.rawValue)
+            .eq("conversation_participants.user_id", value: currentUserId)
+            .limit(50)
             .execute()
             .value
 
@@ -310,7 +349,7 @@ public class MessagingManager: ObservableObject {
             .select("*, sender:profiles!sender_id(*)")
             .eq("conversation_id", value: conversationId)
             .is("deleted_at", value: nil)
-            .lt("created_at", value: ISO8601DateFormatter().string(from: oldestDate))
+            .lt("created_at", value: Self.iso8601Formatter.string(from: oldestDate))
             .order("created_at", ascending: false)
             .limit(messagePageSize)
             .execute()
@@ -389,7 +428,7 @@ public class MessagingManager: ObservableObject {
 
         try await client
             .from("conversation_participants")
-            .update(["last_read_at": ISO8601DateFormatter().string(from: now)])
+            .update(["last_read_at": Self.iso8601Formatter.string(from: now)])
             .eq("conversation_id", value: conversationId)
             .eq("user_id", value: userId)
             .execute()
@@ -417,7 +456,7 @@ public class MessagingManager: ObservableObject {
         // Update all participant records for this user
         try? await client
             .from("conversation_participants")
-            .update(["last_read_at": ISO8601DateFormatter().string(from: now)])
+            .update(["last_read_at": Self.iso8601Formatter.string(from: now)])
             .eq("user_id", value: userId)
             .execute()
 
@@ -443,7 +482,7 @@ public class MessagingManager: ObservableObject {
 
         try await client
             .from("messages")
-            .update(["deleted_at": ISO8601DateFormatter().string(from: Date())])
+            .update(["deleted_at": Self.iso8601Formatter.string(from: Date())])
             .eq("id", value: messageId)
             .eq("sender_id", value: userId)
             .execute()
@@ -462,7 +501,7 @@ public class MessagingManager: ObservableObject {
         let nowDate = Date()
         try await client
             .from("conversation_participants")
-            .update(["hidden_at": ISO8601DateFormatter().string(from: nowDate)])
+            .update(["hidden_at": Self.iso8601Formatter.string(from: nowDate)])
             .eq("conversation_id", value: conversationId)
             .eq("user_id", value: userId)
             .execute()
@@ -533,7 +572,7 @@ public class MessagingManager: ObservableObject {
         let nowDate = Date()
         try await client
             .from("conversation_participants")
-            .update(["left_at": ISO8601DateFormatter().string(from: nowDate)])
+            .update(["left_at": Self.iso8601Formatter.string(from: nowDate)])
             .eq("conversation_id", value: conversationId)
             .eq("user_id", value: userId)
             .execute()
@@ -614,7 +653,9 @@ public class MessagingManager: ObservableObject {
             let accessToken = try await client.auth.session.accessToken
             await client.realtimeV2.setAuth(accessToken)
         } catch {
+            #if DEBUG
             print("[Messages] Could not set realtime auth: \(error)")
+            #endif
         }
 
         let channel = client.realtimeV2.channel("messages:\(conversationId)")
@@ -693,7 +734,9 @@ public class MessagingManager: ObservableObject {
                         self.currentMessages.sort { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
                     }
                 } catch {
+                    #if DEBUG
                     print("[Messages] Failed to fetch new message: \(error)")
+                    #endif
                 }
             }
         }
@@ -733,7 +776,9 @@ public class MessagingManager: ObservableObject {
             do {
                 try await channel.broadcast(event: "typing", message: TypingPayload(userId: userId.uuidString))
             } catch {
+                #if DEBUG
                 print("[Typing] Broadcast failed: \(error)")
+                #endif
             }
         }
     }
@@ -760,7 +805,9 @@ public class MessagingManager: ObservableObject {
             let accessToken = try await client.auth.session.accessToken
             await client.realtimeV2.setAuth(accessToken)
         } catch {
+            #if DEBUG
             print("[Conversations] Could not set realtime auth: \(error)")
+            #endif
         }
 
         let channel = client.realtimeV2.channel("conversations:\(userId)")

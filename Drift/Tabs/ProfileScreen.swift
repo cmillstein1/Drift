@@ -181,7 +181,9 @@ struct ProfileScreen: View {
                     do {
                         try await profileManager.fetchCurrentProfile()
                     } catch {
+                        #if DEBUG
                         print("Failed to fetch profile: \(error)")
+                        #endif
                     }
                     await revenueCatManager.loadCustomerInfo()
                     try? await communityManager.fetchNewInteractionCount()
@@ -515,7 +517,7 @@ struct ProfileScreen: View {
                     icon: "crown.fill",
                     iconBackgroundGradient: [Color(red: 0.98, green: 0.76, blue: 0.18), Color(red: 0.96, green: 0.55, blue: 0.12)],
                     title: "Drift Pro",
-                    subtitle: revenueCatManager.hasProAccess ? "Renews Jan 18, 2026" : "Upgrade to unlock features",
+                    subtitle: revenueCatManager.hasProAccess ? "Active subscription" : "Upgrade to unlock features",
                     badge: revenueCatManager.hasProAccess ? "Active" : nil,
                     badgeColor: forestGreen
                 )
@@ -626,7 +628,9 @@ struct ProfileScreen: View {
         do {
             try await supabaseManager.signOut()
         } catch {
+            #if DEBUG
             print("Error signing out: \(error.localizedDescription)")
+            #endif
         }
         isSigningOut = false
     }
@@ -656,7 +660,9 @@ struct ProfileScreen: View {
                 supabaseManager.isShowingWelcomeSplash = false
             }
         } catch {
+            #if DEBUG
             print("Failed to restart onboarding: \(error.localizedDescription)")
+            #endif
         }
     }
     
@@ -688,24 +694,7 @@ struct ProfileScreen: View {
         return Set(currentUserInterests).intersection(Set(profile.interests)).map { $0 }
     }
     
-    private func getOnboardingStatus(from metadata: [String: Any]) -> Bool {
-        guard let value = metadata["onboarding_completed"] else {
-            return false
-        }
-        
-        if let boolValue = value as? Bool {
-            return boolValue
-        } else if let stringValue = value as? String {
-            return stringValue.lowercased() == "true" || stringValue == "1"
-        } else if let intValue = value as? Int {
-            return intValue != 0
-        } else if let nsNumber = value as? NSNumber {
-            return nsNumber.boolValue
-        }
-        
-        let stringDescription = String(describing: value)
-        return stringDescription.lowercased() == "true" || stringDescription == "1"
-    }
+    // Use supabaseManager.getOnboardingStatus(from:) instead of a local duplicate
 }
 
 

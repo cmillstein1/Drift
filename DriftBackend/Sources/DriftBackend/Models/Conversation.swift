@@ -71,6 +71,9 @@ public struct Conversation: Codable, Identifiable, Hashable, Sendable {
 
     public static func == (lhs: Conversation, rhs: Conversation) -> Bool {
         lhs.id == rhs.id
+            && lhs.lastMessage?.id == rhs.lastMessage?.id
+            && lhs.updatedAt == rhs.updatedAt
+            && lhs.activityId == rhs.activityId
     }
 
     public func hasUnreadMessages(for userId: UUID) -> Bool {

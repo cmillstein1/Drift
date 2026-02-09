@@ -247,20 +247,28 @@ public class NotificationsManager: ObservableObject {
                 .execute()
                 .value
 
+            // Batch-fetch all other user profiles in a single query
+            let otherUserIds = matches.map { $0.user1Id == userId ? $0.user2Id : $0.user1Id }
+            let profileMap = (try? await ProfileManager.shared.fetchProfiles(by: otherUserIds)) ?? [:]
+
             var notifications: [NotificationItem] = []
 
             for match in matches {
                 let otherUserId = match.user1Id == userId ? match.user2Id : match.user1Id
-                let profile = try? await ProfileManager.shared.fetchProfile(by: otherUserId)
+                let profile = profileMap[otherUserId]
 
                 let matchedAt = match.matchedAt ?? Date()
                 let isRead = matchedAt <= lastViewedAt
+
+                let subtitle: String? = profile?.bio.flatMap { bio in
+                    bio.isEmpty ? nil : String(bio.prefix(50))
+                }
 
                 let notification = NotificationItem(
                     id: match.id,
                     type: .match,
                     title: "You matched with \(profile?.displayName ?? "someone")!",
-                    subtitle: profile?.bio != nil ? String(profile!.bio!.prefix(50)) : nil,
+                    subtitle: subtitle,
                     createdAt: matchedAt,
                     isRead: isRead,
                     actorProfile: profile,
@@ -272,7 +280,9 @@ public class NotificationsManager: ObservableObject {
             return notifications
         } catch {
             if (error as NSError).code != NSURLErrorCancelled {
+                #if DEBUG
                 print("[Notifications] Failed to fetch matches: \(error)")
+                #endif
             }
             return []
         }
@@ -312,7 +322,9 @@ public class NotificationsManager: ObservableObject {
             return notifications
         } catch {
             if (error as NSError).code != NSURLErrorCancelled {
+                #if DEBUG
                 print("[Notifications] Failed to fetch friend requests: \(error)")
+                #endif
             }
             return []
         }
@@ -397,7 +409,9 @@ public class NotificationsManager: ObservableObject {
             return notifications
         } catch {
             if (error as NSError).code != NSURLErrorCancelled {
+                #if DEBUG
                 print("[Notifications] Failed to fetch community replies: \(error)")
+                #endif
             }
             return []
         }
@@ -454,13 +468,17 @@ public class NotificationsManager: ObservableObject {
                 .execute()
                 .value
 
+            // Batch-fetch all attendee profiles in a single query
+            let attendeeUserIds = attendees.map { $0.userId }
+            let profileMap = (try? await ProfileManager.shared.fetchProfiles(by: attendeeUserIds)) ?? [:]
+
             var notifications: [NotificationItem] = []
 
             for attendee in attendees {
                 let createdAt = attendee.createdAt ?? Date()
                 let isRead = createdAt <= lastViewedAt
 
-                let profile = try? await ProfileManager.shared.fetchProfile(by: attendee.userId)
+                let profile = profileMap[attendee.userId]
                 let eventTitle = eventTitleMap[attendee.postId] ?? "your event"
 
                 let statusText = attendee.status == "pending" ? "requested to join" : "joined"
@@ -481,7 +499,9 @@ public class NotificationsManager: ObservableObject {
             return notifications
         } catch {
             if (error as NSError).code != NSURLErrorCancelled {
+                #if DEBUG
                 print("[Notifications] Failed to fetch event joins: \(error)")
+                #endif
             }
             return []
         }
@@ -574,14 +594,17 @@ public class NotificationsManager: ObservableObject {
                 .execute()
                 .value
 
+            // Batch-fetch all sender profiles in a single query
+            let senderUserIds = Array(Set(messages.map { $0.userId }))
+            let profileMap = (try? await ProfileManager.shared.fetchProfiles(by: senderUserIds)) ?? [:]
+
             var notifications: [NotificationItem] = []
 
             for message in messages {
                 let createdAt = message.createdAt ?? Date()
                 let isRead = createdAt <= lastViewedAt
 
-                // Fetch sender profile
-                let profile = try? await ProfileManager.shared.fetchProfile(by: message.userId)
+                let profile = profileMap[message.userId]
                 let eventTitle = postTitleMap[message.eventId] ?? "event"
 
                 let notification = NotificationItem(
@@ -601,7 +624,9 @@ public class NotificationsManager: ObservableObject {
             return notifications
         } catch {
             if (error as NSError).code != NSURLErrorCancelled {
+                #if DEBUG
                 print("[Notifications] Failed to fetch event messages: \(error)")
+                #endif
             }
             return []
         }

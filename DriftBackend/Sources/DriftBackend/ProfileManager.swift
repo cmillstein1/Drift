@@ -46,9 +46,11 @@ public class ProfileManager: ObservableObject {
     private func saveToDisk(_ profiles: [UserProfile], key: String) {
         do {
             let data = try JSONEncoder().encode(profiles)
-            try data.write(to: cacheURL(for: key), options: .atomic)
+            try data.write(to: cacheURL(for: key), options: [.atomic, .completeFileProtection])
         } catch {
+            #if DEBUG
             print("[ProfileManager] Failed to save cache (\(key)): \(error)")
+            #endif
         }
     }
 
@@ -127,14 +129,18 @@ public class ProfileManager: ObservableObject {
     /// - Parameter updates: A `ProfileUpdateRequest` with fields to update.
     public func updateProfile(_ updates: ProfileUpdateRequest) async throws {
         guard let userId = SupabaseManager.shared.currentUser?.id else {
+            #if DEBUG
             print("🔴 [ProfileManager] updateProfile: not authenticated")
+            #endif
             throw ProfileError.notAuthenticated
         }
 
+        #if DEBUG
         print("🔵 [ProfileManager] updateProfile for userId: \(userId)")
         print("🔵 [ProfileManager] workStyle: \(String(describing: updates.workStyle))")
         print("🔵 [ProfileManager] homeBase: \(String(describing: updates.homeBase))")
         print("🔵 [ProfileManager] morningPerson: \(String(describing: updates.morningPerson))")
+        #endif
 
         try await client
             .from("profiles")
@@ -142,14 +148,18 @@ public class ProfileManager: ObservableObject {
             .eq("id", value: userId)
             .execute()
 
+        #if DEBUG
         print("🔵 [ProfileManager] Update executed, now fetching profile...")
+        #endif
 
         // Refresh profile after update
         try await fetchCurrentProfile()
 
+        #if DEBUG
         print("🔵 [ProfileManager] After refresh - workStyle: \(String(describing: currentProfile?.workStyle))")
         print("🔵 [ProfileManager] After refresh - homeBase: \(String(describing: currentProfile?.homeBase))")
         print("🔵 [ProfileManager] After refresh - morningPerson: \(String(describing: currentProfile?.morningPerson))")
+        #endif
     }
 
     /// Fetches a profile by user ID, returning a cached version if available and fresh.
@@ -533,13 +543,18 @@ public class ProfileManager: ObservableObject {
 
     // MARK: - Last Active
 
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        return formatter
+    }()
+
     /// Updates the user's last active timestamp.
     public func updateLastActive() async throws {
         guard let userId = SupabaseManager.shared.currentUser?.id else { return }
 
         try await client
             .from("profiles")
-            .update(["last_active_at": ISO8601DateFormatter().string(from: Date())])
+            .update(["last_active_at": Self.iso8601Formatter.string(from: Date())])
             .eq("id", value: userId)
             .execute()
     }
@@ -549,9 +564,9 @@ public class ProfileManager: ObservableObject {
     /// Checks if a profile has completed dating-specific onboarding (used for current user or discovery).
     /// Returns true if they have orientation, lookingFor set to dating/both, and at least 3 prompt answers.
     public static func hasCompletedDatingOnboarding(profile: UserProfile) -> Bool {
-        let hasOrientation = profile.orientation != nil && !profile.orientation!.isEmpty
+        let hasOrientation = !(profile.orientation?.isEmpty ?? true)
         let isLookingForDating = profile.lookingFor == .dating || profile.lookingFor == .both
-        let hasPromptAnswers = profile.promptAnswers != nil && !profile.promptAnswers!.isEmpty && profile.promptAnswers!.count >= 3
+        let hasPromptAnswers = (profile.promptAnswers?.count ?? 0) >= 3
         return hasOrientation && isLookingForDating && hasPromptAnswers
     }
 
@@ -570,15 +585,15 @@ public class ProfileManager: ObservableObject {
         // For partial onboarding, we want to show dating-specific screens
         // Skip basic info (name, birthday) if they already have it, but always show dating-specific screens
         
-        let hasName = profile.name != nil && !profile.name!.isEmpty
+        let hasName = !(profile.name?.isEmpty ?? true)
         let hasBirthday = profile.birthday != nil
-        let hasOrientation = profile.orientation != nil && !profile.orientation!.isEmpty
+        let hasOrientation = !(profile.orientation?.isEmpty ?? true)
         let hasLookingFor = profile.lookingFor == .dating || profile.lookingFor == .both
-        let hasPhotos = !profile.displayPhotoUrls.isEmpty && profile.displayPhotoUrls.count >= 2
-        let hasInterests = !profile.interests.isEmpty && profile.interests.count >= 3
-        let hasBio = profile.bio != nil && !profile.bio!.isEmpty
-        let hasPromptAnswers = profile.promptAnswers != nil && !profile.promptAnswers!.isEmpty && profile.promptAnswers!.count >= 3
-        let hasLocation = profile.location != nil && !profile.location!.isEmpty
+        let hasPhotos = profile.displayPhotoUrls.count >= 2
+        let hasInterests = profile.interests.count >= 3
+        let hasBio = !(profile.bio?.isEmpty ?? true)
+        let hasPromptAnswers = (profile.promptAnswers?.count ?? 0) >= 3
+        let hasLocation = !(profile.location?.isEmpty ?? true)
         
         // Determine starting step - prioritize dating-specific screens
         // If they have basic info, start at first dating screen (Orientation)

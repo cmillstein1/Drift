@@ -67,8 +67,7 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
         ZStack(alignment: .bottom) {
-            // Tab content — views stay alive across tab switches (like UITabBarController).
-            // Preserves scroll positions and avoids unnecessary onAppear reloads.
+            // Tab content — all tabs stay alive for instant switching; hidden tabs use opacity(0).
             ZStack {
                 DiscoverScreen()
                     .opacity(selectedTab == .discover ? 1 : 0)
@@ -213,7 +212,9 @@ struct ContentView: View {
                     )
                     deepLinkConversation = conversation
                 } catch {
+                    #if DEBUG
                     print("[DeepLink] Failed to open match conversation: \(error)")
+                    #endif
                 }
             }
 
@@ -224,7 +225,9 @@ struct ContentView: View {
                     let post = try await CommunityManager.shared.fetchPost(by: id)
                     deepLinkPost = post
                 } catch {
+                    #if DEBUG
                     print("[DeepLink] Failed to fetch event post: \(error)")
+                    #endif
                 }
             }
 
@@ -235,7 +238,9 @@ struct ContentView: View {
                     let post = try await CommunityManager.shared.fetchPost(by: id)
                     deepLinkPost = post
                 } catch {
+                    #if DEBUG
                     print("[DeepLink] Failed to fetch community post: \(error)")
+                    #endif
                 }
             }
         }
