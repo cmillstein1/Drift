@@ -343,6 +343,8 @@ public struct TravelStop: Codable, Identifiable, Hashable, Sendable {
     public var location: String
     public var startDate: Date
     public var endDate: Date?
+    public var latitude: Double?
+    public var longitude: Double?
     public let createdAt: Date?
 
     enum CodingKeys: String, CodingKey {
@@ -351,6 +353,8 @@ public struct TravelStop: Codable, Identifiable, Hashable, Sendable {
         case location
         case startDate = "start_date"
         case endDate = "end_date"
+        case latitude
+        case longitude
         case createdAt = "created_at"
     }
 
@@ -360,6 +364,8 @@ public struct TravelStop: Codable, Identifiable, Hashable, Sendable {
         location: String,
         startDate: Date,
         endDate: Date? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
         createdAt: Date? = nil
     ) {
         self.id = id
@@ -367,6 +373,8 @@ public struct TravelStop: Codable, Identifiable, Hashable, Sendable {
         self.location = location
         self.startDate = startDate
         self.endDate = endDate
+        self.latitude = latitude
+        self.longitude = longitude
         self.createdAt = createdAt
     }
 
@@ -398,6 +406,9 @@ public struct TravelStop: Codable, Identifiable, Hashable, Sendable {
             endDate = nil
         }
 
+        latitude = try container.decodeIfPresent(Double.self, forKey: .latitude)
+        longitude = try container.decodeIfPresent(Double.self, forKey: .longitude)
+
         // createdAt uses ISO8601 with time
         if let createdAtString = try container.decodeIfPresent(String.self, forKey: .createdAt) {
             let iso8601Formatter = ISO8601DateFormatter()
@@ -423,6 +434,8 @@ public struct TravelStop: Codable, Identifiable, Hashable, Sendable {
         if let endDate = endDate {
             try container.encode(dateFormatter.string(from: endDate), forKey: .endDate)
         }
+        try container.encodeIfPresent(latitude, forKey: .latitude)
+        try container.encodeIfPresent(longitude, forKey: .longitude)
         // Don't encode createdAt - it's managed by the database
     }
 

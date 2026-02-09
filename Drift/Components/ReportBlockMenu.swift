@@ -8,13 +8,14 @@
 import SwiftUI
 import DriftBackend
 
-/// A 3-dot menu that shows "Report" and "Block". Block asks for confirmation (native alert), then calls the backend and shows success. Report opens the ReportSheet.
+/// A 3-dot menu that shows "Report", "Block", and optionally "Remove Friend". Block asks for confirmation (native alert), then calls the backend and shows success. Report opens the ReportSheet.
 struct ReportBlockMenu: View {
     let userId: UUID?
     var displayName: String? = nil
     var profile: UserProfile? = nil  // For report snapshot
     var onReport: () -> Void = {}
     var onBlockComplete: (() -> Void)? = nil
+    var onRemoveFriendComplete: (() -> Void)? = nil
 
     @StateObject private var friendsManager = FriendsManager.shared
     @State private var isBlocking = false
@@ -26,9 +27,19 @@ struct ReportBlockMenu: View {
     @State private var showBlockSuccess = false
     @State private var successBlockName: String = ""
     @State private var showReportSheet = false
+    @State private var showRemoveFriendConfirm = false
+    @State private var isRemovingFriend = false
 
     private let charcoalColor = Color("Charcoal")
     private var resolvedDisplayName: String { displayName ?? "this user" }
+
+    private var friendRecord: Friend? {
+        guard let userId else { return nil }
+        return friendsManager.friends.first { friend in
+            friend.status == .accepted &&
+            (friend.requesterId == userId || friend.addresseeId == userId)
+        }
+    }
 
     var body: some View {
         Menu {
@@ -38,6 +49,15 @@ struct ReportBlockMenu: View {
                 Label("Report", systemImage: "exclamationmark.triangle")
             }
             .disabled(userId == nil)
+
+            if friendRecord != nil {
+                Button(role: .destructive) {
+                    showRemoveFriendConfirm = true
+                } label: {
+                    Label("Remove Friend", systemImage: "person.badge.minus")
+                }
+                .disabled(isRemovingFriend)
+            }
 
             Button(role: .destructive) {
                 guard let userId else { return }
@@ -71,6 +91,16 @@ struct ReportBlockMenu: View {
                     }
                 )
             }
+        }
+        .alert("Remove \(resolvedDisplayName) as a friend?", isPresented: $showRemoveFriendConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove", role: .destructive) {
+                Task {
+                    await performRemoveFriend()
+                }
+            }
+        } message: {
+            Text("You will no longer be connected as friends. You can send a new friend request later.")
         }
         .alert("Block \(pendingBlockDisplayName)?", isPresented: $showBlockConfirm) {
             Button("Cancel", role: .cancel) {
@@ -109,6 +139,21 @@ struct ReportBlockMenu: View {
     }
 
     @MainActor
+    private func performRemoveFriend() async {
+        guard let record = friendRecord else { return }
+        isRemovingFriend = true
+        defer { isRemovingFriend = false }
+
+        do {
+            try await friendsManager.removeFriend(record.id)
+            onRemoveFriendComplete?()
+        } catch {
+            blockError = error.localizedDescription
+            showBlockError = true
+        }
+    }
+
+    @MainActor
     private func performBlock(_ userId: UUID) async -> Bool {
         isBlocking = true
         blockError = nil
@@ -132,6 +177,7 @@ struct ReportBlockMenuButton: View {
     var profile: UserProfile? = nil  // For report snapshot
     var onReport: () -> Void = {}
     var onBlockComplete: (() -> Void)? = nil
+    var onRemoveFriendComplete: (() -> Void)? = nil
     /// When true, use light foreground for dark backgrounds (e.g. profile hero).
     var darkStyle: Bool = false
     /// When true, show only the ellipsis in black with no circle/background (matches plain back button).
@@ -149,9 +195,19 @@ struct ReportBlockMenuButton: View {
     @State private var showBlockSuccess = false
     @State private var successBlockName: String = ""
     @State private var showReportSheet = false
+    @State private var showRemoveFriendConfirm = false
+    @State private var isRemovingFriend = false
 
     private let inkMain = Color(red: 0.07, green: 0.09, blue: 0.15)
     private var resolvedDisplayName: String { displayName ?? "this user" }
+
+    private var friendRecord: Friend? {
+        guard let userId else { return nil }
+        return friendsManager.friends.first { friend in
+            friend.status == .accepted &&
+            (friend.requesterId == userId || friend.addresseeId == userId)
+        }
+    }
 
     var body: some View {
         Menu {
@@ -161,6 +217,15 @@ struct ReportBlockMenuButton: View {
                 Label("Report", systemImage: "exclamationmark.triangle")
             }
             .disabled(userId == nil)
+
+            if friendRecord != nil {
+                Button(role: .destructive) {
+                    showRemoveFriendConfirm = true
+                } label: {
+                    Label("Remove Friend", systemImage: "person.badge.minus")
+                }
+                .disabled(isRemovingFriend)
+            }
 
             Button(role: .destructive) {
                 guard let userId else { return }
@@ -217,6 +282,16 @@ struct ReportBlockMenuButton: View {
                 )
             }
         }
+        .alert("Remove \(resolvedDisplayName) as a friend?", isPresented: $showRemoveFriendConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove", role: .destructive) {
+                Task {
+                    await performRemoveFriend()
+                }
+            }
+        } message: {
+            Text("You will no longer be connected as friends. You can send a new friend request later.")
+        }
         .alert("Block \(pendingBlockDisplayName)?", isPresented: $showBlockConfirm) {
             Button("Cancel", role: .cancel) {
                 pendingBlockUserId = nil
@@ -250,6 +325,21 @@ struct ReportBlockMenuButton: View {
             if let blockError {
                 Text(blockError)
             }
+        }
+    }
+
+    @MainActor
+    private func performRemoveFriend() async {
+        guard let record = friendRecord else { return }
+        isRemovingFriend = true
+        defer { isRemovingFriend = false }
+
+        do {
+            try await friendsManager.removeFriend(record.id)
+            onRemoveFriendComplete?()
+        } catch {
+            blockError = error.localizedDescription
+            showBlockError = true
         }
     }
 

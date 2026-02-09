@@ -52,32 +52,6 @@ struct CommunityScreen: View {
                             .foregroundColor(charcoal)
 
                         Spacer()
-
-                        Button {
-                            showNotificationsSheet = true
-                        } label: {
-                            ZStack(alignment: .topTrailing) {
-                                Image(systemName: "bell.fill")
-                                    .font(.system(size: 18))
-                                    .foregroundColor(charcoal)
-                                    .frame(width: 40, height: 40)
-                                    .background(Color.white)
-                                    .clipShape(Circle())
-                                    .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
-
-                                if notificationsManager.unreadCount > 0 {
-                                    Circle()
-                                        .fill(burntOrange)
-                                        .frame(width: 10, height: 10)
-                                        .overlay(
-                                            Circle()
-                                                .stroke(Color.white, lineWidth: 2)
-                                        )
-                                        .offset(x: 2, y: -2)
-                                }
-                            }
-                        }
-
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 24)

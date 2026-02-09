@@ -244,6 +244,8 @@ private struct TravelStopEditorSheet: View {
     let onSave: (DriftBackend.TravelStop) -> Void
 
     @State private var location: String = ""
+    @State private var locationLatitude: Double? = nil
+    @State private var locationLongitude: Double? = nil
     @State private var startDate: Date = Date()
     @State private var endDate: Date = Date()
     @State private var hasEndDate: Bool = false
@@ -275,6 +277,8 @@ private struct TravelStopEditorSheet: View {
         self.onSave = onSave
         if let stop = stop {
             _location = State(initialValue: stop.location)
+            _locationLatitude = State(initialValue: stop.latitude)
+            _locationLongitude = State(initialValue: stop.longitude)
             _startDate = State(initialValue: stop.startDate)
             _endDate = State(initialValue: stop.endDate ?? Date())
             _hasEndDate = State(initialValue: stop.endDate != nil)
@@ -335,18 +339,11 @@ private struct TravelStopEditorSheet: View {
                             .foregroundColor(charcoal.opacity(0.6))
                             .tracking(0.5)
 
-                        HStack(spacing: 12) {
-                            Image(systemName: "mappin.circle")
-                                .font(.system(size: 20))
-                                .foregroundColor(charcoal.opacity(0.4))
-
-                            TextField("Where are you going?", text: $location)
-                                .font(.system(size: 16))
-                                .foregroundColor(charcoal)
-                        }
-                        .padding(16)
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        LocationSearchField(
+                            locationName: $location,
+                            latitude: $locationLatitude,
+                            longitude: $locationLongitude
+                        )
                         .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
                     }
 
@@ -497,6 +494,8 @@ private struct TravelStopEditorSheet: View {
             location: location.trimmingCharacters(in: .whitespacesAndNewlines),
             startDate: startDate,
             endDate: hasEndDate ? endDate : nil,
+            latitude: locationLatitude,
+            longitude: locationLongitude,
             createdAt: stop?.createdAt
         )
 

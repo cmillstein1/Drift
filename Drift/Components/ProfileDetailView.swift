@@ -40,6 +40,9 @@ struct ProfileDetailView: View {
     @State private var travelStops: [DriftBackend.TravelStop] = []
     /// When true, Like was tapped — play animation then dismiss.
     @State private var likeTriggered = false
+    /// When true, Connect was tapped or already sent — show confirmation state.
+    @State private var connectSent = false
+    @StateObject private var friendsManager = FriendsManager.shared
     @Environment(\.dismiss) var dismiss
 
     private let profileHeaderCollapseThreshold: CGFloat = 72
@@ -482,18 +485,18 @@ struct ProfileDetailView: View {
                     VStack(spacing: 0) {
                         if detailMode == .friends, let onConnect = onConnect {
                             Button {
+                                guard !connectSent else { return }
                                 let generator = UIImpactFeedbackGenerator(style: .medium)
                                 generator.impactOccurred()
                                 onConnect()
-                                withAnimation(.easeOut(duration: 0.25)) {
-                                    isOpen = false
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                                    connectSent = true
                                 }
-                                dismiss()
                             } label: {
                                 HStack(spacing: 8) {
-                                    Image(systemName: "person.badge.plus")
+                                    Image(systemName: connectSent ? "checkmark.circle.fill" : "person.badge.plus")
                                         .font(.system(size: 18))
-                                    Text("Connect")
+                                    Text(connectSent ? "Request Sent!" : "Connect")
                                         .font(.system(size: 16, weight: .semibold))
                                 }
                                 .foregroundColor(.white)
@@ -501,8 +504,15 @@ struct ProfileDetailView: View {
                                 .padding(.vertical, 16)
                                 .background(forestGreen)
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .scaleEffect(connectSent ? 0.98 : 1.0)
                             }
                             .buttonStyle(LikeButtonStyle())
+                            .disabled(connectSent)
+                            .onAppear {
+                                if friendsManager.hasSentRequest(to: profile.id) {
+                                    connectSent = true
+                                }
+                            }
                         } else {
                             HStack(spacing: 12) {
                                 Button {

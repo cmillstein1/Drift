@@ -439,7 +439,9 @@ public class ProfileManager: ObservableObject {
                     userId: userId,
                     location: stop.location,
                     startDate: stop.startDate,
-                    endDate: stop.endDate
+                    endDate: stop.endDate,
+                    latitude: stop.latitude,
+                    longitude: stop.longitude
                 )
             }
 
@@ -634,11 +636,15 @@ struct TravelStopCreateRequest: Encodable {
     let location: String
     let startDate: Date
     let endDate: Date?
+    let latitude: Double?
+    let longitude: Double?
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case location
         case startDate = "start_date"
         case endDate = "end_date"
+        case latitude
+        case longitude
     }
 }

@@ -295,6 +295,8 @@ private struct TravelStopOnboardingSheet: View {
     let onSave: (DriftBackend.TravelStop) -> Void
 
     @State private var location: String = ""
+    @State private var locationLatitude: Double? = nil
+    @State private var locationLongitude: Double? = nil
     @State private var startDate: Date = Date()
     @State private var endDate: Date = Date().addingTimeInterval(7 * 24 * 60 * 60)
     @State private var hasEndDate: Bool = true
@@ -349,18 +351,11 @@ private struct TravelStopOnboardingSheet: View {
                             .foregroundColor(charcoal.opacity(0.6))
                             .tracking(0.5)
 
-                        HStack(spacing: 12) {
-                            Image(systemName: "mappin.circle")
-                                .font(.system(size: 20))
-                                .foregroundColor(charcoal.opacity(0.4))
-
-                            TextField("Where are you going?", text: $location)
-                                .font(.system(size: 16))
-                                .foregroundColor(charcoal)
-                        }
-                        .padding(16)
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        LocationSearchField(
+                            locationName: $location,
+                            latitude: $locationLatitude,
+                            longitude: $locationLongitude
+                        )
                     }
 
                     // Dates
@@ -424,6 +419,8 @@ private struct TravelStopOnboardingSheet: View {
             location: location.trimmingCharacters(in: .whitespacesAndNewlines),
             startDate: startDate,
             endDate: hasEndDate ? endDate : nil,
+            latitude: locationLatitude,
+            longitude: locationLongitude,
             createdAt: nil
         )
 

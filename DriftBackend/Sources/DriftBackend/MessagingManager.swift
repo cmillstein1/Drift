@@ -386,6 +386,15 @@ public class MessagingManager: ObservableObject {
             .insert(request)
             .execute()
 
+        // Persist read status to database immediately so realtime refetches
+        // pick up the updated lastReadAt before overwriting local state
+        try? await client
+            .from("conversation_participants")
+            .update(["last_read_at": Self.iso8601Formatter.string(from: Date())])
+            .eq("conversation_id", value: conversationId)
+            .eq("user_id", value: userId)
+            .execute()
+
         // Update the local conversation's lastMessage for immediate UI feedback
         if let index = conversations.firstIndex(where: { $0.id == conversationId }) {
             let senderProfile = try? await ProfileManager.shared.fetchProfile(by: userId)

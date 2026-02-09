@@ -77,6 +77,10 @@ public struct Conversation: Codable, Identifiable, Hashable, Sendable {
     }
 
     public func hasUnreadMessages(for userId: UUID) -> Bool {
+        // Messages sent by the current user are never unread for them
+        if lastMessage?.senderId == userId {
+            return false
+        }
         guard let participant = participants?.first(where: { $0.userId == userId }),
               let lastReadAt = participant.lastReadAt,
               let lastMessageDate = lastMessage?.createdAt else {
