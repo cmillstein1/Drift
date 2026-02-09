@@ -176,9 +176,10 @@ struct DriftApp: App {
             return hasRequiredData && isMarkedComplete
         }
 
-        // If profile not loaded yet, check auth metadata but be conservative
-        // Return false to trigger onboarding check
-        return false
+        // Profile not loaded yet — fall back to auth metadata so returning
+        // users aren't shown the preference/onboarding screens while the
+        // profile is still being fetched.
+        return getOnboardingStatus(from: supabaseManager.currentUser?.userMetadata ?? [:])
     }
 
     /// All initial loading is done — destination view is ready to show
@@ -217,8 +218,8 @@ struct DriftApp: App {
                             supabaseManager.isShowingWelcomeSplash = false
                             supabaseManager.isShowingPreferenceSelection = true
                         }
-                    } else if supabaseManager.isShowingPreferenceSelection {
-                        // 3. Show preference selection screen
+                    } else if supabaseManager.isShowingPreferenceSelection && !hasCompletedOnboarding {
+                        // 3. Show preference selection screen (only for users who haven't finished onboarding)
                         PreferenceSelectionScreen()
                     } else if supabaseManager.isShowingFriendOnboarding {
                         // 4. Show friend onboarding flow
@@ -325,6 +326,19 @@ struct DriftApp: App {
                     }
                 }
             }
+            .onChange(of: hasCompletedOnboarding) { _, isComplete in
+                if isComplete {
+                    // Profile loaded and confirmed onboarding done — clear any
+                    // stale onboarding flags that checkAuthStatus may have set
+                    // before the profile was available.
+                    let isPartialDatingOnboarding = UserDefaults.standard.object(forKey: "datingOnboardingStartStep") != nil
+                    if !isPartialDatingOnboarding {
+                        supabaseManager.isShowingPreferenceSelection = false
+                        supabaseManager.isShowingOnboarding = false
+                        supabaseManager.isShowingWelcomeSplash = false
+                    }
+                }
+            }
             .onChange(of: supabaseManager.currentUser) { oldValue, newValue in
                 if let user = newValue {
                     let metadataComplete = getOnboardingStatus(from: user.userMetadata)
@@ -334,6 +348,7 @@ struct DriftApp: App {
                     if (metadataComplete || hasCompletedOnboarding) && !isPartialDatingOnboarding {
                         supabaseManager.isShowingWelcomeSplash = false
                         supabaseManager.isShowingOnboarding = false
+                        supabaseManager.isShowingPreferenceSelection = false
                     }
                 }
             }
