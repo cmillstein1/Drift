@@ -1320,9 +1320,9 @@ struct DiscoverScreen: View {
             )
         }
         .sheet(item: $selectedEvent) { event in
-            CommunityPostDetailSheet(initialPost: event)
+            EventDetailSheet(initialPost: event)
                 .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
+                .presentationDragIndicator(.hidden)
         }
     }
     
