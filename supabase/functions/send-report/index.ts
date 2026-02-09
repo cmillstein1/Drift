@@ -179,10 +179,9 @@ serve(async (req) => {
       )
     }
 
-    const authClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    })
-    const { data: { user }, error: userError } = await authClient.auth.getUser()
+    const token = authHeader.replace("Bearer ", "")
+    const authClient = createClient(supabaseUrl, anonKey)
+    const { data: { user }, error: userError } = await authClient.auth.getUser(token)
 
     if (userError || !user) {
       console.error("Auth error:", userError?.message || "No user found")

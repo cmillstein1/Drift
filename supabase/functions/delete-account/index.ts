@@ -25,13 +25,12 @@ serve(async (req) => {
       )
     }
 
-    const authClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    })
+    const token = authHeader.replace("Bearer ", "")
+    const authClient = createClient(supabaseUrl, anonKey)
     const {
       data: { user },
       error: userError,
-    } = await authClient.auth.getUser()
+    } = await authClient.auth.getUser(token)
     if (userError || !user) {
       return new Response(
         JSON.stringify({ success: false, error: "Unauthorized" }),

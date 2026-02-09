@@ -203,11 +203,25 @@ struct DriftApp: App {
                 // Content layer — renders destination underneath the splash overlay
                 if supabaseManager.isAuthenticated && !supabaseManager.isCheckingAuth {
                     if supabaseManager.hasRedeemedInvite == false {
-                        // User has not entered a code yet – show Enter Invite Code screen
+                        // 1. User has not entered a code yet – show Enter Invite Code screen
                         EnterInviteCodeScreen()
                             .transition(.opacity)
+                    } else if supabaseManager.isShowingWelcomeSplash {
+                        // 2. New user - show welcome splash first (part of onboarding)
+                        WelcomeSplash {
+                            supabaseManager.isShowingWelcomeSplash = false
+                            supabaseManager.isShowingPreferenceSelection = true
+                        }
+                    } else if supabaseManager.isShowingPreferenceSelection {
+                        // 3. Show preference selection screen
+                        PreferenceSelectionScreen()
+                    } else if supabaseManager.isShowingFriendOnboarding {
+                        // 4. Show friend onboarding flow
+                        FriendOnboardingFlow {
+                            supabaseManager.isShowingFriendOnboarding = false
+                        }
                     } else if supabaseManager.isShowingOnboarding && UserDefaults.standard.object(forKey: "datingOnboardingStartStep") != nil {
-                        // Partial dating onboarding - user switching from community to dating mode
+                        // 5. Partial dating onboarding - user switching from community to dating mode
                         OnboardingFlow {
                             withAnimation(.easeInOut(duration: 0.6)) {
                                 supabaseManager.isShowingOnboarding = false
@@ -215,45 +229,25 @@ struct DriftApp: App {
                         }
                         .transition(.opacity)
                         .zIndex(2)
-                    } else if hasCompletedOnboarding {
-                        // User has completed onboarding - go straight to home
-                        ContentView()
-                            .transition(.asymmetric(
-                                insertion: .opacity.combined(with: .scale(scale: 0.95)),
-                                removal: .opacity
-                            ))
-                            .zIndex(1)
-                    } else if supabaseManager.isShowingWelcomeSplash {
-                        // New user - show welcome splash first (part of onboarding)
-                        WelcomeSplash {
-                            supabaseManager.isShowingWelcomeSplash = false
-                            supabaseManager.isShowingPreferenceSelection = true
-                        }
-                    } else if supabaseManager.isShowingPreferenceSelection {
-                        // Show preference selection screen
-                        PreferenceSelectionScreen()
-                    } else if supabaseManager.isShowingFriendOnboarding {
-                        // Show friend onboarding flow
-                        FriendOnboardingFlow {
-                            // SafetyScreen will mark onboarding as complete internally
-                            supabaseManager.isShowingFriendOnboarding = false
-                        }
                     } else if supabaseManager.isShowingOnboarding {
-                        // Show onboarding flow
+                        // 6. Show onboarding flow
                         OnboardingFlow {
-                            // SafetyScreen will mark onboarding as complete
-                            // Just need to clear the flag here
                             withAnimation(.easeInOut(duration: 0.6)) {
                                 supabaseManager.isShowingOnboarding = false
                             }
                         }
                         .transition(.opacity)
                         .zIndex(0)
-                    } else if supabaseManager.isShowingPreferenceSelection {
-                        // Show preference selection screen
-                        PreferenceSelectionScreen()
+                    } else if hasCompletedOnboarding {
+                        // 7. User has completed onboarding - show home
+                        ContentView()
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                                removal: .opacity
+                            ))
+                            .zIndex(1)
                     } else {
-                        // User is authenticated but hasn't completed onboarding
+                        // 8. Authenticated but hasn't completed onboarding
                         // and no specific flag is set - redirect to preference selection
                         PreferenceSelectionScreen()
                             .onAppear {

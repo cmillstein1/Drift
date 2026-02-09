@@ -36,10 +36,9 @@ serve(async (req) => {
       if (!supabaseUrl || !anonKey || !serviceKey) {
         return new Response(JSON.stringify({ success: false, hasRedeemed: false, error: 'Server configuration error' }), { status: 500, headers: cors })
       }
-      const authClient = createClient(supabaseUrl, anonKey, {
-        global: { headers: { Authorization: authHeader } },
-      })
-      const { data: { user }, error: userError } = await authClient.auth.getUser()
+      const token = authHeader.replace('Bearer ', '')
+      const authClient = createClient(supabaseUrl, anonKey)
+      const { data: { user }, error: userError } = await authClient.auth.getUser(token)
       if (userError || !user) {
         return new Response(JSON.stringify({ success: false, hasRedeemed: false, error: 'Unauthorized' }), { status: 401, headers: cors })
       }

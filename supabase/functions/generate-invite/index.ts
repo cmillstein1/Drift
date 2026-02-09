@@ -60,23 +60,16 @@ serve(async (req) => {
     console.log('🔧 [generate-invite] SUPABASE_URL present:', !!supabaseUrl)
     console.log('🔧 [generate-invite] SUPABASE_ANON_KEY present:', !!anonKey)
 
-    // Create client with Authorization header - this will automatically verify the user
-    console.log('🔍 [generate-invite] Creating Supabase client with auth header...')
+    // Create client and verify the user via JWT
+    console.log('🔍 [generate-invite] Creating Supabase client and verifying user...')
+    const token = authHeader.replace('Bearer ', '')
     const supabaseClient = createClient(
       supabaseUrl ?? '',
-      anonKey ?? '',
-      {
-        global: {
-          headers: {
-            Authorization: authHeader
-          }
-        }
-      }
+      anonKey ?? ''
     )
 
-    console.log('🔍 [generate-invite] Verifying user with auth header...')
-    // Get the user from the authenticated client
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
+    // Get the user by passing the token directly
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token)
     
     if (userError) {
       console.error('❌ [generate-invite] Auth verification error:', userError)
