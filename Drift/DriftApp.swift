@@ -146,18 +146,21 @@ struct DriftApp: App {
     @ObservedObject private var supabaseManager: SupabaseManager
     @StateObject private var revenueCatManager: RevenueCatManager
     @StateObject private var profileManager: ProfileManager
-    
+    @StateObject private var appConfigManager: AppConfigManager
+
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @State private var showSplash = true
 
     init() {
-        // Initialize DriftBackend with API keys FIRST
+        // Initialize DriftBackend with bootstrap config (Supabase URL + anon key only).
+        // Third-party API keys are fetched at runtime via AppConfigManager.
         initializeDriftBackend()
 
         // Now safe to access managers
         self._supabaseManager = ObservedObject(wrappedValue: SupabaseManager.shared)
         self._revenueCatManager = StateObject(wrappedValue: RevenueCatManager.shared)
         self._profileManager = StateObject(wrappedValue: ProfileManager.shared)
+        self._appConfigManager = StateObject(wrappedValue: AppConfigManager.shared)
     }
 
     /// Check onboarding status - must have both the flag AND actual profile data
@@ -182,6 +185,8 @@ struct DriftApp: App {
     private var appIsReady: Bool {
         if supabaseManager.isCheckingAuth { return false }
         if !supabaseManager.isAuthenticated { return true }
+        // Wait for remote API keys before dismissing splash
+        if !appConfigManager.isConfigured { return false }
         if supabaseManager.hasRedeemedInvite == nil { return false }
         if supabaseManager.hasRedeemedInvite == false { return true }
         if profileManager.isLoading && profileManager.currentProfile == nil { return false }
@@ -274,8 +279,15 @@ struct DriftApp: App {
             .onChange(of: supabaseManager.hasRedeemedInvite) { _, _ in dismissSplashIfReady() }
             .onChange(of: profileManager.isLoading) { _, _ in dismissSplashIfReady() }
             .onChange(of: supabaseManager.isAuthenticated) { _, _ in dismissSplashIfReady() }
+            .onChange(of: appConfigManager.isConfigured) { _, _ in dismissSplashIfReady() }
             .task(id: supabaseManager.isAuthenticated) {
                 if supabaseManager.isAuthenticated {
+                    // Fetch remote API keys from edge function (splash stays up until done)
+                    await appConfigManager.fetchRemoteConfig()
+
+                    // Now that keys are available, configure RevenueCat SDK
+                    revenueCatManager.configureSDK()
+
                     // Link RevenueCat to this user so subscription is recognized across devices
                     if let userId = supabaseManager.currentUser?.id.uuidString {
                         await revenueCatManager.logIn(userId: userId)

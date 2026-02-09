@@ -39,18 +39,30 @@ public class RevenueCatManager: NSObject, ObservableObject {
     /// Whether the user has an active pro subscription.
     @Published public var hasProAccess: Bool = false
 
+    private var isSDKConfigured = false
+
     override private init() {
         super.init()
-        configureRevenueCat()
     }
 
     // MARK: - Configuration
 
-    private func configureRevenueCat() {
+    /// Configures the RevenueCat SDK. Must be called after remote API keys are available.
+    /// Safe to call multiple times — only the first call takes effect.
+    public func configureSDK() {
+        guard !isSDKConfigured else { return }
+        let apiKey = _BackendConfiguration.shared.revenueCatAPIKey
+        guard !apiKey.isEmpty else {
+            #if DEBUG
+            print("[RevenueCatManager] Skipping SDK configure – API key is empty")
+            #endif
+            return
+        }
+        isSDKConfigured = true
         #if DEBUG
         Purchases.logLevel = .debug
         #endif
-        Purchases.configure(withAPIKey: _BackendConfiguration.shared.revenueCatAPIKey)
+        Purchases.configure(withAPIKey: apiKey)
         Purchases.shared.delegate = self
         Task {
             await loadCustomerInfo()
@@ -63,6 +75,7 @@ public class RevenueCatManager: NSObject, ObservableObject {
     /// Logs in to RevenueCat with the given app user ID (e.g. Supabase user UUID).
     /// Call this after the user signs in so their subscription is tied to their account across devices.
     public func logIn(userId: String) async {
+        guard isSDKConfigured else { return }
         do {
             let result = try await Purchases.shared.logIn(userId)
             let info = result.customerInfo
@@ -76,6 +89,11 @@ public class RevenueCatManager: NSObject, ObservableObject {
 
     /// Logs out from RevenueCat (switches back to anonymous). Call when the user signs out.
     public func logOut() async {
+        guard isSDKConfigured else {
+            self.customerInfo = nil
+            self.hasProAccess = false
+            return
+        }
         do {
             let info = try await Purchases.shared.logOut()
             self.customerInfo = info
@@ -90,6 +108,7 @@ public class RevenueCatManager: NSObject, ObservableObject {
 
     /// Loads the current customer information from RevenueCat.
     public func loadCustomerInfo() async {
+        guard isSDKConfigured else { return }
         isLoading = true
         errorMessage = nil
         do {
@@ -106,6 +125,7 @@ public class RevenueCatManager: NSObject, ObservableObject {
 
     /// Loads available subscription offerings.
     public func loadOfferings() async {
+        guard isSDKConfigured else { return }
         do {
             let offerings = try await Purchases.shared.offerings()
             self.offerings = offerings
@@ -121,6 +141,9 @@ public class RevenueCatManager: NSObject, ObservableObject {
     /// - Parameter package: The package to purchase.
     /// - Returns: A result containing the updated customer info or an error.
     public func purchase(package: Package) async -> Result<CustomerInfo, Error> {
+        guard isSDKConfigured else {
+            return .failure(NSError(domain: "RevenueCat", code: -2, userInfo: [NSLocalizedDescriptionKey: "SDK not configured"]))
+        }
         isLoading = true
         errorMessage = nil
         do {
@@ -150,6 +173,9 @@ public class RevenueCatManager: NSObject, ObservableObject {
     ///
     /// - Returns: A result containing the updated customer info or an error.
     public func restorePurchases() async -> Result<CustomerInfo, Error> {
+        guard isSDKConfigured else {
+            return .failure(NSError(domain: "RevenueCat", code: -2, userInfo: [NSLocalizedDescriptionKey: "SDK not configured"]))
+        }
         isLoading = true
         errorMessage = nil
         do {
@@ -181,6 +207,7 @@ public class RevenueCatManager: NSObject, ObservableObject {
 
     /// Shows the subscription management UI.
     public func showCustomerCenter() {
+        guard isSDKConfigured else { return }
         Purchases.shared.showManageSubscriptions { _ in }
     }
 

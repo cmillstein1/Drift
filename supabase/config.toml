@@ -372,6 +372,10 @@ verify_jwt = false
 # Disable gateway-level JWT verification (function validates JWT via getUser)
 verify_jwt = false
 
+[functions.get-app-config]
+# Disable gateway-level JWT verification (function validates JWT via getUser)
+verify_jwt = false
+
 [functions.generate-invite]
 # Disable gateway-level JWT verification (function validates JWT via getUser)
 verify_jwt = false

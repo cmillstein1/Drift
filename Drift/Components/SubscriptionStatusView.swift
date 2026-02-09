@@ -46,7 +46,7 @@ struct SubscriptionStatusView: View {
                     }
                     
                     if let customerInfo = revenueCatManager.customerInfo,
-                       let entitlement = customerInfo.entitlements[RevenueCatConfig.entitlementIdentifier],
+                       let entitlement = customerInfo.entitlements["Drift Pro"],
                        let expirationDate = entitlement.expirationDate {
                         Text("Renews \(formatDate(expirationDate))")
                             .font(.system(size: 13))

@@ -86,10 +86,29 @@ internal class _BackendConfiguration {
     static let shared = _BackendConfiguration()
     private(set) var config: DriftBackendConfig?
 
+    // Remote key overrides (set via updateRemoteKeys after edge function fetch)
+    private var _remoteCampflareAPIKey: String?
+    private var _remoteRevenueCatAPIKey: String?
+    private var _remoteVerifyFaceIDAPIKey: String?
+    private var _remoteUnsplashAccessKey: String?
+
     private init() {}
 
     func configure(with config: DriftBackendConfig) {
         self.config = config
+    }
+
+    /// Updates remote API keys fetched from the edge function at runtime.
+    func updateRemoteKeys(
+        campflareAPIKey: String,
+        revenueCatAPIKey: String,
+        verifyFaceIDAPIKey: String,
+        unsplashAccessKey: String
+    ) {
+        _remoteCampflareAPIKey = campflareAPIKey
+        _remoteRevenueCatAPIKey = revenueCatAPIKey
+        _remoteVerifyFaceIDAPIKey = verifyFaceIDAPIKey
+        _remoteUnsplashAccessKey = unsplashAccessKey
     }
 
     var supabaseURL: String {
@@ -107,17 +126,11 @@ internal class _BackendConfiguration {
     }
 
     var campflareAPIKey: String {
-        guard let config = config else {
-            fatalError("DriftBackend not configured. Call configureDriftBackend() first.")
-        }
-        return config.campflareAPIKey
+        _remoteCampflareAPIKey ?? config?.campflareAPIKey ?? ""
     }
 
     var revenueCatAPIKey: String {
-        guard let config = config else {
-            fatalError("DriftBackend not configured. Call configureDriftBackend() first.")
-        }
-        return config.revenueCatAPIKey
+        _remoteRevenueCatAPIKey ?? config?.revenueCatAPIKey ?? ""
     }
 
     var revenueCatEntitlementID: String {
@@ -140,15 +153,12 @@ internal class _BackendConfiguration {
         }
         return config.revenueCatYearlyProductID
     }
-    
+
     var verifyFaceIDAPIKey: String {
-        guard let config = config else {
-            fatalError("DriftBackend not configured. Call configureDriftBackend() first.")
-        }
-        return config.verifyFaceIDAPIKey
+        _remoteVerifyFaceIDAPIKey ?? config?.verifyFaceIDAPIKey ?? ""
     }
 
     var unsplashAccessKey: String {
-        config?.unsplashAccessKey ?? ""
+        _remoteUnsplashAccessKey ?? config?.unsplashAccessKey ?? ""
     }
 }
