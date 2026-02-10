@@ -23,7 +23,14 @@ public enum UnsplashManager {
     ///   - accessKey: Unsplash API Access Key (Client ID).
     /// - Returns: Image URL plus photographer name and Unsplash profile URL, or nil if none.
     public static func fetchFirstImageWithAttribution(query: String, accessKey: String) async -> (imageUrl: String, photographerName: String, photographerUrl: String)? {
-        guard !accessKey.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        guard !accessKey.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty else {
+            #if DEBUG
+            if !query.trimmingCharacters(in: .whitespaces).isEmpty {
+                print("[UnsplashManager] Skipped: accessKey is empty")
+            }
+            #endif
+            return nil
+        }
         guard let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "\(baseURL)/search/photos?query=\(encoded)&per_page=1") else {
             return nil
@@ -34,16 +41,31 @@ public enum UnsplashManager {
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            guard let http = response as? HTTPURLResponse else {
+                return nil
+            }
+            guard (200...299).contains(http.statusCode) else {
+                #if DEBUG
+                let body = String(data: data, encoding: .utf8)
+                print("[UnsplashManager] API error \(http.statusCode): \(body ?? "")")
+                #endif
                 return nil
             }
             let decoded = try JSONDecoder().decode(UnsplashSearchResponse.self, from: data)
             guard let photo = decoded.results.first,
-                  let imageUrl = photo.urls.regular else { return nil }
+                  let imageUrl = photo.urls.regular else {
+                #if DEBUG
+                print("[UnsplashManager] No results for query: \(query)")
+                #endif
+                return nil
+            }
             let name = photo.user.name ?? photo.user.username ?? "Unsplash"
             let profileUrl = photo.user.links?.html ?? "https://unsplash.com"
             return (imageUrl, name, profileUrl)
         } catch {
+            #if DEBUG
+            print("[UnsplashManager] Request failed: \(error)")
+            #endif
             return nil
         }
     }

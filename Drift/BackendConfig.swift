@@ -3,9 +3,10 @@
 //  Drift
 //
 //  This file configures the DriftBackend package with API keys.
-//  Third-party API keys (Campflare, RevenueCat, VerifyFaceID, Unsplash)
-//  are fetched at runtime from a Supabase Edge Function via AppConfigManager.
-//  Only Supabase URL + anon key are provided locally (gitignored).
+//  Third-party API keys (Campflare, RevenueCat, VerifyFaceID) are fetched at
+//  runtime from a Supabase Edge Function via AppConfigManager. Unsplash key
+//  is provided locally from UnsplashConfig (gitignored) so event/activity
+//  headers can populate; remote config can override if set.
 //
 
 import Foundation
@@ -23,7 +24,7 @@ func initializeDriftBackend() {
         revenueCatMonthlyProductID: "monthly",
         revenueCatYearlyProductID: "DriftYearly",
         verifyFaceIDAPIKey: "",
-        unsplashAccessKey: ""
+        unsplashAccessKey: UnsplashConfig.accessKey
     )
     configureDriftBackend(config)
 }

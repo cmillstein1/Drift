@@ -158,7 +158,10 @@ internal class _BackendConfiguration {
         _remoteVerifyFaceIDAPIKey ?? config?.verifyFaceIDAPIKey ?? ""
     }
 
+    /// Prefer remote key when non-empty so edge function can override; otherwise use initial config (e.g. local UnsplashConfig).
     var unsplashAccessKey: String {
-        _remoteUnsplashAccessKey ?? config?.unsplashAccessKey ?? ""
+        let remote = _remoteUnsplashAccessKey ?? ""
+        if !remote.isEmpty { return remote }
+        return config?.unsplashAccessKey ?? ""
     }
 }
