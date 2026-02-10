@@ -681,12 +681,17 @@ struct DiscoverScreen: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            // Show the appropriate pane based on mode (no sliding animation)
-            if mode == .friends {
-                unifiedFriendsPane
-            } else {
-                unifiedDatingPane
+            // Show the appropriate pane based on mode (smooth crossfade)
+            ZStack {
+                if mode == .friends {
+                    unifiedFriendsPane
+                        .transition(.opacity)
+                } else {
+                    unifiedDatingPane
+                        .transition(.opacity)
+                }
             }
+            .animation(.easeInOut(duration: 0.28), value: mode)
 
             // Single overlay: mode switcher + top-right button (Community: create event +; Dating: compass map)
             // Match Messages tab: ~10pt below safe area (safe area top ~59 + 10) and light segment design
@@ -717,6 +722,7 @@ struct DiscoverScreen: View {
                     }
                 }
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: lastPassedProfile != nil)
+                .animation(.easeInOut(duration: 0.25), value: mode)
                 .padding(.horizontal, 24)
                 .padding(.top, 70)
                 .padding(.bottom, 20)
