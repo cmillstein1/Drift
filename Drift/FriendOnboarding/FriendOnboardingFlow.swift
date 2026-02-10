@@ -16,7 +16,7 @@ class FriendOnboardingFlowManager: ObservableObject {
     }
     
     func isLastStep() -> Bool {
-        return currentStep == 11 // 12 screens total (0-11)
+        return currentStep == 12 // 13 screens total (0-12)
     }
 }
 
@@ -71,26 +71,30 @@ struct FriendOnboardingFlow: View {
                     flowManager.nextStep()
                 }
             case 6:
-                PhotoUploadScreen(backgroundColor: softGray) {
+                BirthdayScreen(backgroundColor: softGray) {
                     flowManager.nextStep()
                 }
             case 7:
-                InterestsScreen {
+                PhotoUploadScreen(backgroundColor: softGray) {
                     flowManager.nextStep()
                 }
             case 8:
-                AboutMeScreen(backgroundColor: softGray) {
+                InterestsScreen {
                     flowManager.nextStep()
                 }
             case 9:
-                LocationScreen(backgroundColor: softGray) {
+                AboutMeScreen(backgroundColor: softGray) {
                     flowManager.nextStep()
                 }
             case 10:
-                PushNotificationsScreen {
+                LocationScreen(backgroundColor: softGray) {
                     flowManager.nextStep()
                 }
             case 11:
+                PushNotificationsScreen {
+                    flowManager.nextStep()
+                }
+            case 12:
                 SafetyScreen(backgroundColor: softGray) {
                     // SafetyScreen handles marking onboarding as complete internally
                     onComplete()

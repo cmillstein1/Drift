@@ -19,6 +19,8 @@ struct ProfileScreen: View {
     @State private var showEditProfile = false
     @State private var showDiscoveryModeSheet = false
     @State private var showDatingSettings = false
+    @State private var showFriendsSettings = false
+    @State private var friendsFilterPreferences = NearbyFriendsFilterPreferences.fromStorage()
     @State private var navigateToFriendsGrid = false
     @State private var showPaywall = false
     @State private var showGenerateInvite = false
@@ -131,6 +133,14 @@ struct ProfileScreen: View {
                     .presentationDetents([.height(600), .large])
                     .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $showFriendsSettings) {
+                NearbyFriendsFilterSheet(
+                    isPresented: $showFriendsSettings,
+                    preferences: $friendsFilterPreferences
+                )
+                .presentationDetents([.height(400)])
+                .presentationDragIndicator(.visible)
+            }
             .navigationDestination(for: String.self) { destination in
                 if destination == "verification" {
                     VerificationView()
@@ -214,22 +224,24 @@ struct ProfileScreen: View {
                 }
                 .ignoresSafeArea(edges: .top)
                 
-                // Settings Button (only show when dating is enabled) - positioned at bottom trailing
-                if hasDatingEnabled {
-                    Button(action: {
+                // Settings Button - positioned at bottom trailing
+                Button(action: {
+                    if hasDatingEnabled {
                         showDatingSettings = true
-                    }) {
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 20))
-                            .foregroundColor(.white)
-                            .frame(width: 44, height: 44)
-                            .background(Color.black.opacity(0.2))
-                            .clipShape(Circle())
+                    } else {
+                        showFriendsSettings = true
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 16)
+                }) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(.white)
+                        .frame(width: 44, height: 44)
+                        .background(Color.black.opacity(0.2))
+                        .clipShape(Circle())
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .padding(.trailing, 16)
+                .padding(.bottom, 16)
                 
                 // Profile Info - moved down to reduce spacing
                 VStack(spacing: 0) {

@@ -20,6 +20,7 @@ struct CommunityPostDetailSheet: View {
     @State private var showDeleteConfirm = false
     @State private var isDeleting = false
     @FocusState private var isReplyFocused: Bool
+    @State private var zoomedPhotoIndex: Int? = nil
 
     private let charcoal = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
@@ -74,6 +75,17 @@ struct CommunityPostDetailSheet: View {
             }
         } message: {
             Text("This post will be permanently deleted. This action cannot be undone.")
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { zoomedPhotoIndex != nil },
+            set: { if !$0 { zoomedPhotoIndex = nil } }
+        )) {
+            let urls = post.images.compactMap { URL(string: $0) }
+            DiscoverZoomablePhotoView(
+                imageURLs: urls,
+                initialIndex: min(zoomedPhotoIndex ?? 0, max(urls.count - 1, 0)),
+                onDismiss: { zoomedPhotoIndex = nil }
+            )
         }
         .onAppear {
             Task {
@@ -254,6 +266,28 @@ struct CommunityPostDetailSheet: View {
                     .font(.system(size: 15))
                     .foregroundColor(charcoal.opacity(0.8))
                     .lineSpacing(4)
+
+                if !post.images.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(Array(post.images.enumerated()), id: \.offset) { index, imageUrl in
+                                if let url = URL(string: imageUrl) {
+                                    CachedAsyncImage(url: url) { image in
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                    } placeholder: {
+                                        Color.gray.opacity(0.15)
+                                    }
+                                    .frame(width: 200, height: 150)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .onTapGesture { zoomedPhotoIndex = index }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.top, 4)
+                }
             }
             .padding(20)
 

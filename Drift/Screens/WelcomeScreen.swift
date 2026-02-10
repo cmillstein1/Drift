@@ -123,19 +123,21 @@ struct WelcomeScreen: View {
                                 await handleEmailAuth()
                             }
                         }) {
-                            if isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            } else {
-                                Text(isSignUp ? "Sign Up" : "Sign In")
-                                    .font(.system(size: 16, weight: .medium))
+                            Group {
+                                if isLoading {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                } else {
+                                    Text(isSignUp ? "Sign Up" : "Sign In")
+                                        .font(.system(size: 16, weight: .medium))
+                                }
                             }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 56)
+                            .foregroundColor(.white)
+                            .background(charcoalColor)
+                            .clipShape(Capsule())
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .foregroundColor(.white)
-                        .background(charcoalColor)
-                        .clipShape(Capsule())
                         .disabled(isLoading)
 
                         Button(action: {

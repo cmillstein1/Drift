@@ -15,7 +15,7 @@ enum InterestedIn: String, CaseIterable {
     case men
     case nonBinary = "non-binary"
     case everyone
-    
+
     var displayName: String {
         switch self {
         case .women: return "Women"
@@ -26,30 +26,98 @@ enum InterestedIn: String, CaseIterable {
     }
 }
 
+// MARK: - Dating Filter Preferences
+
+struct DatingFilterPreferences: Equatable, Codable {
+    var alongMyRoute: Bool
+    var maxDistanceMiles: Int
+
+    static let `default` = DatingFilterPreferences(
+        alongMyRoute: false,
+        maxDistanceMiles: 50
+    )
+
+    var isUnlimitedDistance: Bool { maxDistanceMiles >= 200 }
+
+    /// Returns whether a profile passes the distance filter.
+    func matches(
+        _ profile: UserProfile,
+        currentUserLat: Double?,
+        currentUserLon: Double?,
+        routeCoordinates: [ReferenceCoordinate] = []
+    ) -> Bool {
+        if isUnlimitedDistance { return true }
+
+        var referencePoints: [ReferenceCoordinate] = []
+        if let ulat = currentUserLat, let ulon = currentUserLon {
+            referencePoints.append(ReferenceCoordinate(latitude: ulat, longitude: ulon))
+        }
+        if alongMyRoute {
+            referencePoints.append(contentsOf: routeCoordinates)
+        }
+
+        guard !referencePoints.isEmpty else { return true }
+        guard let plat = profile.latitude, let plon = profile.longitude else { return true }
+
+        return referencePoints.contains { ref in
+            let miles = Self.haversineMiles(lat1: ref.latitude, lon1: ref.longitude, lat2: plat, lon2: plon)
+            return miles <= Double(maxDistanceMiles)
+        }
+    }
+
+    private static func haversineMiles(lat1: Double, lon1: Double, lat2: Double, lon2: Double) -> Double {
+        let R = 3959.0
+        let dLat = (lat2 - lat1) * .pi / 180
+        let dLon = (lon2 - lon1) * .pi / 180
+        let a = sin(dLat / 2) * sin(dLat / 2) +
+            cos(lat1 * .pi / 180) * cos(lat2 * .pi / 180) * sin(dLon / 2) * sin(dLon / 2)
+        let c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        return R * c
+    }
+
+    private static let storageKey = "datingFilterPreferences"
+
+    static func fromStorage() -> DatingFilterPreferences {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let prefs = try? JSONDecoder().decode(Self.self, from: data) else {
+            return .default
+        }
+        return prefs
+    }
+
+    func saveToStorage() {
+        if let data = try? JSONEncoder().encode(self) {
+            UserDefaults.standard.set(data, forKey: Self.storageKey)
+        }
+    }
+}
+
 // MARK: - Dating Settings Sheet
 
 struct DatingSettingsSheet: View {
     @Binding var isPresented: Bool
     @Environment(\.dismiss) var dismiss
     @StateObject private var profileManager = ProfileManager.shared
-    
+
     @State private var interestedIn: InterestedIn = .women
-    @State private var distance: Double = 36
-    @State private var minAge: Double = 24
-    @State private var maxAge: Double = 34
+    @State private var distance: Double = 50
+    @State private var minAge: Double = 18
+    @State private var maxAge: Double = 80
+    @State private var alongMyRoute: Bool = false
     @State private var showInterestedInModal: Bool = false
     @State private var showVerification: Bool = false
-    
+
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
+    private let forestGreen = Color("ForestGreen")
     private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
     private let softGray = Color("SoftGray")
     private let warmWhite = Color(red: 0.99, green: 0.98, blue: 0.96)
-    
+
     private var isVerified: Bool {
         profileManager.currentProfile?.verified ?? false
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -57,9 +125,9 @@ struct DatingSettingsSheet: View {
                 Text("Dating Preferences")
                     .font(.system(size: 24, weight: .bold))
                     .foregroundColor(charcoalColor)
-                
+
                 Spacer()
-                
+
                 Button(action: {
                     dismiss()
                 }) {
@@ -74,7 +142,7 @@ struct DatingSettingsSheet: View {
             .padding(.horizontal, 24)
             .padding(.top, 24)
             .padding(.bottom, 16)
-            
+
             // Content
             ScrollView {
                 VStack(spacing: 16) {
@@ -87,14 +155,14 @@ struct DatingSettingsSheet: View {
                                 Text("I'm interested in")
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(charcoalColor)
-                                
+
                                 Text(interestedIn.displayName)
                                     .font(.system(size: 13))
                                     .foregroundColor(charcoalColor.opacity(0.6))
                             }
-                            
+
                             Spacer()
-                            
+
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(charcoalColor.opacity(0.4))
@@ -109,22 +177,22 @@ struct DatingSettingsSheet: View {
                         )
                     }
                     .padding(.top, 8)
-                    
+
                     // Maximum Distance
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text("Maximum distance")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(charcoalColor)
-                            
+
                             Spacer()
-                            
-                            Text("\(Int(distance)) mi")
+
+                            Text(Int(distance) >= 200 ? "Anywhere" : "\(Int(distance)) mi")
                                 .font(.system(size: 13))
                                 .foregroundColor(charcoalColor.opacity(0.6))
                         }
-                        
-                        Slider(value: $distance, in: 1...200, step: 1)
+
+                        Slider(value: $distance, in: 5...200, step: 5)
                             .tint(burntOrange)
                     }
                     .padding(12)
@@ -134,21 +202,43 @@ struct DatingSettingsSheet: View {
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(Color.gray.opacity(0.3), lineWidth: 2)
                     )
-                    
+
+                    // Along My Route
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle(isOn: $alongMyRoute) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Along my route")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(charcoalColor)
+                                Text("Show people near your travel plan stops")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(charcoalColor.opacity(0.5))
+                            }
+                        }
+                        .tint(burntOrange)
+                    }
+                    .padding(12)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                    )
+
                     // Age Range
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text("Age range")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(charcoalColor)
-                            
+
                             Spacer()
-                            
+
                             Text("\(Int(minAge)) – \(Int(maxAge))")
                                 .font(.system(size: 13))
                                 .foregroundColor(charcoalColor.opacity(0.6))
                         }
-                        
+
                         // Age Range Slider (custom dual-thumb)
                         AgeRangeSlider(
                             minValue: $minAge,
@@ -157,7 +247,7 @@ struct DatingSettingsSheet: View {
                             accentColor: burntOrange,
                             gradientColors: [burntOrange, sunsetRose]
                         )
-                        
+
                         // Age Labels
                         HStack {
                             Text("18")
@@ -176,13 +266,13 @@ struct DatingSettingsSheet: View {
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(Color.gray.opacity(0.3), lineWidth: 2)
                     )
-                    
+
                     // Safety & Trust Section
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Safety & Trust")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(charcoalColor)
-                        
+
                         // Verification
                         Button(action: {
                             if !isVerified {
@@ -206,24 +296,24 @@ struct DatingSettingsSheet: View {
                                             .fill(softGray)
                                             .frame(width: 40, height: 40)
                                     }
-                                    
+
                                     Image(systemName: "checkmark.shield.fill")
                                         .font(.system(size: 18, weight: .medium))
                                         .foregroundColor(isVerified ? .white : charcoalColor.opacity(0.4))
                                 }
-                                
+
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(isVerified ? "Verified" : "Verify Your Identity")
                                         .font(.system(size: 14, weight: .medium))
                                         .foregroundColor(charcoalColor)
-                                    
+
                                     Text(isVerified ? "Identity confirmed" : "Build trust with a verification badge")
                                         .font(.system(size: 12))
                                         .foregroundColor(charcoalColor.opacity(0.6))
                                 }
-                                
+
                                 Spacer()
-                                
+
                                 if !isVerified {
                                     Image(systemName: "chevron.right")
                                         .font(.system(size: 12, weight: .medium))
@@ -274,36 +364,56 @@ struct DatingSettingsSheet: View {
             VerificationView()
         }
     }
-    
+
     private func loadPreferences() {
-        guard let profile = profileManager.currentProfile else { return }
-        if let orientation = profile.orientation {
-            interestedIn = InterestedIn(rawValue: orientation) ?? .women
+        // Load server-side prefs
+        if let profile = profileManager.currentProfile {
+            if let orientation = profile.orientation {
+                interestedIn = InterestedIn(rawValue: orientation) ?? .women
+            }
+            if let min = profile.preferredMinAge {
+                minAge = Double(min)
+            }
+            if let max = profile.preferredMaxAge {
+                maxAge = Double(max)
+            }
+            if let dist = profile.preferredMaxDistanceMiles {
+                distance = Double(dist)
+            }
         }
-        if let min = profile.preferredMinAge {
-            minAge = Double(min)
-        }
-        if let max = profile.preferredMaxAge {
-            maxAge = Double(max)
-        }
-        if let dist = profile.preferredMaxDistanceMiles {
-            distance = Double(dist)
+        // Load client-side prefs (along-my-route, distance override)
+        let filterPrefs = DatingFilterPreferences.fromStorage()
+        alongMyRoute = filterPrefs.alongMyRoute
+        // If stored distance differs from server, prefer stored (it includes Anywhere)
+        if filterPrefs.maxDistanceMiles != DatingFilterPreferences.default.maxDistanceMiles {
+            distance = Double(filterPrefs.maxDistanceMiles)
         }
     }
 
     private func savePreferences() {
-        let profile = profileManager.currentProfile
-        let currentMin = profile?.preferredMinAge.map(Double.init) ?? 24
-        let currentMax = profile?.preferredMaxAge.map(Double.init) ?? 34
-        let currentDist = profile?.preferredMaxDistanceMiles.map(Double.init) ?? 36
-        let currentOrientation = profile?.orientation
-        let orientationChanged = interestedIn.rawValue != (currentOrientation ?? "")
-        let prefsChanged = Int(minAge) != Int(currentMin) || Int(maxAge) != Int(currentMax) || Int(distance) != Int(currentDist)
-        guard prefsChanged || orientationChanged else { return }
+        // Always save — don't skip even if unchanged (fixes nil defaults issue)
+        // Save client-side filter prefs
+        let filterPrefs = DatingFilterPreferences(
+            alongMyRoute: alongMyRoute,
+            maxDistanceMiles: Int(distance)
+        )
+        filterPrefs.saveToStorage()
+
+        // Update currentProfile in memory immediately so that onDismiss re-fetch
+        // uses the latest values (the async server save may not finish in time).
+        profileManager.currentProfile?.orientation = interestedIn.rawValue
+        profileManager.currentProfile?.preferredMinAge = Int(minAge)
+        profileManager.currentProfile?.preferredMaxAge = Int(maxAge)
+        profileManager.currentProfile?.preferredMaxDistanceMiles = Int(distance)
+
+        // Signal DiscoverScreen to re-fetch with updated preferences
+        profileManager.datingPrefsVersion += 1
+
+        // Save server-side prefs (async, may complete after sheet dismisses)
         Task {
             do {
                 try await profileManager.updateProfile(ProfileUpdateRequest(
-                    orientation: orientationChanged ? interestedIn.rawValue : nil,
+                    orientation: interestedIn.rawValue,
                     preferredMinAge: Int(minAge),
                     preferredMaxAge: Int(maxAge),
                     preferredMaxDistanceMiles: Int(distance)
@@ -323,24 +433,24 @@ struct AgeRangeSlider: View {
     let range: ClosedRange<Double>
     let accentColor: Color
     let gradientColors: [Color]
-    
+
     @State private var isDraggingMin = false
     @State private var isDraggingMax = false
-    
+
     private let thumbSize: CGFloat = 20
-    
+
     var body: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
             let minPercent = (minValue - range.lowerBound) / (range.upperBound - range.lowerBound)
             let maxPercent = (maxValue - range.lowerBound) / (range.upperBound - range.lowerBound)
-            
+
             ZStack(alignment: .leading) {
                 // Track background
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Color.gray.opacity(0.2))
                     .frame(height: 4)
-                
+
                 // Active range track
                 RoundedRectangle(cornerRadius: 2)
                     .fill(
@@ -352,7 +462,7 @@ struct AgeRangeSlider: View {
                     )
                     .frame(width: CGFloat(maxPercent - minPercent) * width, height: 4)
                     .offset(x: CGFloat(minPercent) * width)
-                
+
                 // Min thumb
                 Circle()
                     .fill(
@@ -381,7 +491,7 @@ struct AgeRangeSlider: View {
                                 isDraggingMin = false
                             }
                     )
-                
+
                 // Max thumb
                 Circle()
                     .fill(
@@ -422,12 +532,12 @@ struct InterestedInSheet: View {
     @Binding var isPresented: Bool
     @Binding var selection: InterestedIn
     @Environment(\.dismiss) var dismiss
-    
+
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
     private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
     private let warmWhite = Color(red: 0.99, green: 0.98, blue: 0.96)
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -435,9 +545,9 @@ struct InterestedInSheet: View {
                 Text("I'm interested in")
                     .font(.system(size: 24, weight: .bold))
                     .foregroundColor(charcoalColor)
-                
+
                 Spacer()
-                
+
                 Button(action: {
                     dismiss()
                 }) {
@@ -452,7 +562,7 @@ struct InterestedInSheet: View {
             .padding(.horizontal, 24)
             .padding(.top, 24)
             .padding(.bottom, 16)
-            
+
             // Options
             VStack(spacing: 12) {
                 ForEach(InterestedIn.allCases, id: \.self) { option in
@@ -464,9 +574,9 @@ struct InterestedInSheet: View {
                             Text(option.displayName)
                                 .font(.system(size: 16, weight: .medium))
                                 .foregroundColor(charcoalColor)
-                            
+
                             Spacer()
-                            
+
                             if selection == option {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 22))
@@ -489,7 +599,7 @@ struct InterestedInSheet: View {
             }
             .padding(.horizontal, 24)
             .padding(.top, 8)
-            
+
             Spacer()
         }
         .background(warmWhite)

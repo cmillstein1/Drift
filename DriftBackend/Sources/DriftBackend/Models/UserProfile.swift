@@ -97,6 +97,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
 
     public var lookingFor: LookingFor
     public var friendsOnly: Bool
+    public var gender: String?
     public var orientation: String?
 
     // Dating discovery preferences
@@ -132,6 +133,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         case interests
         case lookingFor = "looking_for"
         case friendsOnly = "friends_only"
+        case gender
         case orientation
         case preferredMinAge = "preferred_min_age"
         case preferredMaxAge = "preferred_max_age"
@@ -169,6 +171,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         interests: [String] = [],
         lookingFor: LookingFor = .both,
         friendsOnly: Bool = false,
+        gender: String? = nil,
         orientation: String? = nil,
         preferredMinAge: Int? = nil,
         preferredMaxAge: Int? = nil,
@@ -204,6 +207,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         self.interests = interests
         self.lookingFor = lookingFor
         self.friendsOnly = friendsOnly
+        self.gender = gender
         self.orientation = orientation
         self.preferredMinAge = preferredMinAge
         self.preferredMaxAge = preferredMaxAge
@@ -259,6 +263,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         interests = try container.decodeIfPresent([String].self, forKey: .interests) ?? []
         lookingFor = try container.decodeIfPresent(LookingFor.self, forKey: .lookingFor) ?? .both
         friendsOnly = try container.decodeIfPresent(Bool.self, forKey: .friendsOnly) ?? false
+        gender = try container.decodeIfPresent(String.self, forKey: .gender)
         orientation = try container.decodeIfPresent(String.self, forKey: .orientation)
         preferredMinAge = try container.decodeIfPresent(Int.self, forKey: .preferredMinAge)
         preferredMaxAge = try container.decodeIfPresent(Int.self, forKey: .preferredMaxAge)
@@ -470,6 +475,7 @@ public struct ProfileUpdateRequest: Encodable {
     public var interests: [String]?
     public var lookingFor: LookingFor?
     public var friendsOnly: Bool?
+    public var gender: String?
     public var orientation: String?
     public var preferredMinAge: Int?
     public var preferredMaxAge: Int?
@@ -494,6 +500,7 @@ public struct ProfileUpdateRequest: Encodable {
         case interests
         case lookingFor = "looking_for"
         case friendsOnly = "friends_only"
+        case gender
         case orientation
         case preferredMinAge = "preferred_min_age"
         case preferredMaxAge = "preferred_max_age"
@@ -526,6 +533,7 @@ public struct ProfileUpdateRequest: Encodable {
         interests: [String]? = nil,
         lookingFor: LookingFor? = nil,
         friendsOnly: Bool? = nil,
+        gender: String? = nil,
         orientation: String? = nil,
         preferredMinAge: Int? = nil,
         preferredMaxAge: Int? = nil,
@@ -556,6 +564,7 @@ public struct ProfileUpdateRequest: Encodable {
         self.interests = interests
         self.lookingFor = lookingFor
         self.friendsOnly = friendsOnly
+        self.gender = gender
         self.orientation = orientation
         self.preferredMinAge = preferredMinAge
         self.preferredMaxAge = preferredMaxAge
@@ -590,6 +599,7 @@ public struct ProfileUpdateRequest: Encodable {
         try container.encodeIfPresent(interests, forKey: .interests)
         try container.encodeIfPresent(lookingFor, forKey: .lookingFor)
         try container.encodeIfPresent(friendsOnly, forKey: .friendsOnly)
+        try container.encodeIfPresent(gender, forKey: .gender)
         try container.encodeIfPresent(orientation, forKey: .orientation)
         try container.encodeIfPresent(preferredMinAge, forKey: .preferredMinAge)
         try container.encodeIfPresent(preferredMaxAge, forKey: .preferredMaxAge)

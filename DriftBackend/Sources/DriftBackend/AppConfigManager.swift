@@ -50,7 +50,7 @@ public class AppConfigManager: ObservableObject {
             )
 
             #if DEBUG
-            print("[AppConfigManager] Got response – campflare: \(!response.campflareAPIKey.isEmpty), revenueCat: \(!response.revenueCatAPIKey.isEmpty), verifyFaceID: \(!response.verifyFaceIDAPIKey.isEmpty), unsplash: \(!response.unsplashAccessKey.isEmpty)")
+            print("[AppConfigManager] Got response – campflare: \(response.campflareAPIKey), revenueCat: \(response.revenueCatAPIKey), verifyFaceID: \(response.verifyFaceIDAPIKey), unsplash: \(response.unsplashAccessKey)")
             #endif
 
             applyConfig(response)

@@ -15,7 +15,7 @@ struct LocationSearchField: View {
     @Binding var longitude: Double?
 
     @StateObject private var completer = TravelLocationSearchCompleter()
-    @State private var showSuggestions = false
+    @State private var isSearching = false
     @FocusState private var isFocused: Bool
 
     private let charcoal = Color("Charcoal")
@@ -33,7 +33,12 @@ struct LocationSearchField: View {
                     .focused($isFocused)
                     .onChange(of: locationName) { _, newValue in
                         completer.search(query: newValue)
-                        showSuggestions = !newValue.isEmpty && isFocused
+                        isSearching = !newValue.isEmpty
+                    }
+                    .onChange(of: isFocused) { _, focused in
+                        if !focused {
+                            isSearching = false
+                        }
                     }
 
                 if !locationName.isEmpty {
@@ -42,7 +47,7 @@ struct LocationSearchField: View {
                         latitude = nil
                         longitude = nil
                         completer.results = []
-                        showSuggestions = false
+                        isSearching = false
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 16))
@@ -54,7 +59,7 @@ struct LocationSearchField: View {
             .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 16))
 
-            if showSuggestions && !completer.results.isEmpty {
+            if isSearching && !completer.results.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(completer.results.prefix(5), id: \.self) { completion in
                         Button {
@@ -116,7 +121,7 @@ struct LocationSearchField: View {
             locationName = displayName
             latitude = mapItem.placemark.coordinate.latitude
             longitude = mapItem.placemark.coordinate.longitude
-            showSuggestions = false
+            isSearching = false
             isFocused = false
         }
     }

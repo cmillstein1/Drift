@@ -118,9 +118,9 @@ struct OrientationScreen: View {
             }
         }
         .onAppear {
-            // Pre-fill orientation if it exists
-            if selectedOrientation.isEmpty, let existingOrientation = profileManager.currentProfile?.orientation {
-                selectedOrientation = existingOrientation
+            // Pre-fill gender if it exists
+            if selectedOrientation.isEmpty, let existingGender = profileManager.currentProfile?.gender {
+                selectedOrientation = existingGender
             }
             
             withAnimation(.easeOut(duration: 0.5)) {
@@ -153,7 +153,7 @@ struct OrientationScreen: View {
         Task {
             do {
                 try await profileManager.updateProfile(
-                    ProfileUpdateRequest(orientation: selectedOrientation)
+                    ProfileUpdateRequest(gender: selectedOrientation)
                 )
             } catch {
                 print("Failed to save orientation: \(error)")

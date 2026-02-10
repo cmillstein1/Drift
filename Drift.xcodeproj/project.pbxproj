@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		165F0B642F3A5A4100D15471 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 165F0B632F3A5A4100D15471 /* GoogleService-Info.plist */; };
 		166424F72F2696EA00A5AD47 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 166424F62F2696EA00A5AD47 /* FirebaseAnalytics */; };
 		166424F92F2696EA00A5AD47 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 166424F82F2696EA00A5AD47 /* FirebaseAuth */; };
 		166424FB2F2696EA00A5AD47 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 166424FA2F2696EA00A5AD47 /* FirebaseCore */; };
@@ -41,7 +40,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		165F0B632F3A5A4100D15471 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		16B754EC2F1961350012C1F4 /* Drift.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Drift.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		16B754F92F1961360012C1F4 /* DriftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DriftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		16B755032F1961360012C1F4 /* DriftUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DriftUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -123,7 +121,6 @@
 				16B754FC2F1961360012C1F4 /* DriftTests */,
 				16B755062F1961360012C1F4 /* DriftUITests */,
 				16B754ED2F1961350012C1F4 /* Products */,
-				165F0B632F3A5A4100D15471 /* GoogleService-Info.plist */,
 			);
 			sourceTree = "<group>";
 		};
@@ -276,7 +273,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				165F0B642F3A5A4100D15471 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

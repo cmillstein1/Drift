@@ -340,7 +340,29 @@ private struct BuilderHelpTopicCard: View {
                 .foregroundColor(charcoal.opacity(0.7))
                 .lineLimit(2)
                 .lineSpacing(2)
+                .padding(.bottom, post.images.isEmpty ? 16 : 10)
+
+            // Photos
+            if !post.images.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(post.images, id: \.self) { imageUrl in
+                            if let url = URL(string: imageUrl) {
+                                CachedAsyncImage(url: url) { image in
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                } placeholder: {
+                                    Color.gray.opacity(0.15)
+                                }
+                                .frame(width: 120, height: 90)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                        }
+                    }
+                }
                 .padding(.bottom, 16)
+            }
 
             // Footer
             Rectangle()

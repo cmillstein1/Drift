@@ -30,7 +30,7 @@ struct FriendsListContent: View {
             .filter { $0.lookingFor == .friends || $0.lookingFor == .both }
         let lat = DiscoveryLocationProvider.shared.latitudeForFilter ?? profileManager.currentProfile?.latitude
         let lon = DiscoveryLocationProvider.shared.longitudeForFilter ?? profileManager.currentProfile?.longitude
-        return raw.filter { filterPreferences.matches($0, currentUserInterests: currentUserInterests, currentUserLat: lat, currentUserLon: lon) }
+        return raw.filter { filterPreferences.matches($0, currentUserLat: lat, currentUserLon: lon, routeCoordinates: []) }
     }
 
     private var currentUserInterests: [String] {

@@ -59,13 +59,13 @@ struct DiscoverMapSheet: View {
 
     /// Profiles that have stored coordinates (shown at fuzzed position).
     private var profilesWithLocation: [UserProfile] {
-        profiles.filter { $0.latitude != nil && $0.longitude != nil }
+        profiles.filter { $0.latitude != nil && $0.longitude != nil && !($0.hideLocationOnMap ?? false) }
     }
 
     /// Show people at their city/state: use stored lat/lon, or geocoded location string, fuzzed.
     private var profilesToShow: [(profile: UserProfile, coordinate: CLLocationCoordinate2D)] {
         var result: [(UserProfile, CLLocationCoordinate2D)] = []
-        for p in profiles {
+        for p in profiles where !(p.hideLocationOnMap ?? false) {
             if let lat = p.latitude, let lon = p.longitude {
                 result.append((p, fuzzedCoordinate(lat: lat, lon: lon, profileId: p.id)))
             } else if let coord = geocodedCoords[p.id] {

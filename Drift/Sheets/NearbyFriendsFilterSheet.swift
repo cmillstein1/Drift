@@ -2,67 +2,117 @@
 //  NearbyFriendsFilterSheet.swift
 //  Drift
 //
-//  Filter sheet for Nearby Friends: distance, age, interests, lifestyle.
+//  Filter sheet for Nearby Friends: discovery range.
 //
 
 import SwiftUI
+import CoreLocation
 import DriftBackend
+
+// MARK: - Reference Coordinate
+
+/// A simple lat/lon pair used as a reference point for distance filtering.
+struct ReferenceCoordinate: Equatable {
+    let latitude: Double
+    let longitude: Double
+}
 
 // MARK: - Filter Preferences
 
-struct NearbyFriendsFilterPreferences: Equatable {
+struct NearbyFriendsFilterPreferences: Equatable, Codable {
     var maxDistanceMiles: Int
-    var minAge: Int
-    var maxAge: Int
-    var sharedInterestsOnly: Bool
-    var lifestyleFilter: Lifestyle?
+    var alongMyRoute: Bool
 
     static let `default` = NearbyFriendsFilterPreferences(
         maxDistanceMiles: 50,
-        minAge: 18,
-        maxAge: 80,
-        sharedInterestsOnly: false,
-        lifestyleFilter: nil
+        alongMyRoute: false
     )
 
+    /// 200 = slider max = no distance limit.
+    var isUnlimitedDistance: Bool { maxDistanceMiles >= 200 }
+
     var hasActiveFilters: Bool {
-        maxDistanceMiles != 50 || minAge != 18 || maxAge != 80 || sharedInterestsOnly || lifestyleFilter != nil
+        maxDistanceMiles != 50 || alongMyRoute
     }
 
-    /// Single source of truth: returns whether a profile passes all active filters.
-    /// - Parameters:
-    ///   - profile: The profile to test.
-    ///   - currentUserInterests: The current user's interests (for "shared interests only").
-    ///   - currentUserLat: Current user's latitude (for distance filter); nil = don't filter by distance.
-    ///   - currentUserLon: Current user's longitude (for distance filter); nil = don't filter by distance.
-    func matches(_ profile: UserProfile, currentUserInterests: [String], currentUserLat: Double?, currentUserLon: Double?) -> Bool {
-        // Age: include if in range; if age unknown (0), include so we don't over-filter
-        let ageOk: Bool = {
-            let age = profile.displayAge
-            if age == 0 { return true }
-            return age >= minAge && age <= maxAge
-        }()
+    /// Returns whether a profile passes the distance filter.
+    /// When `alongMyRoute` is true, the profile passes if it's within range of the current location
+    /// OR any of the supplied route coordinates (same logic as event filtering).
+    /// `geocodedCoords` provides fallback coordinates for profiles whose location string was geocoded.
+    func matches(
+        _ profile: UserProfile,
+        currentUserLat: Double?,
+        currentUserLon: Double?,
+        routeCoordinates: [ReferenceCoordinate] = [],
+        geocodedCoords: [UUID: CLLocationCoordinate2D] = [:]
+    ) -> Bool {
+        // Slider at max = no distance limit
+        if isUnlimitedDistance { return true }
 
-        // Shared interests: if filter off, pass. If on but current user has no interests, show all.
-        let sharedOk: Bool = {
-            if !sharedInterestsOnly { return true }
-            if currentUserInterests.isEmpty { return true }
-            let mutual = Set(currentUserInterests).intersection(Set(profile.interests))
-            return !mutual.isEmpty
-        }()
+        // Build list of reference points
+        var referencePoints: [ReferenceCoordinate] = []
+        if let ulat = currentUserLat, let ulon = currentUserLon {
+            referencePoints.append(ReferenceCoordinate(latitude: ulat, longitude: ulon))
+        }
+        if alongMyRoute {
+            referencePoints.append(contentsOf: routeCoordinates)
+        }
 
-        // Lifestyle: if no filter, pass; else must match
-        let lifestyleOk = lifestyleFilter == nil || profile.lifestyle == lifestyleFilter
+        // No reference points at all — skip distance filtering
+        guard !referencePoints.isEmpty else { return true }
 
-        // Distance: only filter when both user and profile have coordinates
-        let distanceOk: Bool = {
-            guard let ulat = currentUserLat, let ulon = currentUserLon,
-                  let plat = profile.latitude, let plon = profile.longitude else { return true }
-            let miles = Self.haversineMiles(lat1: ulat, lon1: ulon, lat2: plat, lon2: plon)
+        // Use stored coordinates, or fall back to geocoded location string
+        let plat: Double
+        let plon: Double
+        if let lat = profile.latitude, let lon = profile.longitude {
+            plat = lat
+            plon = lon
+        } else if let geocoded = geocodedCoords[profile.id] {
+            plat = geocoded.latitude
+            plon = geocoded.longitude
+        } else {
+            // No coordinates and no geocoded fallback — can't verify distance, exclude
+            return false
+        }
+
+        // Pass if within range of ANY reference point
+        return referencePoints.contains { ref in
+            let miles = Self.haversineMiles(lat1: ref.latitude, lon1: ref.longitude, lat2: plat, lon2: plon)
             return miles <= Double(maxDistanceMiles)
-        }()
+        }
+    }
 
-        return ageOk && sharedOk && lifestyleOk && distanceOk
+    /// Returns whether an event passes the distance filter.
+    /// Events without coordinates are shown (can't verify distance, don't hide them).
+    func matchesEvent(
+        _ event: CommunityPost,
+        currentUserLat: Double?,
+        currentUserLon: Double?,
+        routeCoordinates: [ReferenceCoordinate] = []
+    ) -> Bool {
+        // Slider at max = no distance limit
+        if isUnlimitedDistance { return true }
+
+        // Build list of reference points
+        var referencePoints: [ReferenceCoordinate] = []
+        if let ulat = currentUserLat, let ulon = currentUserLon {
+            referencePoints.append(ReferenceCoordinate(latitude: ulat, longitude: ulon))
+        }
+        if alongMyRoute {
+            referencePoints.append(contentsOf: routeCoordinates)
+        }
+
+        // No reference points — skip distance filtering
+        guard !referencePoints.isEmpty else { return true }
+
+        // Event has no coordinates — still show it (don't hide events without location data)
+        guard let elat = event.eventLatitude, let elon = event.eventLongitude else { return true }
+
+        // Pass if within range of ANY reference point
+        return referencePoints.contains { ref in
+            let miles = Self.haversineMiles(lat1: ref.latitude, lon1: ref.longitude, lat2: elat, lon2: elon)
+            return miles <= Double(maxDistanceMiles)
+        }
     }
 
     /// Distance in miles between two points (Haversine formula).
@@ -77,6 +127,24 @@ struct NearbyFriendsFilterPreferences: Equatable {
     }
 }
 
+extension NearbyFriendsFilterPreferences {
+    private static let storageKey = "friendsFilterPreferences"
+
+    static func fromStorage() -> NearbyFriendsFilterPreferences {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let prefs = try? JSONDecoder().decode(Self.self, from: data) else {
+            return .default
+        }
+        return prefs
+    }
+
+    func saveToStorage() {
+        if let data = try? JSONEncoder().encode(self) {
+            UserDefaults.standard.set(data, forKey: Self.storageKey)
+        }
+    }
+}
+
 // MARK: - Sheet
 
 struct NearbyFriendsFilterSheet: View {
@@ -85,20 +153,14 @@ struct NearbyFriendsFilterSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var maxDistanceMiles: Double
-    @State private var minAge: Double
-    @State private var maxAge: Double
-    @State private var sharedInterestsOnly: Bool
-    @State private var lifestyleFilter: Lifestyle?
+    @State private var alongMyRoute: Bool
 
     init(isPresented: Binding<Bool>, preferences: Binding<NearbyFriendsFilterPreferences>) {
         _isPresented = isPresented
         _preferences = preferences
         let p = preferences.wrappedValue
         _maxDistanceMiles = State(initialValue: Double(p.maxDistanceMiles))
-        _minAge = State(initialValue: Double(p.minAge))
-        _maxAge = State(initialValue: Double(p.maxAge))
-        _sharedInterestsOnly = State(initialValue: p.sharedInterestsOnly)
-        _lifestyleFilter = State(initialValue: p.lifestyleFilter)
+        _alongMyRoute = State(initialValue: p.alongMyRoute)
     }
 
     private let charcoalColor = Color("Charcoal")
@@ -117,7 +179,7 @@ struct NearbyFriendsFilterSheet: View {
 
     private var filterSheetHeader: some View {
         HStack {
-            Text("Filters")
+            Text("Discovery Range")
                 .font(.system(size: 20, weight: .bold))
                 .foregroundColor(charcoalColor)
                 .padding(.top, 8)
@@ -141,7 +203,7 @@ struct NearbyFriendsFilterSheet: View {
     private var filterFormContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text("Narrow down who appears in Nearby Friends")
+                Text("Set how far away you want to discover travelers")
                     .font(.system(size: 14))
                     .foregroundColor(charcoalColor.opacity(0.6))
                     .padding(.horizontal, 24)
@@ -150,9 +212,7 @@ struct NearbyFriendsFilterSheet: View {
 
                 VStack(spacing: 16) {
                     distanceSection
-                    ageRangeSection
-                    sharedInterestsSection
-                    lifestyleSection
+                    alongMyRouteSection
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
@@ -168,7 +228,7 @@ struct NearbyFriendsFilterSheet: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(charcoalColor)
                 Spacer()
-                Text("\(Int(maxDistanceMiles)) mi")
+                Text(Int(maxDistanceMiles) >= 200 ? "Anywhere" : "\(Int(maxDistanceMiles)) mi")
                     .font(.system(size: 13))
                     .foregroundColor(charcoalColor.opacity(0.6))
             }
@@ -184,80 +244,19 @@ struct NearbyFriendsFilterSheet: View {
         )
     }
 
-    private var ageRangeSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Age range")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(charcoalColor)
-                Spacer()
-                Text("\(Int(minAge)) – \(Int(maxAge))")
-                    .font(.system(size: 13))
-                    .foregroundColor(charcoalColor.opacity(0.6))
-            }
-            // Extra horizontal padding so slider thumbs aren’t flush with card edges
-            VStack(alignment: .leading, spacing: 4) {
-                AgeRangeSlider(
-                    minValue: $minAge,
-                    maxValue: $maxAge,
-                    range: 18...80,
-                    accentColor: forestGreen,
-                    gradientColors: [skyBlue, forestGreen]
-                )
-                .frame(height: 24)
-                .padding(.horizontal, 12)
-                HStack {
-                    Text("18")
+    private var alongMyRouteSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: $alongMyRoute) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Along my route")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(charcoalColor)
+                    Text("Show travelers near your travel plan stops")
                         .font(.system(size: 12))
-                        .foregroundColor(charcoalColor.opacity(0.4))
-                    Spacer()
-                    Text("80")
-                        .font(.system(size: 12))
-                        .foregroundColor(charcoalColor.opacity(0.4))
+                        .foregroundColor(charcoalColor.opacity(0.5))
                 }
-                .padding(.horizontal, 12)
             }
-        }
-        .padding(12)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-        )
-    }
-
-    private var sharedInterestsSection: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Shared interests only")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(charcoalColor)
-                Text("Show people who share at least one interest with you")
-                    .font(.system(size: 12))
-                    .foregroundColor(charcoalColor.opacity(0.6))
-            }
-            Spacer()
-            Toggle("", isOn: $sharedInterestsOnly)
-                .labelsHidden()
-                .tint(forestGreen)
-        }
-        .padding(12)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-        )
-    }
-
-    private var lifestyleSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Lifestyle")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(charcoalColor)
-
-            LifestyleFilterChipsView(selection: $lifestyleFilter)
+            .tint(forestGreen)
         }
         .padding(12)
         .background(Color.white)
@@ -295,58 +294,9 @@ struct NearbyFriendsFilterSheet: View {
     private func applyAndDismiss() {
         preferences = NearbyFriendsFilterPreferences(
             maxDistanceMiles: Int(maxDistanceMiles),
-            minAge: Int(minAge),
-            maxAge: Int(maxAge),
-            sharedInterestsOnly: sharedInterestsOnly,
-            lifestyleFilter: lifestyleFilter
+            alongMyRoute: alongMyRoute
         )
         dismiss()
-    }
-}
-
-// MARK: - Lifestyle filter chips (avoids FlowLayout name collision)
-
-private struct LifestyleFilterChipsView: View {
-    @Binding var selection: Lifestyle?
-
-    private let charcoalColor = Color("Charcoal")
-    private let forestGreen = Color("ForestGreen")
-
-    private var options: [Lifestyle?] {
-        [nil] + Lifestyle.allCases.map { Optional($0) }
-    }
-
-    var body: some View {
-        // Fixed 3-column grid for consistent alignment
-        let columns = [
-            GridItem(.flexible(), spacing: 10),
-            GridItem(.flexible(), spacing: 10),
-            GridItem(.flexible(), spacing: 10)
-        ]
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
-            ForEach(Array(options.enumerated()), id: \.offset) { _, item in
-                let isSelected = selection == item
-                Button(action: {
-                    selection = isSelected ? nil : item
-                }) {
-                    Text(item?.displayName ?? "Any")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(isSelected ? .white : charcoalColor)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(isSelected ? forestGreen : Color.gray.opacity(0.08))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(isSelected ? Color.clear : Color.gray.opacity(0.15), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-        }
     }
 }
 

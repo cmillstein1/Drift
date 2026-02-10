@@ -21,9 +21,20 @@ public class ProfileManager: ObservableObject {
     @Published public var isLoading = false
     /// The last error message, if any.
     @Published public var errorMessage: String?
+    /// Incremented when dating preferences are saved; observed by DiscoverScreen to trigger re-fetch.
+    @Published public var datingPrefsVersion: Int = 0
 
     /// Guards against duplicate concurrent discover profile fetches from rapid tab switches.
-    private var isFetchingDiscover = false
+    /// Separate flags for dating and friends so they don't block each other.
+    private var isFetchingDiscoverDating = false
+    private var isFetchingDiscoverFriends = false
+
+    /// Resets the fetch guard for a mode so the next fetch isn't blocked.
+    /// Call after cancelling an in-flight fetch task.
+    public func resetFetchGuard(for lookingFor: LookingFor) {
+        if lookingFor == .dating { isFetchingDiscoverDating = false }
+        else { isFetchingDiscoverFriends = false }
+    }
 
     /// In-memory profile cache with timestamps for TTL expiration.
     private var profileCache: [UUID: (profile: UserProfile, fetchedAt: Date)] = [:]
@@ -228,6 +239,9 @@ public class ProfileManager: ObservableObject {
 
     /// Fetches profiles for discovery based on what the user is looking for.
     ///
+    /// Uses server-side RPC (`discover_profiles_nearby`) for distance filtering when user coordinates are available.
+    /// Falls back to a standard query when coordinates are unavailable or the RPC doesn't exist yet.
+    ///
     /// - Parameters:
     ///   - lookingFor: Filter by what users are looking for (dating, friends, or both).
     ///   - excludeIds: User IDs to exclude (e.g., already swiped).
@@ -239,14 +253,26 @@ public class ProfileManager: ObservableObject {
         excludeIds: [UUID] = [],
         limit: Int = 20,
         currentUserLat: Double? = nil,
-        currentUserLon: Double? = nil
+        currentUserLon: Double? = nil,
+        alongMyRoute: Bool = false,
+        unlimitedDistance: Bool = false,
+        friendsMaxDistanceMiles: Int? = nil
     ) async throws {
-        guard !isFetchingDiscover else { return }
+        // Per-mode guard so dating and friends fetches don't block each other
+        let isDating = (lookingFor == .dating)
+        if isDating {
+            guard !isFetchingDiscoverDating else { return }
+            isFetchingDiscoverDating = true
+        } else {
+            guard !isFetchingDiscoverFriends else { return }
+            isFetchingDiscoverFriends = true
+        }
+
         guard let userId = SupabaseManager.shared.currentUser?.id else {
+            if isDating { isFetchingDiscoverDating = false } else { isFetchingDiscoverFriends = false }
             throw ProfileError.notAuthenticated
         }
 
-        isFetchingDiscover = true
         isLoading = true
         errorMessage = nil
 
@@ -256,52 +282,58 @@ public class ProfileManager: ObservableObject {
                 try? await fetchCurrentProfile()
             }
 
-            var query = client
-                .from("profiles")
-                .select()
-                .neq("id", value: userId)
-                .eq("onboarding_completed", value: true)
+            // Prefer device location; fall back to profile's stored coords
+            let userLat = currentUserLat ?? currentProfile?.latitude
+            let userLon = currentUserLon ?? currentProfile?.longitude
 
-            // Filter by what users are looking for
-            switch lookingFor {
-            case .dating:
-                query = query.in("looking_for", values: ["dating", "both"])
-            case .friends:
-                query = query.in("looking_for", values: ["friends", "both"])
-            case .both:
-                break
-            }
+            // Determine server-side distance ceiling:
+            // Use the provided slider value for both dating and friends modes.
+            // DiscoverScreen passes the correct value from the active filter preferences.
+            let serverMaxDistance = friendsMaxDistanceMiles ?? 200
 
-            var profiles: [UserProfile] = try await query
-                .limit(limit * 2) // Fetch extra to allow for age/distance filtering
-                .execute()
-                .value
+            print("[Friends Debug] fetchDiscoverProfiles called — lookingFor: \(lookingFor), alongMyRoute: \(alongMyRoute), unlimitedDistance: \(unlimitedDistance), serverMaxDistance: \(serverMaxDistance), userLat: \(userLat ?? -999), userLon: \(userLon ?? -999), excludeIds: \(excludeIds.count)")
 
-            // Filter out excluded IDs using Set for O(1) lookups
-            let excludeSet = Set(excludeIds)
-            profiles = profiles.filter { !excludeSet.contains($0.id) }
+            // Always use standard query — client-side matches() handles distance filtering.
+            // This ensures profiles without coordinates are still shown (matching event behavior).
+            print("[Friends Debug] → Fetching via standard query (client-side distance filtering)")
+            var profiles: [UserProfile]
+            profiles = try await fetchProfilesViaQuery(
+                userId: userId,
+                lookingFor: lookingFor,
+                excludeIds: excludeIds,
+                limit: limit * 2
+            )
+            print("[Friends Debug] Fetch returned \(profiles.count) profiles")
 
-            // Apply dating preferences (age range and distance) when in dating mode
+            // Apply dating preferences (age range + gender) when in dating mode
             if lookingFor == .dating, let current = currentProfile {
                 let minAge = current.preferredMinAge ?? 18
                 let maxAge = current.preferredMaxAge ?? 80
-                let maxDistanceMiles = current.preferredMaxDistanceMiles
-                // Prefer device location for distance; fall back to profile's stored coords
-                let userLat = currentUserLat ?? current.latitude
-                let userLon = currentUserLon ?? current.longitude
+                let interestedIn = current.orientation // "women", "men", "non-binary", "everyone"
 
                 profiles = profiles.filter { p in
                     let age = p.displayAge
                     let ageOk = age == 0 || (age >= minAge && age <= maxAge)
-                    guard ageOk else { return false }
 
-                    // Distance: only filter when both user and profile have coordinates
-                    if let ulat = userLat, let ulon = userLon, let maxMi = maxDistanceMiles, maxMi > 0,
-                       let plat = p.latitude, let plon = p.longitude {
-                        let miles = Self.haversineMiles(lat1: ulat, lon1: ulon, lat2: plat, lon2: plon)
-                        if miles > Double(maxMi) { return false }
+                    // Gender filter: match user's orientation preference against profile's gender
+                    let genderOk: Bool
+                    if let interest = interestedIn, interest != "everyone" {
+                        if let profileGender = p.gender {
+                            switch interest {
+                            case "women": genderOk = profileGender == "Female"
+                            case "men": genderOk = profileGender == "Male"
+                            case "non-binary": genderOk = profileGender == "Non-binary"
+                            default: genderOk = true
+                            }
+                        } else {
+                            // Profile has no gender set — still show (don't hide)
+                            genderOk = true
+                        }
+                    } else {
+                        genderOk = true
                     }
-                    return true
+
+                    return ageOk && genderOk
                 }
             }
 
@@ -312,9 +344,11 @@ public class ProfileManager: ObservableObject {
 
             // Trim to requested limit after filtering
             profiles = Array(profiles.prefix(limit))
+            print("[Friends Debug] After all filters: \(profiles.count) profiles assigned to \(lookingFor)")
+            for p in profiles {
+                print("[Friends Debug]   → \(p.name ?? "?") (lookingFor: \(p.lookingFor), lat: \(p.latitude ?? -999), lon: \(p.longitude ?? -999))")
+            }
 
-            // Strip coordinates for users who have hidden their location (so they don't appear on the map)
-            profiles = profiles.map { stripLocationIfHidden($0) }
 
             switch lookingFor {
             case .dating:
@@ -330,13 +364,142 @@ public class ProfileManager: ObservableObject {
                 saveToDisk(profiles, key: "discover_friends_profiles")
             }
             isLoading = false
-            isFetchingDiscover = false
+            if isDating { isFetchingDiscoverDating = false } else { isFetchingDiscoverFriends = false }
         } catch {
             isLoading = false
-            isFetchingDiscover = false
+            if isDating { isFetchingDiscoverDating = false } else { isFetchingDiscoverFriends = false }
             errorMessage = error.localizedDescription
             throw error
         }
+    }
+
+    /// Fetches profiles using the `discover_profiles_nearby` RPC for server-side distance filtering.
+    /// Falls back to a standard query if the RPC doesn't exist yet (migration not applied).
+    private func fetchProfilesViaRPC(
+        userId: UUID,
+        lat: Double,
+        lon: Double,
+        maxDistanceMiles: Int,
+        lookingFor: LookingFor,
+        excludeIds: [UUID],
+        limit: Int
+    ) async throws -> [UserProfile] {
+        do {
+            print("[Friends Debug] Calling discover_profiles_nearby RPC (lat: \(lat), lon: \(lon), maxDist: \(maxDistanceMiles))")
+            let profiles: [UserProfile] = try await client
+                .rpc("discover_profiles_nearby", params: [
+                    "p_user_id": AnyJSON.string(userId.uuidString),
+                    "p_user_lat": AnyJSON.double(lat),
+                    "p_user_lon": AnyJSON.double(lon),
+                    "p_max_distance_miles": AnyJSON.integer(maxDistanceMiles),
+                    "p_looking_for": AnyJSON.string(lookingFor.rawValue),
+                    "p_exclude_ids": AnyJSON.array(excludeIds.map { AnyJSON.string($0.uuidString) }),
+                    "p_limit": AnyJSON.integer(limit)
+                ])
+                .execute()
+                .value
+            print("[Friends Debug] discover_profiles_nearby RPC returned \(profiles.count) profiles")
+            return profiles
+        } catch {
+            print("[Friends Debug] discover_profiles_nearby RPC FAILED: \(error)")
+            // RPC not available — fall back to standard query + client-side distance filter
+            var profiles = try await fetchProfilesViaQuery(
+                userId: userId,
+                lookingFor: lookingFor,
+                excludeIds: excludeIds,
+                limit: limit
+            )
+            print("[Friends Debug] Fallback query returned \(profiles.count) profiles (before client-side filter)")
+            // Apply client-side distance filter since RPC wasn't available
+            profiles = profiles.filter { p in
+                guard let plat = p.latitude, let plon = p.longitude else { return false }
+                let miles = Self.haversineMiles(lat1: lat, lon1: lon, lat2: plat, lon2: plon)
+                print("[Friends Debug]   Profile \(p.name ?? "?") at (\(plat), \(plon)) = \(Int(miles))mi → \(miles <= Double(maxDistanceMiles) ? "PASS" : "FILTERED OUT")")
+                return miles <= Double(maxDistanceMiles)
+            }
+            print("[Friends Debug] After client-side filter: \(profiles.count) profiles")
+            return profiles
+        }
+    }
+
+    /// Fetches profiles using `discover_profiles_along_route` RPC for route-aware distance filtering.
+    /// lat/lon are nullable — when nil, only travel stop proximity is checked server-side.
+    /// Falls back to nearby RPC or standard query if this RPC doesn't exist yet.
+    private func fetchProfilesViaAlongRouteRPC(
+        userId: UUID,
+        lat: Double?,
+        lon: Double?,
+        maxDistanceMiles: Int,
+        lookingFor: LookingFor,
+        excludeIds: [UUID],
+        limit: Int
+    ) async throws -> [UserProfile] {
+        do {
+            print("[Friends Debug] Calling discover_profiles_along_route RPC (lat: \(lat ?? -999), lon: \(lon ?? -999), maxDist: \(maxDistanceMiles))")
+            var params: [String: AnyJSON] = [
+                "p_user_id": AnyJSON.string(userId.uuidString),
+                "p_max_distance_miles": AnyJSON.integer(maxDistanceMiles),
+                "p_looking_for": AnyJSON.string(lookingFor.rawValue),
+                "p_exclude_ids": AnyJSON.array(excludeIds.map { AnyJSON.string($0.uuidString) }),
+                "p_limit": AnyJSON.integer(limit)
+            ]
+            if let lat = lat, let lon = lon {
+                params["p_user_lat"] = AnyJSON.double(lat)
+                params["p_user_lon"] = AnyJSON.double(lon)
+            }
+            let profiles: [UserProfile] = try await client
+                .rpc("discover_profiles_along_route", params: params)
+                .execute()
+                .value
+            print("[Friends Debug] discover_profiles_along_route RPC returned \(profiles.count) profiles")
+            return profiles
+        } catch {
+            print("[Friends Debug] discover_profiles_along_route RPC FAILED: \(error)")
+            print("[Friends Debug] Falling back to standard query (no distance filter)")
+            // Along-my-route RPC not available — fall back to standard query (no distance filter).
+            // The nearby RPC would only find profiles near the user's current location,
+            // missing profiles near travel stops entirely.
+            let fallbackProfiles = try await fetchProfilesViaQuery(
+                userId: userId,
+                lookingFor: lookingFor,
+                excludeIds: excludeIds,
+                limit: limit
+            )
+            print("[Friends Debug] Standard query fallback returned \(fallbackProfiles.count) profiles")
+            return fallbackProfiles
+        }
+    }
+
+    /// Standard query fetch (no distance filtering). Used as fallback when user has no coordinates or RPC is unavailable.
+    private func fetchProfilesViaQuery(
+        userId: UUID,
+        lookingFor: LookingFor,
+        excludeIds: [UUID],
+        limit: Int
+    ) async throws -> [UserProfile] {
+        var query = client
+            .from("profiles")
+            .select()
+            .neq("id", value: userId)
+            .eq("onboarding_completed", value: true)
+
+        switch lookingFor {
+        case .dating:
+            query = query.in("looking_for", values: ["dating", "both"])
+        case .friends:
+            query = query.in("looking_for", values: ["friends", "both"])
+        case .both:
+            break
+        }
+
+        var profiles: [UserProfile] = try await query
+            .limit(limit)
+            .execute()
+            .value
+
+        let excludeSet = Set(excludeIds)
+        profiles = profiles.filter { !excludeSet.contains($0.id) }
+        return profiles
     }
 
     /// Distance in miles between two points (Haversine formula). Used for dating and friends distance filtering.
@@ -564,12 +727,12 @@ public class ProfileManager: ObservableObject {
     // MARK: - Dating Onboarding
     
     /// Checks if a profile has completed dating-specific onboarding (used for current user or discovery).
-    /// Returns true if they have orientation, lookingFor set to dating/both, and at least 3 prompt answers.
+    /// Returns true if they have gender set, lookingFor set to dating/both, and at least 3 prompt answers.
     public static func hasCompletedDatingOnboarding(profile: UserProfile) -> Bool {
-        let hasOrientation = !(profile.orientation?.isEmpty ?? true)
+        let hasGender = !(profile.gender?.isEmpty ?? true)
         let isLookingForDating = profile.lookingFor == .dating || profile.lookingFor == .both
         let hasPromptAnswers = (profile.promptAnswers?.count ?? 0) >= 3
-        return hasOrientation && isLookingForDating && hasPromptAnswers
+        return hasGender && isLookingForDating && hasPromptAnswers
     }
 
     /// Checks if the current user has completed dating-specific onboarding.
@@ -589,19 +752,19 @@ public class ProfileManager: ObservableObject {
         
         let hasName = !(profile.name?.isEmpty ?? true)
         let hasBirthday = profile.birthday != nil
-        let hasOrientation = !(profile.orientation?.isEmpty ?? true)
+        let hasGender = !(profile.gender?.isEmpty ?? true)
         let hasLookingFor = profile.lookingFor == .dating || profile.lookingFor == .both
         let hasPhotos = profile.displayPhotoUrls.count >= 2
         let hasInterests = profile.interests.count >= 3
         let hasBio = !(profile.bio?.isEmpty ?? true)
         let hasPromptAnswers = (profile.promptAnswers?.count ?? 0) >= 3
         let hasLocation = !(profile.location?.isEmpty ?? true)
-        
+
         // Determine starting step - prioritize dating-specific screens
         // If they have basic info, start at first dating screen (Orientation)
         if !hasName { return 0 } // NameScreen
         if !hasBirthday { return 1 } // BirthdayScreen
-        if !hasOrientation { return 2 } // OrientationScreen (first dating-specific)
+        if !hasGender { return 2 } // OrientationScreen (first dating-specific)
         if !hasLookingFor { return 3 } // LookingForScreen
         if !hasPhotos { return 4 } // PhotoUploadScreen (may have some, need 2+)
         if !hasInterests { return 5 } // InterestsScreen (may have some, need 3+)

@@ -173,7 +173,7 @@ struct TravelPlansOnboardingScreen: View {
                     travelStops.sort { $0.startDate < $1.startDate }
                 }
             )
-            .presentationDetents([.medium])
+            .presentationDetents([.medium, .large])
         }
     }
 

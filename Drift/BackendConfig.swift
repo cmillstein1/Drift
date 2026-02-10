@@ -24,7 +24,7 @@ func initializeDriftBackend() {
         revenueCatMonthlyProductID: "monthly",
         revenueCatYearlyProductID: "DriftYearly",
         verifyFaceIDAPIKey: "",
-        unsplashAccessKey: UnsplashConfig.accessKey
+        unsplashAccessKey: ""
     )
     configureDriftBackend(config)
 }

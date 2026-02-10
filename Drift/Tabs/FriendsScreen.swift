@@ -23,14 +23,14 @@ struct FriendsScreen: View {
     @State private var friendRequestMessage = ""
     @State private var selectedProfile: UserProfile? = nil
     @State private var showFilterSheet = false
-    @State private var filterPreferences = NearbyFriendsFilterPreferences.default
+    @State private var filterPreferences = NearbyFriendsFilterPreferences.fromStorage()
 
     private var profiles: [UserProfile] {
         let raw = profileManager.discoverProfiles
         // Prefer device location for distance filter; fall back to profile's stored coords
         let lat = DiscoveryLocationProvider.shared.latitudeForFilter ?? profileManager.currentProfile?.latitude
         let lon = DiscoveryLocationProvider.shared.longitudeForFilter ?? profileManager.currentProfile?.longitude
-        return raw.filter { filterPreferences.matches($0, currentUserInterests: currentUserInterests, currentUserLat: lat, currentUserLon: lon) }
+        return raw.filter { filterPreferences.matches($0, currentUserLat: lat, currentUserLon: lon, routeCoordinates: []) }
     }
 
     private var currentUserInterests: [String] {
@@ -269,6 +269,12 @@ struct FriendsScreen: View {
                     isPresented: $showFilterSheet,
                     preferences: $filterPreferences
                 )
+                .presentationDetents([.height(400)])
+                .presentationDragIndicator(.visible)
+            }
+            .onChange(of: filterPreferences) { _, newPrefs in
+                newPrefs.saveToStorage()
+                loadProfiles(force: true)
             }
             .sheet(isPresented: $showMessageSheet) {
                 FriendRequestMessageSheet(

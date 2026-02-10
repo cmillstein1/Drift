@@ -10,6 +10,7 @@ import DriftBackend
 
 struct BirthdayScreen: View {
     let onContinue: () -> Void
+    var backgroundColor: Color? = nil
 
     @StateObject private var profileManager = ProfileManager.shared
     @State private var selectedDate = Date()
@@ -40,7 +41,7 @@ struct BirthdayScreen: View {
     
     var body: some View {
         ZStack {
-            warmWhite
+            (backgroundColor ?? warmWhite)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
