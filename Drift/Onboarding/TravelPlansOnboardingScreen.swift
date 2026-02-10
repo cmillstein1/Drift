@@ -307,13 +307,6 @@ private struct TravelStopOnboardingSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Handle
-            RoundedRectangle(cornerRadius: 2.5)
-                .fill(Color.gray.opacity(0.3))
-                .frame(width: 40, height: 5)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
-
             // Header
             HStack {
                 Button("Cancel") {

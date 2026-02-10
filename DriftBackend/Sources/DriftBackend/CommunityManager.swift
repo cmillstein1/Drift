@@ -496,8 +496,8 @@ public class CommunityManager: ObservableObject {
             .execute()
             .value
 
-        // Insert into local state instead of full re-fetch
-        posts.insert(post, at: 0)
+        // Replace array so @Published triggers view update (in-place insert doesn't)
+        posts = [post] + posts
 
         return post
     }
@@ -597,8 +597,8 @@ public class CommunityManager: ObservableObject {
             .execute()
             .value
 
-        // Insert into local state instead of full re-fetch
-        posts.insert(post, at: 0)
+        // Replace array so @Published triggers view update (in-place insert doesn't)
+        posts = [post] + posts
 
         return post
     }
@@ -620,10 +620,10 @@ public class CommunityManager: ObservableObject {
             throw CommunityError.postNotFound
         }
 
-        // Remove from local state
-        posts.removeAll { $0.id == postId }
-        myPosts.removeAll { $0.id == postId }
-        joinedEvents.removeAll { $0.id == postId }
+        // Replace arrays so @Published triggers view update (in-place remove doesn't)
+        posts = posts.filter { $0.id != postId }
+        myPosts = myPosts.filter { $0.id != postId }
+        joinedEvents = joinedEvents.filter { $0.id != postId }
     }
 
     // MARK: - Replies
