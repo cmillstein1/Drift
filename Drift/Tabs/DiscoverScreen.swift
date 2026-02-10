@@ -695,11 +695,9 @@ struct DiscoverScreen: View {
                     modeSwitcher(style: .light)
                     Spacer()
                     if mode == .friends {
-                        friendsFilterButton
                         discoverNotificationsButton
                         discoverCreateEventButton
                     } else {
-                        datingSettingsButton
                         if lastPassedProfile != nil {
                             Button {
                                 reverseLastPass()
@@ -1328,7 +1326,6 @@ struct DiscoverScreen: View {
                     HStack {
                         modeSwitcher(style: .light)
                         Spacer()
-                        datingSettingsButton
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 70)
@@ -1401,11 +1398,10 @@ struct DiscoverScreen: View {
                 onConnect: { handleConnect(profileId: $0) }
             )
 
-            // Top overlay: settings + notifications + create event buttons (no mode switcher for friends-only mode)
+            // Top overlay: notifications + create event buttons (no mode switcher for friends-only mode)
             VStack {
                 HStack {
                     Spacer()
-                    friendsFilterButton
                     discoverNotificationsButton
                     discoverCreateEventButton
                 }
