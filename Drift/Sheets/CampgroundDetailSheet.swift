@@ -352,6 +352,22 @@ struct CampgroundDetailSheet: View {
                             .padding(.horizontal, 24)
                         }
                         
+                        // Campflare Attribution
+                        VStack(spacing: 8) {
+                            Rectangle()
+                                .fill(charcoalColor.opacity(0.12))
+                                .frame(height: 1)
+                                .frame(maxWidth: .infinity)
+
+                            Text("Powered by Campflare")
+                                .font(.system(size: 12, weight: .regular))
+                                .foregroundColor(charcoalColor.opacity(0.5))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.top, 4)
+                        .padding(.bottom, 8)
+
                         // Bottom padding for the sticky button
                         Spacer()
                             .frame(height: 100)
@@ -406,7 +422,8 @@ struct CampgroundDetailSheet: View {
                     .disabled(isBooking)
                     .opacity(isBooking ? 0.7 : 1.0)
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 32)
                 }
                 .background(
                     Color.white.opacity(0.95)
