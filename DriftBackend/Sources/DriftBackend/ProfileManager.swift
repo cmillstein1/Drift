@@ -297,6 +297,24 @@ public class ProfileManager: ObservableObject {
 
             print("[Friends Debug] fetchDiscoverProfiles called — lookingFor: \(lookingFor), alongMyRoute: \(alongMyRoute), unlimitedDistance: \(unlimitedDistance), serverMaxDistance: \(serverMaxDistance), userLat: \(userLat ?? -999), userLon: \(userLon ?? -999), excludeIds: \(excludeIds.count)")
 
+            // Dump current user's profile so we can see what we're comparing against
+            if let me = currentProfile {
+                let myStops = (try? await fetchTravelSchedule()) ?? []
+                print("[Friends Debug] === CURRENT USER PROFILE ===")
+                print("[Friends Debug]   name: \(me.name ?? "nil")")
+                print("[Friends Debug]   homeBase: \(me.homeBase ?? "nil")")
+                print("[Friends Debug]   location: \(me.location ?? "nil")")
+                print("[Friends Debug]   latitude: \(me.latitude ?? -999), longitude: \(me.longitude ?? -999)")
+                print("[Friends Debug]   travelStops: \(myStops.map { "\($0.location) (\($0.startDate))" })")
+                print("[Friends Debug]   lookingFor: \(me.lookingFor)")
+                print("[Friends Debug]   orientation: \(me.orientation ?? "nil")")
+                print("[Friends Debug]   gender: \(me.gender ?? "nil")")
+                print("[Friends Debug]   preferredMinAge: \(me.preferredMinAge ?? -1), preferredMaxAge: \(me.preferredMaxAge ?? -1)")
+                print("[Friends Debug] ============================")
+            } else {
+                print("[Friends Debug] === CURRENT USER PROFILE: nil (not loaded) ===")
+            }
+
             // Always use standard query — client-side matches() handles distance filtering.
             // This ensures profiles without coordinates are still shown (matching event behavior).
             print("[Friends Debug] → Fetching via standard query (client-side distance filtering)")
@@ -325,6 +343,7 @@ public class ProfileManager: ObservableObject {
 
                 let genderMap: [String: String] = ["women": "Female", "men": "Male", "non-binary": "Non-binary"]
 
+                let beforeAgeGender = profiles.count
                 profiles = profiles.filter { p in
                     let age = p.displayAge
                     let ageOk = age == 0 || (age >= minAge && age <= maxAge)
@@ -340,20 +359,55 @@ public class ProfileManager: ObservableObject {
                         genderOk = true
                     }
 
+                    if !ageOk || !genderOk {
+                        print("[Dating Debug] Filtered out \(p.name ?? "?"): age=\(age) ageOk=\(ageOk), gender=\(p.gender ?? "nil") genderOk=\(genderOk), minAge=\(minAge) maxAge=\(maxAge) acceptedGenders=\(acceptedGenders)")
+                    }
                     return ageOk && genderOk
+                }
+                if beforeAgeGender != profiles.count {
+                    print("[Dating Debug] Age/gender filter: \(beforeAgeGender) → \(profiles.count)")
                 }
             }
 
-            // Dating only: show users who have completed dating onboarding (orientation, lookingFor, 3+ prompt answers)
+            // Dating only: show users who have completed dating onboarding
             if lookingFor == .dating {
-                profiles = profiles.filter { Self.hasCompletedDatingOnboarding(profile: $0) }
+                let beforeOnboarding = profiles.count
+                profiles = profiles.filter { p in
+                    let passed = Self.hasCompletedDatingOnboarding(profile: p)
+                    if !passed {
+                        print("[Dating Debug] Onboarding filter removed \(p.name ?? "?"): gender=\(p.gender ?? "nil"), lookingFor=\(p.lookingFor)")
+                    }
+                    return passed
+                }
+                if beforeOnboarding != profiles.count {
+                    print("[Dating Debug] Onboarding filter: \(beforeOnboarding) → \(profiles.count)")
+                }
             }
 
             // Trim to requested limit after filtering
             profiles = Array(profiles.prefix(limit))
+
+            // Attach travel stops from travel_schedule table to each profile
+            let profileIds = profiles.map { $0.id }
+            if !profileIds.isEmpty {
+                let allStops = try await fetchTravelSchedules(for: profileIds)
+                var stopsByUser: [UUID: [TravelStop]] = [:]
+                for stop in allStops {
+                    stopsByUser[stop.userId, default: []].append(stop)
+                }
+                for i in profiles.indices {
+                    profiles[i].travelStops = stopsByUser[profiles[i].id] ?? []
+                }
+            }
+
             print("[Friends Debug] After all filters: \(profiles.count) profiles assigned to \(lookingFor)")
             for p in profiles {
-                print("[Friends Debug]   → \(p.name ?? "?") (lookingFor: \(p.lookingFor), lat: \(p.latitude ?? -999), lon: \(p.longitude ?? -999))")
+                print("[Friends Debug]   → \(p.name ?? "?"):")
+                print("[Friends Debug]       lookingFor: \(p.lookingFor), orientation: \(p.orientation ?? "nil"), gender: \(p.gender ?? "nil")")
+                print("[Friends Debug]       homeBase: \(p.homeBase ?? "nil"), location: \(p.location ?? "nil")")
+                print("[Friends Debug]       lat: \(p.latitude ?? -999), lon: \(p.longitude ?? -999)")
+                print("[Friends Debug]       travelStops: \(p.travelStops.map { "\($0.location) (\($0.startDate))" })")
+                print("[Friends Debug]       age: \(p.displayAge), preferredMinAge: \(p.preferredMinAge ?? -1), preferredMaxAge: \(p.preferredMaxAge ?? -1)")
             }
 
 
@@ -499,10 +553,34 @@ public class ProfileManager: ObservableObject {
             break
         }
 
-        var profiles: [UserProfile] = try await query
+        let response = try await query
             .limit(limit)
             .execute()
-            .value
+
+        // Log raw JSON for ALL profiles to debug nil fields
+        if let json = try? JSONSerialization.jsonObject(with: response.data) as? [[String: Any]] {
+            let fieldsToCheck = ["location", "home_base", "gender", "name", "looking_for", "next_destination"]
+            for (i, row) in json.enumerated() {
+                let summary = fieldsToCheck.map { "\($0)=\(row[$0] ?? "MISSING_KEY")" }.joined(separator: ", ")
+                print("[ProfileQuery] Raw JSON [\(i)]: \(summary)")
+            }
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            let iso = ISO8601DateFormatter()
+            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = iso.date(from: string) { return date }
+            iso.formatOptions = [.withInternetDateTime]
+            if let date = iso.date(from: string) { return date }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date: \(string)")
+        }
+        var profiles = try decoder.decode([UserProfile].self, from: response.data)
+        for p in profiles {
+            print("[ProfileQuery] Decoded \(p.name ?? "?"): location=\(p.location ?? "nil"), homeBase=\(p.homeBase ?? "nil"), gender=\(p.gender ?? "nil"), nextDest=\(p.nextDestination ?? "nil")")
+        }
 
         let excludeSet = Set(excludeIds)
         profiles = profiles.filter { !excludeSet.contains($0.id) }
@@ -583,6 +661,17 @@ public class ProfileManager: ObservableObject {
             .select()
             .eq("user_id", value: userId)
             .order("start_date")
+            .execute()
+            .value
+    }
+
+    /// Fetches travel schedule entries for multiple users.
+    public func fetchTravelSchedules(for userIds: [UUID]) async throws -> [TravelStop] {
+        guard !userIds.isEmpty else { return [] }
+        return try await client
+            .from("travel_schedule")
+            .select()
+            .in("user_id", values: userIds.map { $0.uuidString })
             .execute()
             .value
     }
@@ -736,9 +825,8 @@ public class ProfileManager: ObservableObject {
     /// Checks if a profile has completed dating-specific onboarding (used for current user or discovery).
     /// Returns true if they have gender set and lookingFor set to dating/both.
     public static func hasCompletedDatingOnboarding(profile: UserProfile) -> Bool {
-        let hasGender = !(profile.gender?.isEmpty ?? true)
         let isLookingForDating = profile.lookingFor == .dating || profile.lookingFor == .both
-        return hasGender && isLookingForDating
+        return isLookingForDating
     }
 
     /// Checks if the current user has completed dating-specific onboarding.

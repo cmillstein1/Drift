@@ -231,7 +231,10 @@ struct MessageDetailScreen: View {
                         userId: otherUserId,
                         displayName: conversation.displayName,
                         profile: conversation.otherUser,
-                        onBlockComplete: onClose
+                        isDating: conversation.type == .dating,
+                        conversationId: conversation.id,
+                        onBlockComplete: onClose,
+                        onRemoveFriendComplete: onClose
                     )
                 }
                 .padding(.horizontal, 16)

@@ -21,6 +21,7 @@ struct DiscoverScreen: View {
     @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
     @StateObject private var notificationsManager = NotificationsManager.shared
     @ObservedObject private var locationProvider = DiscoveryLocationProvider.shared
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var showNotificationsSheet: Bool = false
     @State private var swipedIds: Set<UUID> = []
@@ -75,9 +76,12 @@ struct DiscoverScreen: View {
     @State private var preloadFriendsTask: Task<Void, Never>?
     @State private var recycleProfilesTask: Task<Void, Never>?
     /// Geocoded coordinates for profiles that have a location string but no lat/lon.
-    @State private var geocodedProfileCoords: [UUID: CLLocationCoordinate2D] = [:]
+    /// Stores ALL geocoded locations (location, homeBase, nextDestination) so distance filter can match any.
+    @State private var geocodedProfileCoords: [UUID: [CLLocationCoordinate2D]] = [:]
     /// Cache by location string to avoid re-geocoding the same city.
     @State private var locationGeocodeCache: [String: CLLocationCoordinate2D] = [:]
+    /// Travel stops indexed by user ID, used for fallback location display.
+    @State private var travelStopsByUser: [UUID: [DriftBackend.TravelStop]] = [:]
 
     /// Top spacer so first card clears the overlay (safe area + mode switcher + subtitle + padding).
     private let topNavBarHeight: CGFloat = 120
@@ -142,14 +146,14 @@ struct DiscoverScreen: View {
     }
 
     /// Profiles still visible in the friends feed (not yet swiped/connected), filtered by distance preference.
+    /// Friends/community feed — not filtered by dating swipedIds.
     private var visibleFriendsProfiles: [UserProfile] {
         let coord = DiscoveryLocationProvider.shared.lastCoordinate
         let userLat = coord?.latitude ?? profileManager.currentProfile?.latitude
         let userLon = coord?.longitude ?? profileManager.currentProfile?.longitude
-        let unswiped = friendsProfiles.filter { !swipedIds.contains($0.id) }
-        let result = unswiped.filter { friendsFilterPreferences.matches($0, currentUserLat: userLat, currentUserLon: userLon, routeCoordinates: routeCoordinates, geocodedCoords: geocodedProfileCoords) }
-        if unswiped.count != result.count || result.isEmpty {
-            print("[Friends Debug] visibleFriendsProfiles: friendsProfiles=\(friendsProfiles.count), unswiped=\(unswiped.count), afterFilter=\(result.count), routeCoords=\(routeCoordinates.count)")
+        let result = friendsProfiles.filter { friendsFilterPreferences.matches($0, currentUserLat: userLat, currentUserLon: userLon, routeCoordinates: routeCoordinates, geocodedCoords: geocodedProfileCoords) }
+        if result.count != friendsProfiles.count || result.isEmpty {
+            print("[Friends Debug] visibleFriendsProfiles: friendsProfiles=\(friendsProfiles.count), afterFilter=\(result.count), routeCoords=\(routeCoordinates.count)")
         }
         return result
     }
@@ -204,8 +208,10 @@ struct DiscoverScreen: View {
     }
 
     /// Fetches swiped and blocked IDs, using cache if fresh (< 30s).
-    private func fetchExclusionIds() async throws -> (swiped: [UUID], blocked: [UUID]) {
-        let swiped = try await friendsManager.fetchSwipedUserIds()
+    /// - Parameter swipeType: When provided, only fetches swipes of that type.
+    ///   Pass `.dating` for dating feed, `nil` for friends (so dating swipes don't exclude community profiles).
+    private func fetchExclusionIds(swipeType: DriftBackend.SwipeType? = nil) async throws -> (swiped: [UUID], blocked: [UUID]) {
+        let swiped = try await friendsManager.fetchSwipedUserIds(type: swipeType)
         let blocked: [UUID]
         if Date().timeIntervalSince(lastExclusionFetch) < 30 {
             blocked = cachedBlockedIds
@@ -226,7 +232,8 @@ struct DiscoverScreen: View {
 
         loadProfilesTask = Task {
             do {
-                let (swiped, blocked) = try await fetchExclusionIds()
+                let swipeType: DriftBackend.SwipeType? = targetMode == .dating ? .dating : nil
+                let (swiped, blocked) = try await fetchExclusionIds(swipeType: swipeType)
                 // Always set swipedIds - it's shared across modes
                 swipedIds = Set(swiped)
                 let isAlongMyRoute = lookingFor == .friends ? friendsFilterPreferences.alongMyRoute : datingFilterPreferences.alongMyRoute
@@ -245,7 +252,10 @@ struct DiscoverScreen: View {
                 if mode == targetMode {
                     currentIndex = 0
                 }
+                // Clear all geocoded coords so removed locations/travel stops don't persist
+                geocodedProfileCoords.removeAll()
                 await geocodeProfilesWithoutCoordinates()
+                await fetchTravelStopCoordinates()
             } catch {
                 print("Failed to load profiles: \(error)")
             }
@@ -284,19 +294,29 @@ struct DiscoverScreen: View {
         }
     }
 
+    /// Force reload friends profiles: cancels in-flight tasks, resets guards/caches, and re-fetches.
+    private func forceReloadFriends() {
+        preloadFriendsTask?.cancel()
+        profileManager.resetFetchGuard(for: .friends)
+        lastExclusionFetch = .distantPast
+        cachedBlockedIds = []
+        preloadFriendsProfiles()
+    }
+
     /// Preload friends profiles in background for instant tab switching.
     private func preloadFriendsProfiles() {
         let coord = DiscoveryLocationProvider.shared.lastCoordinate
         preloadFriendsTask = Task {
             do {
-                let (swiped, blocked) = try await fetchExclusionIds()
+                // Don't exclude dating swipes from the friends/community feed
+                let (_, blocked) = try await fetchExclusionIds(swipeType: nil)
                 guard let currentUserId = supabaseManager.currentUser?.id else { return }
                 try await friendsManager.fetchSentRequests()
                 try await friendsManager.fetchFriends()
                 let friendIds = friendsManager.friends.map { friend in
                     friend.requesterId == currentUserId ? friend.addresseeId : friend.requesterId
                 }
-                let excludeIds = swiped + friendIds + blocked
+                let excludeIds = friendIds + blocked
                 try await profileManager.fetchDiscoverProfiles(
                     lookingFor: .friends,
                     excludeIds: excludeIds,
@@ -310,7 +330,10 @@ struct DiscoverScreen: View {
                 print("Failed to preload friends profiles: \(error)")
             }
             isInitialLoading = false
+            // Clear all geocoded coords so removed locations/travel stops don't persist
+            geocodedProfileCoords.removeAll()
             await geocodeProfilesWithoutCoordinates()
+            await fetchTravelStopCoordinates()
         }
     }
 
@@ -322,6 +345,13 @@ struct DiscoverScreen: View {
 
     /// Geocode profiles that have a location string but no valid lat/lon so distance filtering works.
     /// Processes both friends and dating profiles.
+    /// Returns the best location string to geocode for a profile, trying location, homeBase, and nextDestination.
+    private func geocodeLocationStrings(for profile: UserProfile) -> [String] {
+        [profile.location, profile.homeBase, profile.nextDestination]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
     private func geocodeProfilesWithoutCoordinates() async {
         let allProfiles = friendsProfiles + profiles
         // Deduplicate by ID and filter to profiles needing geocoding
@@ -330,41 +360,46 @@ struct DiscoverScreen: View {
             guard !seen.contains(p.id) else { return false }
             seen.insert(p.id)
             return !hasValidCoordinates(p) &&
-                p.location != nil && !p.location!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                !geocodeLocationStrings(for: p).isEmpty &&
                 geocodedProfileCoords[p.id] == nil
         }
         guard !needGeocode.isEmpty else { return }
         print("[Geocode] Geocoding \(needGeocode.count) profiles without valid coordinates")
         let geocoder = CLGeocoder()
         for p in needGeocode {
-            let locationString = p.location!.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let cached = locationGeocodeCache[locationString] {
-                geocodedProfileCoords[p.id] = cached
-                print("[Geocode] \(p.name ?? "?") — cached '\(locationString)' → \(cached.latitude), \(cached.longitude)")
-                continue
-            }
-            // Try geocoding as-is first, then retry with ", USA" if it fails
-            var coord: CLLocationCoordinate2D? = nil
-            if let placemarks = try? await geocoder.geocodeAddressString(locationString),
-               let c = placemarks.first?.location?.coordinate {
-                coord = c
-            } else {
-                try? await Task.sleep(nanoseconds: 300_000_000)
-                let withCountry = locationString + ", USA"
-                if let placemarks = try? await geocoder.geocodeAddressString(withCountry),
+            let locationStrings = geocodeLocationStrings(for: p)
+            var coords: [CLLocationCoordinate2D] = []
+            for locationString in locationStrings {
+                if let cached = locationGeocodeCache[locationString] {
+                    coords.append(cached)
+                    print("[Geocode] \(p.name ?? "?") — cached '\(locationString)' → \(cached.latitude), \(cached.longitude)")
+                    continue
+                }
+                // Try geocoding as-is first, then retry with ", USA" if it fails
+                var coord: CLLocationCoordinate2D? = nil
+                if let placemarks = try? await geocoder.geocodeAddressString(locationString),
                    let c = placemarks.first?.location?.coordinate {
                     coord = c
-                    print("[Geocode] \(p.name ?? "?") — retried with '\(withCountry)'")
+                } else {
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                    let withCountry = locationString + ", USA"
+                    if let placemarks = try? await geocoder.geocodeAddressString(withCountry),
+                       let c = placemarks.first?.location?.coordinate {
+                        coord = c
+                    }
                 }
+                if let coord = coord {
+                    locationGeocodeCache[locationString] = coord
+                    coords.append(coord)
+                    print("[Geocode] \(p.name ?? "?") — geocoded '\(locationString)' → \(coord.latitude), \(coord.longitude)")
+                }
+                try? await Task.sleep(nanoseconds: 300_000_000)
             }
-            if let coord = coord {
-                locationGeocodeCache[locationString] = coord
-                geocodedProfileCoords[p.id] = coord
-                print("[Geocode] \(p.name ?? "?") — geocoded '\(locationString)' → \(coord.latitude), \(coord.longitude)")
+            if !coords.isEmpty {
+                geocodedProfileCoords[p.id] = coords
             } else {
-                print("[Geocode] \(p.name ?? "?") — failed to geocode '\(locationString)'")
+                print("[Geocode] \(p.name ?? "?") — failed to geocode any of: \(locationStrings)")
             }
-            try? await Task.sleep(nanoseconds: 300_000_000)
         }
     }
 
@@ -375,6 +410,41 @@ struct DiscoverScreen: View {
         formatter.unitsStyle = .abbreviated
         formatter.locale = Locale.current
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    /// Fetches travel schedule coordinates for all discovered profiles and adds them to geocodedProfileCoords.
+    private func fetchTravelStopCoordinates() async {
+        let allProfiles = friendsProfiles + profiles
+        let userIds = allProfiles.map { $0.id }
+        guard !userIds.isEmpty else { return }
+        do {
+            let stops = try await profileManager.fetchTravelSchedules(for: userIds)
+            // Group stops by user ID for fallback location display
+            var grouped: [UUID: [DriftBackend.TravelStop]] = [:]
+            for stop in stops {
+                grouped[stop.userId, default: []].append(stop)
+                guard let lat = stop.latitude, let lon = stop.longitude,
+                      abs(lat) <= 90, abs(lon) <= 180 else { continue }
+                let coord = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+                if geocodedProfileCoords[stop.userId] != nil {
+                    geocodedProfileCoords[stop.userId]!.append(coord)
+                } else {
+                    geocodedProfileCoords[stop.userId] = [coord]
+                }
+            }
+            travelStopsByUser = grouped
+            if !stops.isEmpty {
+                print("[TravelSchedule] Added coordinates from \(stops.count) travel stops for \(Set(stops.map { $0.userId }).count) users")
+            }
+        } catch {
+            print("[TravelSchedule] Failed to fetch: \(error)")
+        }
+    }
+
+    /// Returns the first travel stop location string for a profile, used as fallback when profile.location is empty.
+    private func fallbackLocation(for profile: UserProfile) -> String? {
+        guard let stops = travelStopsByUser[profile.id], !stops.isEmpty else { return nil }
+        return stops.first?.location
     }
 
     /// Mutual interests between current user and profile (for dating card).
@@ -437,7 +507,7 @@ struct DiscoverScreen: View {
                 case .right: swipeDirection = .right
                 case .up: swipeDirection = .up
                 }
-                let match = try await friendsManager.swipe(on: profile.id, direction: swipeDirection)
+                let match = try await friendsManager.swipe(on: profile.id, direction: swipeDirection, type: .dating)
 
                 if isLike {
                     try await Task.sleep(nanoseconds: 350_000_000)
@@ -521,17 +591,13 @@ struct DiscoverScreen: View {
                 mode = .friends
                 // Preload both datasets for instant tab switching
                 loadProfiles(forMode: .dating)
-                if profileManager.discoverProfilesFriends.isEmpty {
-                    preloadFriendsProfiles()
-                }
+                preloadFriendsProfiles()
             } else if discoveryMode == .dating {
                 loadProfiles(forMode: .dating)
             } else if discoveryMode == .friends {
                 // Friends-only mode - load friends profiles for community grid
                 mode = .friends
-                if profileManager.discoverProfilesFriends.isEmpty {
-                    preloadFriendsProfiles()
-                }
+                preloadFriendsProfiles()
             }
             // Load route coordinates if along-my-route is enabled in either filter
             if friendsFilterPreferences.alongMyRoute || datingFilterPreferences.alongMyRoute {
@@ -554,6 +620,19 @@ struct DiscoverScreen: View {
             Task {
                 await FriendsManager.shared.unsubscribe()
             }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            // Refresh all discover data when app returns to foreground
+            let discoveryMode = supabaseManager.getDiscoveryMode()
+            if discoveryMode == .both || discoveryMode == .friends {
+                forceReloadFriends()
+            }
+            if discoveryMode == .both || discoveryMode == .dating {
+                profileManager.resetFetchGuard(for: .dating)
+                loadProfiles(forMode: .dating)
+            }
+            Task { try? await communityManager.fetchPosts(type: .event) }
         }
         .onChange(of: mode) { _, newMode in
             // Reset profile transition opacity
@@ -579,6 +658,9 @@ struct DiscoverScreen: View {
             } else {
                 routeCoordinates = []
             }
+            // Cancel in-flight fetch and reset guard so the new fetch isn't blocked
+            preloadFriendsTask?.cancel()
+            profileManager.resetFetchGuard(for: .friends)
             // Re-fetch friends profiles and events with updated settings
             preloadFriendsProfiles()
             Task { try? await communityManager.fetchPosts(type: .event) }
@@ -697,7 +779,9 @@ struct DiscoverScreen: View {
             .presentationDetents([.height(400)])
             .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: $showCreateEventSheet) {
+        .sheet(isPresented: $showCreateEventSheet, onDismiss: {
+            Task { try? await communityManager.fetchPosts(type: .event) }
+        }) {
             CreateCommunityPostSheet(restrictToPostType: .event)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
@@ -925,8 +1009,8 @@ struct DiscoverScreen: View {
             isLoading: isInitialLoading,
             spinnerTopOffset: 100,
             onRefresh: {
+                forceReloadFriends()
                 try? await communityManager.fetchPosts(type: .event)
-                preloadFriendsProfiles()
             },
             onSelectProfile: { selectedFriendProfile = $0 },
             onSelectEvent: { selectedEvent = $0 },
@@ -944,6 +1028,7 @@ struct DiscoverScreen: View {
                         mode: .dating,
                         lastActiveAt: profile.lastActiveAt,
                         distanceMiles: distanceMiles(for: profile),
+                        fallbackLocation: fallbackLocation(for: profile),
                         onPrimaryAction: { handleSwipe(profile: profile, direction: .right) },
                         onPass: { handleSwipe(profile: profile, direction: .left) },
                         onViewProfile: { selectedProfile = profile },
@@ -1101,7 +1186,7 @@ struct DiscoverScreen: View {
                 case .right: swipeDirection = .right
                 case .up: swipeDirection = .up
                 }
-                let match = try await friendsManager.swipe(on: profile.id, direction: swipeDirection)
+                let match = try await friendsManager.swipe(on: profile.id, direction: swipeDirection, type: .dating)
 
                 await MainActor.run {
                     if let match = match {
@@ -1438,8 +1523,8 @@ struct DiscoverScreen: View {
                 topSpacing: 60, // Smaller top spacing since no mode switcher in friends-only mode
                 isLoading: isInitialLoading,
                 onRefresh: {
+                    forceReloadFriends()
                     try? await communityManager.fetchPosts(type: .event)
-                    preloadFriendsProfiles()
                 },
                 onSelectProfile: { selectedFriendProfile = $0 },
                 onSelectEvent: { selectedEvent = $0 },

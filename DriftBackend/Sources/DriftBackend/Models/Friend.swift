@@ -15,6 +15,11 @@ public enum SwipeDirection: String, Codable, Sendable {
     case up // Super like
 }
 
+public enum SwipeType: String, Codable, Sendable {
+    case dating
+    case friends
+}
+
 // MARK: - Friend
 
 public struct Friend: Codable, Identifiable, Sendable {
@@ -135,6 +140,7 @@ public struct Swipe: Codable, Identifiable, Sendable {
     public let swiperId: UUID
     public let swipedId: UUID
     public let direction: SwipeDirection
+    public let type: SwipeType?
     public let createdAt: Date?
 
     enum CodingKeys: String, CodingKey {
@@ -142,6 +148,7 @@ public struct Swipe: Codable, Identifiable, Sendable {
         case swiperId = "swiper_id"
         case swipedId = "swiped_id"
         case direction
+        case type
         case createdAt = "created_at"
     }
 
@@ -150,12 +157,14 @@ public struct Swipe: Codable, Identifiable, Sendable {
         swiperId: UUID,
         swipedId: UUID,
         direction: SwipeDirection,
+        type: SwipeType? = nil,
         createdAt: Date? = nil
     ) {
         self.id = id
         self.swiperId = swiperId
         self.swipedId = swipedId
         self.direction = direction
+        self.type = type
         self.createdAt = createdAt
     }
 }
@@ -186,17 +195,20 @@ public struct SwipeRequest: Encodable {
     public let swiperId: UUID
     public let swipedId: UUID
     public let direction: SwipeDirection
+    public let type: SwipeType
 
     enum CodingKeys: String, CodingKey {
         case swiperId = "swiper_id"
         case swipedId = "swiped_id"
         case direction
+        case type
     }
 
-    public init(swiperId: UUID, swipedId: UUID, direction: SwipeDirection) {
+    public init(swiperId: UUID, swipedId: UUID, direction: SwipeDirection, type: SwipeType) {
         self.swiperId = swiperId
         self.swipedId = swipedId
         self.direction = direction
+        self.type = type
     }
 }
 
@@ -207,6 +219,7 @@ public struct SwipeRecord: Decodable {
     public let swiperId: UUID
     public let swipedId: UUID
     public let direction: String
+    public let type: String?
     public let createdAt: Date?
 
     enum CodingKeys: String, CodingKey {
@@ -214,6 +227,7 @@ public struct SwipeRecord: Decodable {
         case swiperId = "swiper_id"
         case swipedId = "swiped_id"
         case direction
+        case type
         case createdAt = "created_at"
     }
 }

@@ -8,16 +8,19 @@
 import SwiftUI
 import DriftBackend
 
-/// A 3-dot menu that shows "Report", "Block", and optionally "Remove Friend". Block asks for confirmation (native alert), then calls the backend and shows success. Report opens the ReportSheet.
+/// A 3-dot menu that shows "Report", "Block", and optionally "Remove Friend" / "Unmatch". Block asks for confirmation (native alert), then calls the backend and shows success. Report opens the ReportSheet.
 struct ReportBlockMenu: View {
     let userId: UUID?
     var displayName: String? = nil
     var profile: UserProfile? = nil  // For report snapshot
+    var isDating: Bool = false
+    var conversationId: UUID? = nil
     var onReport: () -> Void = {}
     var onBlockComplete: (() -> Void)? = nil
     var onRemoveFriendComplete: (() -> Void)? = nil
 
     @StateObject private var friendsManager = FriendsManager.shared
+    @StateObject private var messagingManager = MessagingManager.shared
     @State private var isBlocking = false
     @State private var blockError: String?
     @State private var showBlockError = false
@@ -50,7 +53,14 @@ struct ReportBlockMenu: View {
             }
             .disabled(userId == nil)
 
-            if friendRecord != nil {
+            if isDating && conversationId != nil {
+                Button(role: .destructive) {
+                    showRemoveFriendConfirm = true
+                } label: {
+                    Label("Unmatch", systemImage: "heart.slash")
+                }
+                .disabled(isRemovingFriend)
+            } else if friendRecord != nil {
                 Button(role: .destructive) {
                     showRemoveFriendConfirm = true
                 } label: {
@@ -92,15 +102,15 @@ struct ReportBlockMenu: View {
                 )
             }
         }
-        .alert("Remove \(resolvedDisplayName) as a friend?", isPresented: $showRemoveFriendConfirm) {
+        .alert(isDating ? "Unmatch \(resolvedDisplayName)?" : "Remove \(resolvedDisplayName) as a friend?", isPresented: $showRemoveFriendConfirm) {
             Button("Cancel", role: .cancel) {}
-            Button("Remove", role: .destructive) {
+            Button(isDating ? "Unmatch" : "Remove", role: .destructive) {
                 Task {
                     await performRemoveFriend()
                 }
             }
         } message: {
-            Text("You will no longer be connected as friends. You can send a new friend request later.")
+            Text(isDating ? "This will end the conversation and remove the match." : "You will no longer be connected as friends. You can send a new friend request later.")
         }
         .alert("Block \(pendingBlockDisplayName)?", isPresented: $showBlockConfirm) {
             Button("Cancel", role: .cancel) {
@@ -140,12 +150,18 @@ struct ReportBlockMenu: View {
 
     @MainActor
     private func performRemoveFriend() async {
-        guard let record = friendRecord else { return }
         isRemovingFriend = true
         defer { isRemovingFriend = false }
 
         do {
-            try await friendsManager.removeFriend(record.id)
+            // Remove friend record if one exists
+            if let record = friendRecord {
+                try await friendsManager.removeFriend(record.id)
+            }
+            // Leave the conversation
+            if let convId = conversationId {
+                try await messagingManager.leaveConversation(convId)
+            }
             onRemoveFriendComplete?()
         } catch {
             blockError = error.localizedDescription
@@ -175,6 +191,8 @@ struct ReportBlockMenuButton: View {
     let userId: UUID?
     var displayName: String? = nil
     var profile: UserProfile? = nil  // For report snapshot
+    var isDating: Bool = false
+    var conversationId: UUID? = nil
     var onReport: () -> Void = {}
     var onBlockComplete: (() -> Void)? = nil
     var onRemoveFriendComplete: (() -> Void)? = nil
@@ -186,6 +204,7 @@ struct ReportBlockMenuButton: View {
     var horizontalEllipsis: Bool = false
 
     @StateObject private var friendsManager = FriendsManager.shared
+    @StateObject private var messagingManager = MessagingManager.shared
     @State private var isBlocking = false
     @State private var blockError: String?
     @State private var showBlockError = false
@@ -218,7 +237,14 @@ struct ReportBlockMenuButton: View {
             }
             .disabled(userId == nil)
 
-            if friendRecord != nil {
+            if isDating && conversationId != nil {
+                Button(role: .destructive) {
+                    showRemoveFriendConfirm = true
+                } label: {
+                    Label("Unmatch", systemImage: "heart.slash")
+                }
+                .disabled(isRemovingFriend)
+            } else if friendRecord != nil {
                 Button(role: .destructive) {
                     showRemoveFriendConfirm = true
                 } label: {
@@ -282,15 +308,15 @@ struct ReportBlockMenuButton: View {
                 )
             }
         }
-        .alert("Remove \(resolvedDisplayName) as a friend?", isPresented: $showRemoveFriendConfirm) {
+        .alert(isDating ? "Unmatch \(resolvedDisplayName)?" : "Remove \(resolvedDisplayName) as a friend?", isPresented: $showRemoveFriendConfirm) {
             Button("Cancel", role: .cancel) {}
-            Button("Remove", role: .destructive) {
+            Button(isDating ? "Unmatch" : "Remove", role: .destructive) {
                 Task {
                     await performRemoveFriend()
                 }
             }
         } message: {
-            Text("You will no longer be connected as friends. You can send a new friend request later.")
+            Text(isDating ? "This will end the conversation and remove the match." : "You will no longer be connected as friends. You can send a new friend request later.")
         }
         .alert("Block \(pendingBlockDisplayName)?", isPresented: $showBlockConfirm) {
             Button("Cancel", role: .cancel) {
@@ -330,12 +356,16 @@ struct ReportBlockMenuButton: View {
 
     @MainActor
     private func performRemoveFriend() async {
-        guard let record = friendRecord else { return }
         isRemovingFriend = true
         defer { isRemovingFriend = false }
 
         do {
-            try await friendsManager.removeFriend(record.id)
+            if let record = friendRecord {
+                try await friendsManager.removeFriend(record.id)
+            }
+            if let convId = conversationId {
+                try await messagingManager.leaveConversation(convId)
+            }
             onRemoveFriendComplete?()
         } catch {
             blockError = error.localizedDescription

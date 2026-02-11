@@ -408,7 +408,7 @@ public class FriendsManager: ObservableObject {
     ///   - direction: The swipe direction (left, right, or up for super like).
     /// - Returns: A `Match` if mutual interest is detected, otherwise `nil`.
     @discardableResult
-    public func swipe(on userId: UUID, direction: SwipeDirection) async throws -> Match? {
+    public func swipe(on userId: UUID, direction: SwipeDirection, type: SwipeType = .dating) async throws -> Match? {
         guard let currentUserId = SupabaseManager.shared.currentUser?.id else {
             #if DEBUG
             print("❌ [SWIPE] Not authenticated")
@@ -421,9 +421,10 @@ public class FriendsManager: ObservableObject {
         print("🔄 [SWIPE] Current user: \(currentUserId)")
         print("🔄 [SWIPE] Target user: \(userId)")
         print("🔄 [SWIPE] Direction: \(direction)")
+        print("🔄 [SWIPE] Type: \(type)")
         #endif
 
-        let request = SwipeRequest(swiperId: currentUserId, swipedId: userId, direction: direction)
+        let request = SwipeRequest(swiperId: currentUserId, swipedId: userId, direction: direction, type: type)
 
         do {
             try await client
@@ -640,16 +641,25 @@ public class FriendsManager: ObservableObject {
 
     /// Fetches IDs of profiles the user has already swiped on.
     ///
+    /// - Parameters:
+    ///   - type: Optional swipe type filter. When provided, only returns swipes of that type.
+    ///           When nil, returns all swipes regardless of type.
     /// - Returns: Array of user IDs that have been swiped.
-    public func fetchSwipedUserIds() async throws -> [UUID] {
+    public func fetchSwipedUserIds(type: SwipeType? = nil) async throws -> [UUID] {
         guard let userId = SupabaseManager.shared.currentUser?.id else {
             throw FriendsError.notAuthenticated
         }
 
-        let swipes: [Swipe] = try await client
+        var query = client
             .from("swipes")
             .select()
             .eq("swiper_id", value: userId)
+
+        if let type = type {
+            query = query.eq("type", value: type.rawValue)
+        }
+
+        let swipes: [Swipe] = try await query
             .execute()
             .value
 

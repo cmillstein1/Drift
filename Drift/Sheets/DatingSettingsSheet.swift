@@ -46,7 +46,7 @@ struct DatingFilterPreferences: Equatable, Codable {
         currentUserLat: Double?,
         currentUserLon: Double?,
         routeCoordinates: [ReferenceCoordinate] = [],
-        geocodedCoords: [UUID: CLLocationCoordinate2D] = [:]
+        geocodedCoords: [UUID: [CLLocationCoordinate2D]] = [:]
     ) -> Bool {
         if isUnlimitedDistance { return true }
 
@@ -60,31 +60,25 @@ struct DatingFilterPreferences: Equatable, Codable {
 
         guard !referencePoints.isEmpty else { return true }
 
-        // Use stored coordinates, or fall back to geocoded location string
-        // Treat sentinel values (-999) and out-of-range coords as missing
-        let plat: Double
-        let plon: Double
+        // Build all possible profile coordinates (stored + all geocoded locations)
+        var profileCoords: [CLLocationCoordinate2D] = []
         if let lat = profile.latitude, let lon = profile.longitude,
            abs(lat) <= 90, abs(lon) <= 180 {
-            plat = lat
-            plon = lon
-        } else if let geocoded = geocodedCoords[profile.id] {
-            plat = geocoded.latitude
-            plon = geocoded.longitude
-        } else {
-            // No coordinates and no geocoded fallback — can't verify distance, exclude
-            print("[Dating Filter] \(profile.name ?? "?") has no coordinates — excluding from distance filter")
-            return false
+            profileCoords.append(CLLocationCoordinate2D(latitude: lat, longitude: lon))
+        }
+        if let geocoded = geocodedCoords[profile.id] {
+            profileCoords.append(contentsOf: geocoded)
         }
 
-        let passed = referencePoints.contains { ref in
-            let miles = Self.haversineMiles(lat1: ref.latitude, lon1: ref.longitude, lat2: plat, lon2: plon)
-            return miles <= Double(maxDistanceMiles)
+        guard !profileCoords.isEmpty else { return false }
+
+        // Pass if ANY profile location is within range of ANY reference point
+        return profileCoords.contains { pc in
+            referencePoints.contains { ref in
+                let miles = Self.haversineMiles(lat1: ref.latitude, lon1: ref.longitude, lat2: pc.latitude, lon2: pc.longitude)
+                return miles <= Double(maxDistanceMiles)
+            }
         }
-        if !passed {
-            print("[Dating Filter] \(profile.name ?? "?") filtered out — outside \(maxDistanceMiles) mi")
-        }
-        return passed
     }
 
     private static func haversineMiles(lat1: Double, lon1: Double, lat2: Double, lon2: Double) -> Double {

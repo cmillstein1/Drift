@@ -14,6 +14,8 @@ struct DiscoverFullScreenProfileView: View {
     let mode: DiscoverMode
     var distanceMiles: Int?
     var lastActiveAt: Date?
+    /// Fallback location string (e.g. from travel schedule) when profile.location is empty.
+    var fallbackLocation: String? = nil
 
     // Callbacks
     var onLike: (() -> Void)?
@@ -351,7 +353,11 @@ struct DiscoverFullScreenProfileView: View {
                             .foregroundColor(forestGreen)
                     }
                 }
-                if let location = profile.location {
+                if let location = {
+                    let loc = profile.location?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if let loc, !loc.isEmpty { return loc }
+                    return fallbackLocation
+                }() {
                     HStack(spacing: 4) {
                         Image(systemName: "location.fill")
                             .font(.system(size: 10))

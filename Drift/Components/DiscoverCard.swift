@@ -17,12 +17,20 @@ struct DiscoverCard: View {
     var lastActiveAt: Date? = nil
     /// Distance in miles from current user; nil hides.
     var distanceMiles: Int? = nil
+    /// Fallback location string (e.g. from travel schedule) when profile.location is empty.
+    var fallbackLocation: String? = nil
     var onPrimaryAction: (() -> Void)? = nil
     /// Pass action (dating only); when set, card shows Pass button to the right of interested.
     var onPass: (() -> Void)? = nil
     var onViewProfile: (() -> Void)? = nil
     /// When set, the card shows a report/block menu in the header; callback after block.
     var onBlockComplete: (() -> Void)? = nil
+
+    private var displayLocation: String? {
+        let loc = profile.location?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let loc, !loc.isEmpty { return loc }
+        return fallbackLocation
+    }
 
     private let softGray = Color("SoftGray")
     private let charcoal = Color("Charcoal")
@@ -141,13 +149,13 @@ struct DiscoverCard: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 14, height: 14)
-                        if let loc = profile.location {
+                        if let loc = displayLocation {
                             Text(loc)
                                 .font(.system(size: 16, weight: .medium))
                                 .foregroundColor(.white.opacity(0.95))
                         }
                         if let miles = distanceMiles {
-                            if profile.location != nil {
+                            if displayLocation != nil {
                                 Text("•")
                                     .foregroundColor(.white.opacity(0.8))
                             }

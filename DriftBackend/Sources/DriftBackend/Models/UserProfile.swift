@@ -123,6 +123,9 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
     /// When true, user's location is hidden on the Nearby map (for themselves and others).
     public var hideLocationOnMap: Bool
 
+    /// Travel stops fetched from the travel_schedule table. Not decoded from the profile JSON — populated after fetch.
+    public var travelStops: [TravelStop] = []
+
     enum CodingKeys: String, CodingKey {
         case id, name, birthday, age, bio
         case avatarUrl = "avatar_url"
@@ -291,6 +294,7 @@ public struct UserProfile: Codable, Identifiable, Hashable, Sendable {
         lastActiveAt = try container.decodeIfPresent(Date.self, forKey: .lastActiveAt)
         onboardingCompleted = try container.decodeIfPresent(Bool.self, forKey: .onboardingCompleted) ?? false
         hideLocationOnMap = try container.decodeIfPresent(Bool.self, forKey: .hideLocationOnMap) ?? false
+        travelStops = []
     }
 
     // Computed properties for UI

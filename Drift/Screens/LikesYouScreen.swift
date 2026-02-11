@@ -136,7 +136,7 @@ struct LikesYouScreen: View {
 
         Task {
             do {
-                let match = try await friendsManager.swipe(on: profile.id, direction: .right)
+                let match = try await friendsManager.swipe(on: profile.id, direction: .right, type: .dating)
                 await MainActor.run {
                     if match != nil {
                         matchedProfile = profile
@@ -156,7 +156,7 @@ struct LikesYouScreen: View {
 
         Task {
             do {
-                _ = try await friendsManager.swipe(on: profile.id, direction: .left)
+                _ = try await friendsManager.swipe(on: profile.id, direction: .left, type: .dating)
             } catch {
                 print("Failed to pass: \(error)")
                 try? await friendsManager.fetchPeopleLikedMe()
