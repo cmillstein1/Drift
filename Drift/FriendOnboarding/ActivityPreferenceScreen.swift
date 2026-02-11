@@ -292,23 +292,23 @@ struct ActivityPreferenceCard: View {
     let activity: ActivityPreference
     let isSelected: Bool
     let onTap: () -> Void
-    
+
     private let charcoalColor = Color("Charcoal")
     private let forestGreen = Color("ForestGreen")
-    
+
     var body: some View {
         Button(action: onTap) {
             VStack(spacing: 8) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(isSelected ? Color.white.opacity(0.2) : Color.white.opacity(0.8))
+                    Circle()
+                        .fill(isSelected ? Color.white.opacity(0.2) : Color("SoftGray"))
                         .frame(width: 56, height: 56)
-                    
+
                     Image(systemName: activity.icon)
                         .font(.system(size: 24))
                         .foregroundColor(isSelected ? .white : charcoalColor)
                 }
-                
+
                 Text(activity.label)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(isSelected ? .white : charcoalColor)
@@ -321,8 +321,26 @@ struct ActivityPreferenceCard: View {
                 ZStack {
                     if isSelected {
                         activity.gradient
+
+                        // Decorative bubbles
+                        Circle()
+                            .fill(Color.white.opacity(0.12))
+                            .frame(width: 80, height: 80)
+                            .offset(x: -40, y: -20)
+                        Circle()
+                            .fill(Color.white.opacity(0.1))
+                            .frame(width: 60, height: 60)
+                            .offset(x: 50, y: 30)
+                        Circle()
+                            .fill(Color.white.opacity(0.08))
+                            .frame(width: 50, height: 50)
+                            .offset(x: 20, y: -40)
+                        Circle()
+                            .fill(Color.white.opacity(0.1))
+                            .frame(width: 40, height: 40)
+                            .offset(x: -25, y: 35)
                     } else {
-                        Color.white.opacity(0.2)
+                        Color.white
                     }
                 }
             )
@@ -330,7 +348,7 @@ struct ActivityPreferenceCard: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(
-                        isSelected ? Color.clear : Color.gray.opacity(0.2),
+                        isSelected ? Color.clear : Color.gray.opacity(0.15),
                         lineWidth: isSelected ? 0 : 1
                     )
             )
@@ -343,11 +361,11 @@ struct ActivityPreferenceCard: View {
                                 ZStack {
                                     Circle()
                                         .fill(Color.white)
-                                        .frame(width: 24, height: 24)
-                                    
-                                    Circle()
-                                        .fill(forestGreen)
-                                        .frame(width: 12, height: 12)
+                                        .frame(width: 28, height: 28)
+
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(forestGreen)
                                 }
                                 .padding(8)
                             }

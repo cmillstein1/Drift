@@ -128,5 +128,6 @@ struct LikesYouBanner: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .padding(.top, 6)
     }
 }
