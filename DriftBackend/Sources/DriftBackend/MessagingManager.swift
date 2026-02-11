@@ -203,25 +203,10 @@ public class MessagingManager: ObservableObject {
             print("[Messages] After filter (not left): \(filtered.count) | visible: \(visibleCount), hidden: \(hiddenCount) | current list had: \(self.conversations.count) | types: \(filtered.map { $0.type.rawValue })")
             #endif
 
-            // Never overwrite the list with empty once we have data (avoids "message shows up then disappears" from a second refetch returning empty)
-            let willAssign: Bool
-            if !filtered.isEmpty {
-                willAssign = true
-            } else if self.conversations.isEmpty {
-                willAssign = true
-            } else {
-                willAssign = false
-            }
+            self.conversations = filtered
             #if DEBUG
-            print("[Messages] Assign list? \(willAssign) (filtered.isEmpty=\(filtered.isEmpty), conversations.isEmpty=\(self.conversations.isEmpty))")
+            print("[Messages] conversations set to \(self.conversations.count) item(s)")
             #endif
-
-            if willAssign {
-                self.conversations = filtered
-                #if DEBUG
-                print("[Messages] conversations set to \(self.conversations.count) item(s)")
-                #endif
-            }
 
             self.updateUnreadCount(userId: userId)
             isLoading = false
