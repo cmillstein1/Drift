@@ -40,6 +40,7 @@ struct FriendOnboardingFlow: View {
                         }
                         .padding(.leading, 24)
                         .padding(.top, 16)
+                        .padding(.bottom, 4)
                         Spacer()
                     }
                 }
