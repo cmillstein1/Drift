@@ -308,7 +308,6 @@ struct LifestyleOnboardingScreen: View {
                     morningPerson: morningPerson
                 ))
             } catch {
-                print("Failed to save lifestyle: \(error)")
             }
             await MainActor.run {
                 isSaving = false
@@ -405,6 +404,5 @@ private struct MorningPersonButton: View {
 
 #Preview {
     LifestyleOnboardingScreen {
-        print("Continue tapped")
     }
 }

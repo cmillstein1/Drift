@@ -47,7 +47,6 @@ class MapLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("Location error: \(error.localizedDescription)")
     }
 }
 
@@ -386,14 +385,11 @@ struct MapScreen: View {
         do {
             let campground = try await CampflareManager.shared.fetchCampground(id: id)
             
-            print("✅ Successfully fetched campground: \(campground.name) (ID: \(campground.id))")
-            
             await MainActor.run {
                 self.campgrounds = [campground]
                 self.isLoadingCampgrounds = false
             }
         } catch {
-            print("❌ Error fetching campground: \(error.localizedDescription)")
             await MainActor.run {
                 self.isLoadingCampgrounds = false
             }
@@ -437,8 +433,6 @@ struct MapScreen: View {
         isLoadingCampgrounds = true
         showSearchHereButton = false
         
-        print("🌲 Fetching campgrounds within 200 miles of (\(center.latitude), \(center.longitude))...")
-        
         let bbox = boundingBox(center: center, radiusMiles: searchRadiusMiles)
         
         let searchRequest = CampgroundSearchRequest(
@@ -458,7 +452,6 @@ struct MapScreen: View {
         
         do {
             let response = try await CampflareManager.shared.searchCampgrounds(request: searchRequest)
-            print("✅ Found \(response.campgrounds.count) campgrounds")
             
             await MainActor.run {
                 self.campgrounds = response.campgrounds
@@ -467,7 +460,6 @@ struct MapScreen: View {
                 self.isFetchingAllUS = false
             }
         } catch {
-            print("❌ Error fetching campgrounds: \(error.localizedDescription)")
             await MainActor.run {
                 self.isLoadingCampgrounds = false
                 self.isFetchingAllUS = false

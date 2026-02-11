@@ -913,7 +913,6 @@ struct EditProfileSheet: View {
             do {
                 try await profileManager.fetchCurrentProfile()
             } catch {
-                print("Failed to fetch profile: \(error)")
             }
 
             await MainActor.run {
@@ -990,7 +989,6 @@ struct EditProfileSheet: View {
                     isUploadingPhoto = nil
                 }
             } catch {
-                print("Failed to upload photo: \(error)")
                 await MainActor.run {
                     uploadError = "Failed to upload photo: \(error.localizedDescription)"
                     showUploadError = true
@@ -1065,7 +1063,6 @@ struct EditProfileSheet: View {
                     dismiss()
                 }
             } catch {
-                print("Failed to save profile: \(error)")
                 await MainActor.run {
                     isSaving = false
                 }

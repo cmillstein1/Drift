@@ -272,7 +272,6 @@ struct VanBuilderChannelView: View {
                     try await vanBuilderManager.fetchChannelMessages(channel.id)
                     await vanBuilderManager.subscribeToChannel(channel.id)
                 } catch {
-                    print("Failed to fetch channel messages: \(error)")
                 }
             }
         }
@@ -300,7 +299,6 @@ struct VanBuilderChannelView: View {
                     isSending = false
                 }
             } catch {
-                print("Failed to send message: \(error)")
                 await MainActor.run {
                     isSending = false
                 }
@@ -317,7 +315,6 @@ struct VanBuilderChannelView: View {
             do {
                 try await vanBuilderManager.toggleLike(messageId: messageId)
             } catch {
-                print("Failed to toggle like: \(error)")
             }
         }
     }
@@ -535,7 +532,6 @@ struct ThreadView: View {
                 do {
                     replies = try await vanBuilderManager.fetchReplies(for: messageId)
                 } catch {
-                    print("Failed to fetch replies: \(error)")
                 }
                 isLoading = false
             }

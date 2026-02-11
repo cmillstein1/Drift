@@ -341,7 +341,6 @@ struct WelcomeScreen: View {
                 authorizationCode: authorizationCode
             )
             #if DEBUG
-            print("Apple Sign In successful")
             #endif
             // Mark that we signed in with Apple so onboarding skips the name step (Guideline 4.0)
             UserDefaults.standard.set(true, forKey: "last_sign_in_was_apple")
@@ -352,13 +351,11 @@ struct WelcomeScreen: View {
                     try await ProfileManager.shared.updateProfile(ProfileUpdateRequest(name: firstName))
                 } catch {
                     #if DEBUG
-                    print("Could not save Apple name to profile: \(error)")
                     #endif
                 }
             }
         } catch {
             #if DEBUG
-            print("Apple Sign In error: \(error)")
             #endif
             if error.localizedDescription.contains("Unacceptable audience") {
                 errorMessage = "Apple Sign In configuration error. Please check Supabase dashboard settings."
@@ -409,24 +406,20 @@ struct WelcomeScreen: View {
         }
 
         #if DEBUG
-        print("handleEmailAuth called - isSignUp: \(isSignUp)")
         #endif
 
         do {
             if isSignUp {
                 #if DEBUG
-                print("Calling signUpWithEmail...")
                 #endif
                 try await supabaseManager.signUpWithEmail(email: email, password: password)
             } else {
                 #if DEBUG
-                print("Calling signInWithEmail...")
                 #endif
                 try await supabaseManager.signInWithEmail(email: email, password: password)
             }
         } catch {
             #if DEBUG
-            print("Auth error: \(error.localizedDescription)")
             #endif
             errorMessage = error.localizedDescription
         }

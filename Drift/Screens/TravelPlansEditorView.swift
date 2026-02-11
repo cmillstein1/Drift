@@ -136,7 +136,6 @@ struct TravelPlansEditorView: View {
             do {
                 travelStops = try await profileManager.fetchTravelSchedule()
             } catch {
-                print("Failed to load travel stops: \(error)")
             }
             isLoading = false
         }
@@ -147,7 +146,6 @@ struct TravelPlansEditorView: View {
             do {
                 try await profileManager.saveTravelSchedule(travelStops)
             } catch {
-                print("Failed to save travel stops: \(error)")
             }
         }
     }

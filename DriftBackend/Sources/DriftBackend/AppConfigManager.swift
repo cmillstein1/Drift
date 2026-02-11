@@ -41,7 +41,6 @@ public class AppConfigManager: ObservableObject {
             struct EmptyBody: Encodable {}
 
             #if DEBUG
-            print("[AppConfigManager] Calling get-app-config edge function...")
             #endif
 
             let response: AppConfigResponse = try await client.functions.invoke(
@@ -50,20 +49,17 @@ public class AppConfigManager: ObservableObject {
             )
 
             #if DEBUG
-            print("[AppConfigManager] Got response – campflare: \(response.campflareAPIKey), revenueCat: \(response.revenueCatAPIKey), verifyFaceID: \(response.verifyFaceIDAPIKey), unsplash: \(response.unsplashAccessKey)")
             #endif
 
             applyConfig(response)
             saveToKeychain(response)
         } catch {
             #if DEBUG
-            print("[AppConfigManager] Edge function failed: \(error) – trying Keychain cache")
             #endif
             if let cached = loadFromKeychain() {
                 applyConfig(cached)
             } else {
                 #if DEBUG
-                print("[AppConfigManager] No Keychain cache available – running without remote keys")
                 #endif
             }
         }

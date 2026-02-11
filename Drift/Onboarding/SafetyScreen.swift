@@ -197,7 +197,6 @@ struct SafetyScreen: View {
                     ProfileUpdateRequest(onboardingCompleted: true)
                 )
             } catch {
-                print("Failed to update profile: \(error)")
             }
 
             // Wait for animation to complete
@@ -257,6 +256,5 @@ struct SafetyFeature: View {
 
 #Preview {
     SafetyScreen {
-        print("Complete tapped")
     }
 }

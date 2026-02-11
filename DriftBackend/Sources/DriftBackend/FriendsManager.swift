@@ -411,17 +411,11 @@ public class FriendsManager: ObservableObject {
     public func swipe(on userId: UUID, direction: SwipeDirection, type: SwipeType = .dating) async throws -> Match? {
         guard let currentUserId = SupabaseManager.shared.currentUser?.id else {
             #if DEBUG
-            print("❌ [SWIPE] Not authenticated")
             #endif
             throw FriendsError.notAuthenticated
         }
 
         #if DEBUG
-        print("🔄 [SWIPE] Starting swipe...")
-        print("🔄 [SWIPE] Current user: \(currentUserId)")
-        print("🔄 [SWIPE] Target user: \(userId)")
-        print("🔄 [SWIPE] Direction: \(direction)")
-        print("🔄 [SWIPE] Type: \(type)")
         #endif
 
         let request = SwipeRequest(swiperId: currentUserId, swipedId: userId, direction: direction, type: type)
@@ -432,11 +426,9 @@ public class FriendsManager: ObservableObject {
                 .insert(request)
                 .execute()
             #if DEBUG
-            print("✅ [SWIPE] Swipe recorded successfully")
             #endif
         } catch {
             #if DEBUG
-            print("❌ [SWIPE] Failed to record swipe: \(error)")
             #endif
             throw error
         }
@@ -449,7 +441,6 @@ public class FriendsManager: ObservableObject {
         // If right swipe or super like, check for mutual interest
         if direction == .right || direction == .up {
             #if DEBUG
-            print("💕 [SWIPE] Checking for mutual interest...")
             #endif
 
             // Check if the other user has already swiped right on us
@@ -464,16 +455,13 @@ public class FriendsManager: ObservableObject {
                     .value
 
                 #if DEBUG
-                print("🔍 [SWIPE] Their swipes on me: \(theirSwipes.count)")
                 for swipe in theirSwipes {
-                    print("   - Swipe ID: \(swipe.id), direction: \(swipe.direction)")
                 }
                 #endif
 
                 // If they've already liked us, it's a match!
                 if !theirSwipes.isEmpty {
                     #if DEBUG
-                    print("🎉 [SWIPE] MUTUAL INTEREST DETECTED! Creating match...")
                     #endif
 
                     // Check if match already exists
@@ -485,19 +473,16 @@ public class FriendsManager: ObservableObject {
                         .value
 
                     #if DEBUG
-                    print("🔍 [SWIPE] Existing matches found: \(existingMatches.count)")
                     #endif
 
                     var match: Match
 
                     if let existingMatch = existingMatches.first {
                         #if DEBUG
-                        print("✅ [SWIPE] Using existing match: \(existingMatch.id)")
                         #endif
                         match = existingMatch
                     } else {
                         #if DEBUG
-                        print("🆕 [SWIPE] Creating new match record...")
                         #endif
                         // Create the match record
                         let newMatch = MatchRequest(
@@ -515,62 +500,51 @@ public class FriendsManager: ObservableObject {
 
                         guard let createdMatch = createdMatches.first else {
                             #if DEBUG
-                            print("❌ [SWIPE] Failed to create match - no match returned")
                             #endif
                             return nil
                         }
                         #if DEBUG
-                        print("✅ [SWIPE] Match created: \(createdMatch.id)")
                         #endif
                         match = createdMatch
                     }
 
                     // Fetch the other user's profile
                     #if DEBUG
-                    print("👤 [SWIPE] Fetching matched user's profile...")
                     #endif
                     let profile = try await ProfileManager.shared.fetchProfile(by: userId)
                     #if DEBUG
-                    print("✅ [SWIPE] Profile fetched: \(profile.displayName)")
                     #endif
 
                     // Create a dating conversation so they can message each other
                     #if DEBUG
-                    print("💬 [SWIPE] Creating conversation...")
                     #endif
                     _ = try await MessagingManager.shared.fetchOrCreateConversation(
                         with: userId,
                         type: .dating
                     )
                     #if DEBUG
-                    print("✅ [SWIPE] Conversation created")
                     #endif
 
                     var matchWithProfile = match
                     matchWithProfile.otherUserProfile = profile
                     #if DEBUG
-                    print("🎊 [SWIPE] RETURNING MATCH! User should see match animation")
                     #endif
                     return matchWithProfile
                 } else {
                     #if DEBUG
-                    print("💔 [SWIPE] No mutual interest - they haven't liked me yet")
                     #endif
                 }
             } catch {
                 #if DEBUG
-                print("❌ [SWIPE] Error checking for mutual interest: \(error)")
                 #endif
                 throw error
             }
         } else {
             #if DEBUG
-            print("👎 [SWIPE] Left swipe - no match check needed")
             #endif
         }
 
         #if DEBUG
-        print("🔄 [SWIPE] Returning nil (no match)")
         #endif
         return nil
     }
@@ -673,7 +647,6 @@ public class FriendsManager: ObservableObject {
         }
 
         #if DEBUG
-        print("🔍 Fetching people who liked me (userId: \(userId))")
         #endif
 
         do {
@@ -687,13 +660,11 @@ public class FriendsManager: ObservableObject {
             .value
 
         #if DEBUG
-        print("💕 Found \(incomingLikes.count) incoming likes")
         #endif
 
         // Get IDs of people the current user has already swiped on
         let mySwipedIds = try await fetchSwipedUserIds()
         #if DEBUG
-        print("👆 I have swiped on \(mySwipedIds.count) people")
         #endif
 
         // Filter to only people we haven't swiped on yet
@@ -702,7 +673,6 @@ public class FriendsManager: ObservableObject {
             .filter { !mySwipedIds.contains($0) }
 
         #if DEBUG
-        print("⏳ Pending likes (not yet responded): \(pendingLikeUserIds.count)")
         #endif
 
         // Batch-fetch profiles for all likers in a single query
@@ -710,13 +680,11 @@ public class FriendsManager: ObservableObject {
         let profiles = pendingLikeUserIds.compactMap { profileMap[$0] }
         #if DEBUG
         for profile in profiles {
-            print("✅ Loaded profile: \(profile.displayName)")
         }
         #endif
 
         self.peopleLikedMe = profiles
         #if DEBUG
-        print("📊 Total peopleLikedMe: \(self.peopleLikedMe.count)")
         #endif
         } catch {
             if isURLCancelled(error) { return }
@@ -741,7 +709,6 @@ public class FriendsManager: ObservableObject {
             await client.realtimeV2.setAuth(accessToken)
         } catch {
             #if DEBUG
-            print("[FriendRequests] Could not set realtime auth: \(error)")
             #endif
         }
 
@@ -790,7 +757,6 @@ public class FriendsManager: ObservableObject {
             await client.realtimeV2.setAuth(accessToken)
         } catch {
             #if DEBUG
-            print("[Matches] Could not set realtime auth: \(error)")
             #endif
         }
 
@@ -823,7 +789,6 @@ public class FriendsManager: ObservableObject {
             await client.realtimeV2.setAuth(accessToken)
         } catch {
             #if DEBUG
-            print("[Swipes] Could not set realtime auth: \(error)")
             #endif
         }
 

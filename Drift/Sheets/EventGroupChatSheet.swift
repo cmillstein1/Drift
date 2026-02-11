@@ -365,7 +365,6 @@ struct EventGroupChatSheet: View {
             do {
                 messages = try await communityManager.fetchEventMessages(for: post.id)
             } catch {
-                print("Failed to load messages: \(error)")
             }
             isLoading = false
         }
@@ -376,7 +375,6 @@ struct EventGroupChatSheet: View {
             do {
                 attendees = try await communityManager.fetchEventAttendees(post.id)
             } catch {
-                print("Failed to load attendees: \(error)")
             }
         }
     }
@@ -397,7 +395,6 @@ struct EventGroupChatSheet: View {
                 }
                 isMuted.toggle()
             } catch {
-                print("Failed to toggle mute: \(error)")
             }
         }
     }
@@ -417,7 +414,6 @@ struct EventGroupChatSheet: View {
                 )
                 messages.append(newMessage)
             } catch {
-                print("Failed to send message: \(error)")
                 errorMessage = "Failed to send: \(error.localizedDescription)"
                 // Restore the message text so user can retry
                 messageText = content

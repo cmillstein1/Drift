@@ -165,6 +165,5 @@ struct PromptAnswerScreen: View {
     PromptAnswerScreen(
         promptAnswer: PromptAnswer(promptText: "The best trip I ever took was...")
     ) { answer in
-        print("Saved: \(answer)")
     }
 }

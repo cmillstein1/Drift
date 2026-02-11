@@ -9,7 +9,6 @@ import SwiftUI
 import DriftBackend
 import Supabase
 
-
 struct ProfileScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var profileManager = ProfileManager.shared
@@ -184,7 +183,6 @@ struct ProfileScreen: View {
                         try await profileManager.fetchCurrentProfile()
                     } catch {
                         #if DEBUG
-                        print("Failed to fetch profile: \(error)")
                         #endif
                     }
                     await revenueCatManager.loadCustomerInfo()
@@ -638,7 +636,6 @@ struct ProfileScreen: View {
             try await supabaseManager.signOut()
         } catch {
             #if DEBUG
-            print("Error signing out: \(error.localizedDescription)")
             #endif
         }
         isSigningOut = false
@@ -670,7 +667,6 @@ struct ProfileScreen: View {
             }
         } catch {
             #if DEBUG
-            print("Failed to restart onboarding: \(error.localizedDescription)")
             #endif
         }
     }
@@ -712,7 +708,6 @@ struct ProfileScreen: View {
     
     // Use supabaseManager.getOnboardingStatus(from:) instead of a local duplicate
 }
-
 
 private struct InterestItem: Identifiable {
     let id: String

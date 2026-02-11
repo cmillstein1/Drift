@@ -64,7 +64,6 @@ public class ProfileManager: ObservableObject {
             try data.write(to: cacheURL(for: key), options: [.atomic, .completeFileProtection])
         } catch {
             #if DEBUG
-            print("[ProfileManager] Failed to save cache (\(key)): \(error)")
             #endif
         }
     }
@@ -145,16 +144,11 @@ public class ProfileManager: ObservableObject {
     public func updateProfile(_ updates: ProfileUpdateRequest) async throws {
         guard let userId = SupabaseManager.shared.currentUser?.id else {
             #if DEBUG
-            print("🔴 [ProfileManager] updateProfile: not authenticated")
             #endif
             throw ProfileError.notAuthenticated
         }
 
         #if DEBUG
-        print("🔵 [ProfileManager] updateProfile for userId: \(userId)")
-        print("🔵 [ProfileManager] workStyle: \(String(describing: updates.workStyle))")
-        print("🔵 [ProfileManager] homeBase: \(String(describing: updates.homeBase))")
-        print("🔵 [ProfileManager] morningPerson: \(String(describing: updates.morningPerson))")
         #endif
 
         try await client
@@ -164,16 +158,12 @@ public class ProfileManager: ObservableObject {
             .execute()
 
         #if DEBUG
-        print("🔵 [ProfileManager] Update executed, now fetching profile...")
         #endif
 
         // Refresh profile after update
         try await fetchCurrentProfile()
 
         #if DEBUG
-        print("🔵 [ProfileManager] After refresh - workStyle: \(String(describing: currentProfile?.workStyle))")
-        print("🔵 [ProfileManager] After refresh - homeBase: \(String(describing: currentProfile?.homeBase))")
-        print("🔵 [ProfileManager] After refresh - morningPerson: \(String(describing: currentProfile?.morningPerson))")
         #endif
     }
 
@@ -295,29 +285,14 @@ public class ProfileManager: ObservableObject {
             // DiscoverScreen passes the correct value from the active filter preferences.
             let serverMaxDistance = friendsMaxDistanceMiles ?? 200
 
-            print("[Friends Debug] fetchDiscoverProfiles called — lookingFor: \(lookingFor), alongMyRoute: \(alongMyRoute), unlimitedDistance: \(unlimitedDistance), serverMaxDistance: \(serverMaxDistance), userLat: \(userLat ?? -999), userLon: \(userLon ?? -999), excludeIds: \(excludeIds.count)")
-
             // Dump current user's profile so we can see what we're comparing against
             if let me = currentProfile {
                 let myStops = (try? await fetchTravelSchedule()) ?? []
-                print("[Friends Debug] === CURRENT USER PROFILE ===")
-                print("[Friends Debug]   name: \(me.name ?? "nil")")
-                print("[Friends Debug]   homeBase: \(me.homeBase ?? "nil")")
-                print("[Friends Debug]   location: \(me.location ?? "nil")")
-                print("[Friends Debug]   latitude: \(me.latitude ?? -999), longitude: \(me.longitude ?? -999)")
-                print("[Friends Debug]   travelStops: \(myStops.map { "\($0.location) (\($0.startDate))" })")
-                print("[Friends Debug]   lookingFor: \(me.lookingFor)")
-                print("[Friends Debug]   orientation: \(me.orientation ?? "nil")")
-                print("[Friends Debug]   gender: \(me.gender ?? "nil")")
-                print("[Friends Debug]   preferredMinAge: \(me.preferredMinAge ?? -1), preferredMaxAge: \(me.preferredMaxAge ?? -1)")
-                print("[Friends Debug] ============================")
             } else {
-                print("[Friends Debug] === CURRENT USER PROFILE: nil (not loaded) ===")
             }
 
             // Always use standard query — client-side matches() handles distance filtering.
             // This ensures profiles without coordinates are still shown (matching event behavior).
-            print("[Friends Debug] → Fetching via standard query (client-side distance filtering)")
             var profiles: [UserProfile]
             profiles = try await fetchProfilesViaQuery(
                 userId: userId,
@@ -325,7 +300,6 @@ public class ProfileManager: ObservableObject {
                 excludeIds: excludeIds,
                 limit: limit * 2
             )
-            print("[Friends Debug] Fetch returned \(profiles.count) profiles")
 
             // Apply dating preferences (age range + gender) when in dating mode
             if lookingFor == .dating, let current = currentProfile {
@@ -360,12 +334,10 @@ public class ProfileManager: ObservableObject {
                     }
 
                     if !ageOk || !genderOk {
-                        print("[Dating Debug] Filtered out \(p.name ?? "?"): age=\(age) ageOk=\(ageOk), gender=\(p.gender ?? "nil") genderOk=\(genderOk), minAge=\(minAge) maxAge=\(maxAge) acceptedGenders=\(acceptedGenders)")
                     }
                     return ageOk && genderOk
                 }
                 if beforeAgeGender != profiles.count {
-                    print("[Dating Debug] Age/gender filter: \(beforeAgeGender) → \(profiles.count)")
                 }
             }
 
@@ -375,12 +347,10 @@ public class ProfileManager: ObservableObject {
                 profiles = profiles.filter { p in
                     let passed = Self.hasCompletedDatingOnboarding(profile: p)
                     if !passed {
-                        print("[Dating Debug] Onboarding filter removed \(p.name ?? "?"): gender=\(p.gender ?? "nil"), lookingFor=\(p.lookingFor)")
                     }
                     return passed
                 }
                 if beforeOnboarding != profiles.count {
-                    print("[Dating Debug] Onboarding filter: \(beforeOnboarding) → \(profiles.count)")
                 }
             }
 
@@ -400,16 +370,8 @@ public class ProfileManager: ObservableObject {
                 }
             }
 
-            print("[Friends Debug] After all filters: \(profiles.count) profiles assigned to \(lookingFor)")
             for p in profiles {
-                print("[Friends Debug]   → \(p.name ?? "?"):")
-                print("[Friends Debug]       lookingFor: \(p.lookingFor), orientation: \(p.orientation ?? "nil"), gender: \(p.gender ?? "nil")")
-                print("[Friends Debug]       homeBase: \(p.homeBase ?? "nil"), location: \(p.location ?? "nil")")
-                print("[Friends Debug]       lat: \(p.latitude ?? -999), lon: \(p.longitude ?? -999)")
-                print("[Friends Debug]       travelStops: \(p.travelStops.map { "\($0.location) (\($0.startDate))" })")
-                print("[Friends Debug]       age: \(p.displayAge), preferredMinAge: \(p.preferredMinAge ?? -1), preferredMaxAge: \(p.preferredMaxAge ?? -1)")
             }
-
 
             switch lookingFor {
             case .dating:
@@ -446,7 +408,6 @@ public class ProfileManager: ObservableObject {
         limit: Int
     ) async throws -> [UserProfile] {
         do {
-            print("[Friends Debug] Calling discover_profiles_nearby RPC (lat: \(lat), lon: \(lon), maxDist: \(maxDistanceMiles))")
             let profiles: [UserProfile] = try await client
                 .rpc("discover_profiles_nearby", params: [
                     "p_user_id": AnyJSON.string(userId.uuidString),
@@ -459,10 +420,8 @@ public class ProfileManager: ObservableObject {
                 ])
                 .execute()
                 .value
-            print("[Friends Debug] discover_profiles_nearby RPC returned \(profiles.count) profiles")
             return profiles
         } catch {
-            print("[Friends Debug] discover_profiles_nearby RPC FAILED: \(error)")
             // RPC not available — fall back to standard query + client-side distance filter
             var profiles = try await fetchProfilesViaQuery(
                 userId: userId,
@@ -470,15 +429,12 @@ public class ProfileManager: ObservableObject {
                 excludeIds: excludeIds,
                 limit: limit
             )
-            print("[Friends Debug] Fallback query returned \(profiles.count) profiles (before client-side filter)")
             // Apply client-side distance filter since RPC wasn't available
             profiles = profiles.filter { p in
                 guard let plat = p.latitude, let plon = p.longitude else { return false }
                 let miles = Self.haversineMiles(lat1: lat, lon1: lon, lat2: plat, lon2: plon)
-                print("[Friends Debug]   Profile \(p.name ?? "?") at (\(plat), \(plon)) = \(Int(miles))mi → \(miles <= Double(maxDistanceMiles) ? "PASS" : "FILTERED OUT")")
                 return miles <= Double(maxDistanceMiles)
             }
-            print("[Friends Debug] After client-side filter: \(profiles.count) profiles")
             return profiles
         }
     }
@@ -496,7 +452,6 @@ public class ProfileManager: ObservableObject {
         limit: Int
     ) async throws -> [UserProfile] {
         do {
-            print("[Friends Debug] Calling discover_profiles_along_route RPC (lat: \(lat ?? -999), lon: \(lon ?? -999), maxDist: \(maxDistanceMiles))")
             var params: [String: AnyJSON] = [
                 "p_user_id": AnyJSON.string(userId.uuidString),
                 "p_max_distance_miles": AnyJSON.integer(maxDistanceMiles),
@@ -512,11 +467,8 @@ public class ProfileManager: ObservableObject {
                 .rpc("discover_profiles_along_route", params: params)
                 .execute()
                 .value
-            print("[Friends Debug] discover_profiles_along_route RPC returned \(profiles.count) profiles")
             return profiles
         } catch {
-            print("[Friends Debug] discover_profiles_along_route RPC FAILED: \(error)")
-            print("[Friends Debug] Falling back to standard query (no distance filter)")
             // Along-my-route RPC not available — fall back to standard query (no distance filter).
             // The nearby RPC would only find profiles near the user's current location,
             // missing profiles near travel stops entirely.
@@ -526,7 +478,6 @@ public class ProfileManager: ObservableObject {
                 excludeIds: excludeIds,
                 limit: limit
             )
-            print("[Friends Debug] Standard query fallback returned \(fallbackProfiles.count) profiles")
             return fallbackProfiles
         }
     }
@@ -562,7 +513,6 @@ public class ProfileManager: ObservableObject {
             let fieldsToCheck = ["location", "home_base", "gender", "name", "looking_for", "next_destination"]
             for (i, row) in json.enumerated() {
                 let summary = fieldsToCheck.map { "\($0)=\(row[$0] ?? "MISSING_KEY")" }.joined(separator: ", ")
-                print("[ProfileQuery] Raw JSON [\(i)]: \(summary)")
             }
         }
 
@@ -579,7 +529,6 @@ public class ProfileManager: ObservableObject {
         }
         var profiles = try decoder.decode([UserProfile].self, from: response.data)
         for p in profiles {
-            print("[ProfileQuery] Decoded \(p.name ?? "?"): location=\(p.location ?? "nil"), homeBase=\(p.homeBase ?? "nil"), gender=\(p.gender ?? "nil"), nextDest=\(p.nextDestination ?? "nil")")
         }
 
         let excludeSet = Set(excludeIds)

@@ -161,7 +161,6 @@ struct NameScreen: View {
                     ProfileUpdateRequest(name: name.trimmingCharacters(in: .whitespaces))
                 )
             } catch {
-                print("Failed to save name: \(error)")
             }
             await MainActor.run {
                 isSaving = false
@@ -173,6 +172,5 @@ struct NameScreen: View {
 
 #Preview {
     NameScreen {
-        print("Continue tapped")
     }
 }

@@ -234,6 +234,5 @@ struct LifestyleOptionCard: View {
 
 #Preview {
     LifestyleScreen {
-        print("Continue tapped")
     }
 }

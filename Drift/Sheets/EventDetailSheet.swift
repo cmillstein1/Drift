@@ -141,7 +141,6 @@ struct EventDetailSheet: View {
                         try await communityManager.deletePost(post.id)
                         dismiss()
                     } catch {
-                        print("Failed to delete event: \(error)")
                     }
                     isDeleting = false
                 }
@@ -174,7 +173,6 @@ struct EventDetailSheet: View {
             do {
                 attendees = try await communityManager.fetchEventAttendees(initialPost.id)
             } catch {
-                print("Failed to load attendees: \(error)")
             }
         }
     }
@@ -184,7 +182,6 @@ struct EventDetailSheet: View {
             do {
                 hasPendingRequest = try await communityManager.checkPendingRequest(initialPost.id)
             } catch {
-                print("Failed to check pending request: \(error)")
             }
         }
     }
@@ -194,7 +191,6 @@ struct EventDetailSheet: View {
             do {
                 pendingRequests = try await communityManager.fetchPendingRequests(initialPost.id)
             } catch {
-                print("Failed to load pending requests: \(error)")
             }
         }
     }
@@ -225,7 +221,6 @@ struct EventDetailSheet: View {
         // Set up callback for attendee changes
         communityManager.onAttendeeChange = { [self] eventId in
             guard eventId == initialPost.id else { return }
-            print("[EventDetailSheet] Attendee change detected, refreshing...")
             loadAttendees()
             loadPendingRequestStatus()
             if isCurrentUserHost {

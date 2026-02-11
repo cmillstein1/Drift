@@ -68,7 +68,6 @@ struct CommunityPostDetailSheet: View {
                         try await communityManager.deletePost(post.id)
                         dismiss()
                     } catch {
-                        print("Failed to delete post: \(error)")
                     }
                     isDeleting = false
                 }

@@ -204,7 +204,6 @@ struct TravelPlansOnboardingScreen: View {
             do {
                 travelStops = try await profileManager.fetchTravelSchedule()
             } catch {
-                print("Failed to load existing travel stops: \(error)")
             }
         }
     }
@@ -224,7 +223,6 @@ struct TravelPlansOnboardingScreen: View {
             do {
                 try await profileManager.saveTravelSchedule(travelStops)
             } catch {
-                print("Failed to save travel stops: \(error)")
             }
             await MainActor.run {
                 isSaving = false
@@ -424,6 +422,5 @@ private struct TravelStopOnboardingSheet: View {
 
 #Preview {
     TravelPlansOnboardingScreen {
-        print("Continue tapped")
     }
 }

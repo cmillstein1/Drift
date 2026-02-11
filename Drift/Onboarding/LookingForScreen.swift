@@ -190,7 +190,6 @@ struct LookingForScreen: View {
             do {
                 try await profileManager.updateProfile(ProfileUpdateRequest(orientation: orientation))
             } catch {
-                print("Failed to save orientation: \(error)")
             }
             await MainActor.run {
                 isSaving = false
@@ -280,6 +279,5 @@ struct LookingForOption: View {
 
 #Preview {
     LookingForScreen {
-        print("Continue tapped")
     }
 }

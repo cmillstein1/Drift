@@ -190,9 +190,7 @@ public class VerifyFaceIDManager: ObservableObject {
                 }
                 
                 // Log error for debugging
-                print("❌ VerifyFaceID API Error (\(httpResponse.statusCode)): \(errorMessage ?? "Unknown error")")
                 if let responseString = String(data: data, encoding: .utf8) {
-                    print("Response body: \(responseString)")
                 }
                 
                 // Check for specific error cases
@@ -234,7 +232,6 @@ public class VerifyFaceIDManager: ObservableObject {
         } catch let error as VerifyFaceIDError {
             // If URL method fails with "no face detected", try downloading reference and using as file
             if case .noFaceDetected = error {
-                print("⚠️ URL method failed, trying with downloaded reference image...")
                 return try await verifyFaceWithFile(referenceURL: referenceURL, selfieImageData: selfieImageData)
             }
             throw error

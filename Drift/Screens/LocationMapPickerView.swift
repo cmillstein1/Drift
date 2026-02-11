@@ -165,7 +165,6 @@ struct LocationMapPickerView: View {
                                     dismiss()
                                 }
                             } catch {
-                                print("Failed to update location: \(error)")
                                 await MainActor.run {
                                     dismiss()
                                 }
@@ -266,7 +265,6 @@ struct LocationMapPickerView: View {
             ))
         }
     }
-
 
     private func debouncedReverseGeocode(coordinate: CLLocationCoordinate2D) {
         // Cancel any pending geocoding task

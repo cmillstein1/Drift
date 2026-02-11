@@ -247,6 +247,5 @@ struct LocationFeature: View {
 
 #Preview {
     LocationScreen {
-        print("Continue tapped")
     }
 }

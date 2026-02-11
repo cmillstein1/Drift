@@ -270,7 +270,6 @@ struct InterestsScreen: View {
                     ProfileUpdateRequest(interests: Array(selectedInterests))
                 )
             } catch {
-                print("Failed to save interests: \(error)")
             }
             await MainActor.run {
                 isSaving = false
@@ -324,6 +323,5 @@ struct InterestPill: View {
 
 #Preview {
     InterestsScreen {
-        print("Continue tapped")
     }
 }

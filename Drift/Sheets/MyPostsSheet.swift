@@ -116,7 +116,6 @@ struct MyPostsSheet: View {
             do {
                 try await communityManager.fetchMyPosts()
             } catch {
-                print("Failed to load my posts: \(error)")
             }
             await MainActor.run {
                 isLoading = false

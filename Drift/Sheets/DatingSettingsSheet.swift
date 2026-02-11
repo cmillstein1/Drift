@@ -459,7 +459,6 @@ struct DatingSettingsSheet: View {
                     preferredMaxDistanceMiles: Int(distance)
                 ))
             } catch {
-                print("Failed to save dating preferences: \(error)")
             }
         }
     }

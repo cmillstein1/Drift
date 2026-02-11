@@ -54,7 +54,6 @@ public class RevenueCatManager: NSObject, ObservableObject {
         let apiKey = _BackendConfiguration.shared.revenueCatAPIKey
         guard !apiKey.isEmpty else {
             #if DEBUG
-            print("[RevenueCatManager] Skipping SDK configure – API key is empty")
             #endif
             return
         }

@@ -29,7 +29,6 @@ struct BuilderScreen: View {
                 try await vanBuilderManager.fetchChannels()
                 try await vanBuilderManager.fetchExperts()
             } catch {
-                print("Failed to load builder data: \(error)")
             }
         }
     }

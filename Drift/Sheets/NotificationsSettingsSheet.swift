@@ -348,7 +348,6 @@ struct NotificationsSettingsSheet: View {
         Messaging.messaging().token { token, error in
             DispatchQueue.main.async {
                 if let error = error {
-                    print("FCM token error: \(error.localizedDescription)")
                     return
                 }
                 fcmToken = token

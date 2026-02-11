@@ -26,7 +26,6 @@ public enum UnsplashManager {
         guard !accessKey.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty else {
             #if DEBUG
             if !query.trimmingCharacters(in: .whitespaces).isEmpty {
-                print("[UnsplashManager] Skipped: accessKey is empty")
             }
             #endif
             return nil
@@ -47,7 +46,6 @@ public enum UnsplashManager {
             guard (200...299).contains(http.statusCode) else {
                 #if DEBUG
                 let body = String(data: data, encoding: .utf8)
-                print("[UnsplashManager] API error \(http.statusCode): \(body ?? "")")
                 #endif
                 return nil
             }
@@ -55,7 +53,6 @@ public enum UnsplashManager {
             guard let photo = decoded.results.first,
                   let imageUrl = photo.urls.regular else {
                 #if DEBUG
-                print("[UnsplashManager] No results for query: \(query)")
                 #endif
                 return nil
             }
@@ -64,7 +61,6 @@ public enum UnsplashManager {
             return (imageUrl, name, profileUrl)
         } catch {
             #if DEBUG
-            print("[UnsplashManager] Request failed: \(error)")
             #endif
             return nil
         }

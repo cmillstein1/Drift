@@ -253,7 +253,6 @@ struct PreferenceSelectionScreen: View {
                 }
             }
         } catch {
-            print("Failed to save preference: \(error.localizedDescription)")
         }
 
         isSaving = false

@@ -586,6 +586,5 @@ struct PrivacyOption: View {
 
 #Preview {
     CreateActivitySheet { activityData in
-        print("Activity created: \(activityData.title)")
     }
 }

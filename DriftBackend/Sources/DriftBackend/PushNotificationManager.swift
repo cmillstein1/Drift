@@ -48,7 +48,6 @@ public class PushNotificationManager: ObservableObject {
         guard SupabaseManager.shared.isAuthenticated,
               let userId = SupabaseManager.shared.currentUser?.id else {
             #if DEBUG
-            print("[PushNotificationManager] Cannot update FCM token: user not authenticated")
             #endif
             return
         }
@@ -64,11 +63,9 @@ public class PushNotificationManager: ObservableObject {
                 .execute()
 
             #if DEBUG
-            print("[PushNotificationManager] FCM token saved to Supabase")
             #endif
         } catch {
             #if DEBUG
-            print("[PushNotificationManager] Failed to save FCM token: \(error.localizedDescription)")
             #endif
         }
 
@@ -92,11 +89,9 @@ public class PushNotificationManager: ObservableObject {
             self.fcmToken = nil
 
             #if DEBUG
-            print("[PushNotificationManager] FCM token cleared from Supabase")
             #endif
         } catch {
             #if DEBUG
-            print("[PushNotificationManager] Failed to clear FCM token: \(error.localizedDescription)")
             #endif
         }
     }
@@ -127,7 +122,6 @@ public class PushNotificationManager: ObservableObject {
         guard SupabaseManager.shared.isAuthenticated,
               let userId = SupabaseManager.shared.currentUser?.id else {
             #if DEBUG
-            print("[PushNotificationManager] Cannot sync preferences: user not authenticated")
             #endif
             return
         }
@@ -140,11 +134,9 @@ public class PushNotificationManager: ObservableObject {
                 .execute()
 
             #if DEBUG
-            print("[PushNotificationManager] Notification preferences synced to Supabase")
             #endif
         } catch {
             #if DEBUG
-            print("[PushNotificationManager] Failed to sync preferences: \(error.localizedDescription)")
             #endif
         }
     }
@@ -171,7 +163,6 @@ public class PushNotificationManager: ObservableObject {
             }
         } catch {
             #if DEBUG
-            print("[PushNotificationManager] Failed to fetch preferences: \(error.localizedDescription)")
             #endif
         }
 
@@ -208,7 +199,6 @@ public class PushNotificationManager: ObservableObject {
             return granted
         } catch {
             #if DEBUG
-            print("[PushNotificationManager] Permission request failed: \(error.localizedDescription)")
             #endif
             return false
         }

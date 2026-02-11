@@ -45,8 +45,6 @@ public class InviteManager: ObservableObject {
             struct EmptyBody: Encodable {}
 
             #if DEBUG
-            print("🔐 [InviteManager] Session found, user ID: \(session.user.id)")
-            print("📤 [InviteManager] Using Supabase client functions.invoke (should auto-handle auth)...")
             #endif
             
             // Use the Supabase client's built-in function invocation
@@ -57,7 +55,6 @@ public class InviteManager: ObservableObject {
             )
             
             #if DEBUG
-            print("✅ [InviteManager] Successfully generated invite code: \(invitation.code)")
             #endif
             
             self.currentInviteCode = invitation.code
@@ -65,13 +62,8 @@ public class InviteManager: ObservableObject {
             self.error = nil
         } catch {
             #if DEBUG
-            print("❌ [InviteManager] Failed to generate invite code: \(error)")
-            print("❌ [InviteManager] Error type: \(type(of: error))")
-            print("❌ [InviteManager] Error description: \(error.localizedDescription)")
 
             if let urlError = error as? URLError {
-                print("❌ [InviteManager] URLError code: \(urlError.code.rawValue)")
-                print("❌ [InviteManager] URLError description: \(urlError.localizedDescription)")
             }
             #endif
             
@@ -116,12 +108,10 @@ public class InviteManager: ObservableObject {
             let errorMessage = error.localizedDescription
             if errorMessage.contains("401") || errorMessage.contains("Unauthorized") {
                 #if DEBUG
-                print("⚠️ Edge function requires auth for validation. Update your redeem-invite function to allow validation without auth when validateOnly: true")
                 #endif
                 // Still return false, but log the issue
             }
             #if DEBUG
-            print("Invite code validation error: \(errorMessage)")
             #endif
             return false
         }
@@ -180,7 +170,6 @@ public class InviteManager: ObservableObject {
             return response.hasRedeemed
         } catch {
             #if DEBUG
-            print("Invite status check error: \(error.localizedDescription)")
             #endif
             return false
         }

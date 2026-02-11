@@ -786,7 +786,6 @@ struct ActivityDetailSheet: View {
 
     private func handleMessage() {
         // TODO: Navigate to messaging with host
-        print("Message host: \(activity.host?.displayName ?? "Unknown")")
     }
 
     private func handleUpdate(_ activityData: ActivityData) async throws {

@@ -125,7 +125,6 @@ struct VanBuilderCommunity: View {
                     try await vanBuilderManager.fetchChannels()
                     try await vanBuilderManager.fetchResources()
                 } catch {
-                    print("Failed to fetch van builder data: \(error)")
                 }
             }
         }

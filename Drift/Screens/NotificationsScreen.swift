@@ -30,7 +30,6 @@ struct NotificationsScreen: View {
     private let purpleEvent = Color(red: 0.55, green: 0.36, blue: 0.96)
     private let orangeBuild = Color(red: 0.96, green: 0.62, blue: 0.04)
 
-
     var body: some View {
         NavigationStack {
             ZStack {
@@ -471,7 +470,6 @@ struct NotificationsScreen: View {
                     selectedConversation = conversation
                 }
             } catch {
-                print("Failed to open conversation: \(error)")
             }
         }
     }
@@ -484,7 +482,6 @@ struct NotificationsScreen: View {
                     selectedPost = post
                 }
             } catch {
-                print("Failed to fetch post: \(error)")
             }
         }
     }
@@ -497,7 +494,6 @@ struct NotificationsScreen: View {
                 _ = try await friendsManager.respondToFriendRequest(requestId, accept: true)
                 await notificationsManager.fetchNotifications()
             } catch {
-                print("Failed to accept friend request: \(error)")
             }
         }
     }
@@ -510,7 +506,6 @@ struct NotificationsScreen: View {
                 _ = try await friendsManager.respondToFriendRequest(requestId, accept: false)
                 await notificationsManager.fetchNotifications()
             } catch {
-                print("Failed to decline friend request: \(error)")
             }
         }
     }

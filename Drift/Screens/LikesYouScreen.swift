@@ -98,7 +98,6 @@ struct LikesYouScreen: View {
                                     content: messageText
                                 )
                             } catch {
-                                print("Failed to send match message: \(error)")
                             }
                         }
                     }
@@ -143,7 +142,6 @@ struct LikesYouScreen: View {
                     }
                 }
             } catch {
-                print("Failed to like back: \(error)")
                 try? await friendsManager.fetchPeopleLikedMe()
             }
         }
@@ -158,7 +156,6 @@ struct LikesYouScreen: View {
             do {
                 _ = try await friendsManager.swipe(on: profile.id, direction: .left, type: .dating)
             } catch {
-                print("Failed to pass: \(error)")
                 try? await friendsManager.fetchPeopleLikedMe()
             }
         }

@@ -398,7 +398,6 @@ struct HometownScreen: View {
                     ProfileUpdateRequest(location: selectedLocation, latitude: lat, longitude: lon)
                 )
             } catch {
-                print("Failed to save location: \(error)")
             }
             await MainActor.run {
                 isSaving = false
@@ -410,6 +409,5 @@ struct HometownScreen: View {
 
 #Preview {
     HometownScreen {
-        print("Continue tapped")
     }
 }

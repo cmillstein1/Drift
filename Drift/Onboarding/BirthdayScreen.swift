@@ -156,7 +156,6 @@ struct BirthdayScreen: View {
                     ProfileUpdateRequest(birthday: selectedDate)
                 )
             } catch {
-                print("Failed to save birthday: \(error)")
             }
             await MainActor.run {
                 isSaving = false
@@ -168,6 +167,5 @@ struct BirthdayScreen: View {
 
 #Preview {
     BirthdayScreen {
-        print("Continue tapped")
     }
 }

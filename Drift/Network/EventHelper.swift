@@ -45,7 +45,6 @@ class EventHelper {
         }
 
         guard granted else {
-            print("[EventHelper] Calendar access denied")
             return false
         }
 
@@ -67,10 +66,8 @@ class EventHelper {
 
         do {
             try eventStore.save(event, span: .thisEvent)
-            print("[EventHelper] Event added to calendar: \(title)")
             return true
         } catch {
-            print("[EventHelper] Failed to save calendar event: \(error)")
             return false
         }
     }
@@ -92,7 +89,6 @@ class EventHelper {
         // Check notification permission
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized else {
-            print("[EventHelper] Notifications not authorized")
             return
         }
 
@@ -101,7 +97,6 @@ class EventHelper {
 
         // Don't schedule if the reminder time has already passed
         guard reminderDate > Date() else {
-            print("[EventHelper] Event reminder time has already passed")
             return
         }
 
@@ -128,9 +123,7 @@ class EventHelper {
 
         do {
             try await center.add(request)
-            print("[EventHelper] Scheduled reminder for \(eventTitle) at \(reminderDate)")
         } catch {
-            print("[EventHelper] Failed to schedule notification: \(error)")
         }
     }
 
@@ -141,6 +134,5 @@ class EventHelper {
         center.removePendingNotificationRequests(
             withIdentifiers: ["event-reminder-\(eventId.uuidString)"]
         )
-        print("[EventHelper] Cancelled reminder for event \(eventId)")
     }
 }

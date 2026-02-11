@@ -110,6 +110,5 @@ struct WelcomeSplash: View {
 
 #Preview {
     WelcomeSplash {
-        print("Continue tapped")
     }
 }

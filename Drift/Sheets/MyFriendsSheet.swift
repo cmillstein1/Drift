@@ -210,7 +210,6 @@ struct MyFriendsSheet: View {
             do {
                 _ = try await friendsManager.respondToFriendRequest(request.id, accept: true)
             } catch {
-                print("Failed to accept request: \(error)")
             }
         }
     }
@@ -220,7 +219,6 @@ struct MyFriendsSheet: View {
             do {
                 try await friendsManager.respondToFriendRequest(request.id, accept: false)
             } catch {
-                print("Failed to decline request: \(error)")
             }
         }
     }
@@ -230,7 +228,6 @@ struct MyFriendsSheet: View {
             do {
                 try await friendsManager.removeFriend(friend.id)
             } catch {
-                print("Failed to unfriend: \(error)")
             }
         }
     }
@@ -241,7 +238,6 @@ struct MyFriendsSheet: View {
             do {
                 try await friendsManager.fetchFriends()
             } catch {
-                print("Failed to load friends: \(error)")
             }
             await MainActor.run {
                 isLoading = false
@@ -271,7 +267,6 @@ struct MyFriendsSheet: View {
                     }
                 }
             } catch {
-                print("Failed to create conversation: \(error)")
             }
         }
     }

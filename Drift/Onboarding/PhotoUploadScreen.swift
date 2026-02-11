@@ -262,7 +262,6 @@ struct PhotoUploadScreen: View {
                     }
                 }
             } catch {
-                print("Failed to upload photos: \(error)")
             }
             await MainActor.run {
                 isSaving = false
@@ -433,6 +432,5 @@ struct PhotoDropDelegate: DropDelegate {
 
 #Preview {
     PhotoUploadScreen {
-        print("Continue tapped")
     }
 }

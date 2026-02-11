@@ -102,7 +102,6 @@ struct DiscoverFullScreenProfileView: View {
                 do {
                     travelStops = try await ProfileManager.shared.fetchTravelSchedule(for: profile.id)
                 } catch {
-                    print("Failed to load travel stops: \(error)")
                 }
             }
         }

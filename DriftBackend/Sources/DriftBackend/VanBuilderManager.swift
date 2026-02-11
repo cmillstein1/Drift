@@ -415,7 +415,6 @@ public class VanBuilderManager: ObservableObject {
                             }
                         }
                     } catch {
-                        print("Failed to fetch new channel message: \(error)")
                     }
                 }
             }

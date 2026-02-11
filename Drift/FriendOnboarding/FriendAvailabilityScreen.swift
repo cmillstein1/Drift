@@ -105,7 +105,6 @@ struct FriendAvailabilityScreen: View {
                     ProfileUpdateRequest(travelPace: pace)
                 )
             } catch {
-                print("Failed to save availability: \(error)")
             }
             await MainActor.run {
                 isSaving = false
@@ -398,6 +397,5 @@ struct LocationStatusCard: View {
 
 #Preview {
     FriendAvailabilityScreen {
-        print("Continue tapped")
     }
 }

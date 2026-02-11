@@ -131,7 +131,6 @@ struct TravelStyleScreen: View {
                     ProfileUpdateRequest(lifestyle: lifestyleValue)
                 )
             } catch {
-                print("Failed to save travel style: \(error)")
             }
             await MainActor.run {
                 isSaving = false
@@ -413,6 +412,5 @@ struct SocialPreferenceCard: View {
 
 #Preview {
     TravelStyleScreen {
-        print("Continue tapped")
     }
 }

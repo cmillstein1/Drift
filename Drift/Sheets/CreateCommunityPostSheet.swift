@@ -321,7 +321,6 @@ struct CreateCommunityPostSheet: View {
                 }
                 dismiss()
             } catch {
-                print("Failed to create post: \(error)")
                 isSubmitting = false
             }
         }

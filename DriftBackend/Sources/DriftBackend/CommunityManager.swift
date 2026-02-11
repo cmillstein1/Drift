@@ -359,7 +359,6 @@ public class CommunityManager: ObservableObject {
                 }
             } catch {
                 #if DEBUG
-                print("Failed to check unread for event \(event.id): \(error)")
                 #endif
             }
         }
@@ -1164,7 +1163,6 @@ public class CommunityManager: ObservableObject {
                         }
                     } catch {
                         #if DEBUG
-                        print("Failed to fetch new reply: \(error)")
                         #endif
                     }
                 }
@@ -1215,7 +1213,6 @@ public class CommunityManager: ObservableObject {
         attendeesChannel = channel
 
         #if DEBUG
-        print("[EventAttendees] Subscribed to realtime channel for event: \(eventId)")
         #endif
 
         Task { [weak self] in
@@ -1223,7 +1220,6 @@ public class CommunityManager: ObservableObject {
                 guard let self = self else { return }
 
                 #if DEBUG
-                print("[EventAttendees] Received change: \(change)")
                 #endif
 
                 // Extract post_id from the change
@@ -1243,13 +1239,11 @@ public class CommunityManager: ObservableObject {
                       let postId = UUID(uuidString: postIdStr),
                       postId == eventId else {
                     #if DEBUG
-                    print("[EventAttendees] Change for different event, ignoring")
                     #endif
                     continue
                 }
 
                 #if DEBUG
-                print("[EventAttendees] Notifying UI of attendee change")
                 #endif
                 await MainActor.run {
                     self.onAttendeeChange?(eventId)
@@ -1287,7 +1281,6 @@ public class CommunityManager: ObservableObject {
         myAttendeeChangesChannel = channel
 
         #if DEBUG
-        print("[MyAttendees] Subscribed to realtime channel for user: \(userId)")
         #endif
 
         Task { [weak self] in
@@ -1313,7 +1306,6 @@ public class CommunityManager: ObservableObject {
                 }
 
                 #if DEBUG
-                print("[MyAttendees] Change detected for current user, refreshing posts...")
                 #endif
 
                 // Refresh posts to update attendance/pending status
@@ -1413,7 +1405,6 @@ public class CommunityManager: ObservableObject {
         eventMessagesChannel = channel
 
         #if DEBUG
-        print("[EventMessages] Subscribed to realtime channel")
         #endif
 
         Task { [weak self] in
@@ -1421,7 +1412,6 @@ public class CommunityManager: ObservableObject {
                 guard let self = self else { return }
 
                 #if DEBUG
-                print("[EventMessages] Received insertion: \(insertion.record)")
                 #endif
 
                 // Extract values from record
@@ -1433,7 +1423,6 @@ public class CommunityManager: ObservableObject {
                       let userId = UUID(uuidString: userIdString),
                       let content = insertion.record["content"]?.stringValue else {
                     #if DEBUG
-                    print("[EventMessages] Failed to parse message record")
                     #endif
                     continue
                 }
@@ -1441,7 +1430,6 @@ public class CommunityManager: ObservableObject {
                 // Only handle messages for this event
                 guard msgEventId == eventId else {
                     #if DEBUG
-                    print("[EventMessages] Message for different event, ignoring")
                     #endif
                     continue
                 }
@@ -1449,13 +1437,11 @@ public class CommunityManager: ObservableObject {
                 // Don't notify for our own messages (already added locally)
                 if userId == SupabaseManager.shared.currentUser?.id {
                     #if DEBUG
-                    print("[EventMessages] Own message, skipping")
                     #endif
                     continue
                 }
 
                 #if DEBUG
-                print("[EventMessages] Processing message from user: \(userId)")
                 #endif
 
                 // Fetch the author profile
@@ -1470,7 +1456,6 @@ public class CommunityManager: ObservableObject {
                         .value
                 } catch {
                     #if DEBUG
-                    print("[EventMessages] Failed to fetch author: \(error)")
                     #endif
                 }
 
@@ -1489,7 +1474,6 @@ public class CommunityManager: ObservableObject {
 
                 await MainActor.run {
                     #if DEBUG
-                    print("[EventMessages] Calling onNewEventMessage callback")
                     #endif
                     self.onNewEventMessage?(newMessage)
                 }

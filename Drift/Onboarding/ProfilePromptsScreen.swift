@@ -235,7 +235,6 @@ struct ProfilePromptsScreen: View {
                     ProfileUpdateRequest(promptAnswers: promptAnswersArray)
                 )
             } catch {
-                print("Failed to save prompt answers: \(error)")
             }
             await MainActor.run {
                 isSaving = false
@@ -337,9 +336,7 @@ struct PromptCard: View {
     }
 }
 
-
 #Preview {
     ProfilePromptsScreen {
-        print("Continue tapped")
     }
 }

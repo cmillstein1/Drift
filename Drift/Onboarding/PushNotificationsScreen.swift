@@ -168,6 +168,5 @@ private struct NotificationBenefitRow: View {
 
 #Preview {
     PushNotificationsScreen {
-        print("Continue")
     }
 }

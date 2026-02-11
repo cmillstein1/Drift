@@ -10,7 +10,6 @@ import DriftBackend
 import Auth
 import UserNotifications
 
-
 struct MessagesScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var messagingManager = MessagingManager.shared
@@ -45,17 +44,14 @@ struct MessagesScreen: View {
     /// Loads conversation list only. Realtime subscription is done once in onAppear Task to avoid double-subscribe and "postgresChange after join".
     private func loadConversations() {
         #if DEBUG
-        print("[Messages] loadConversations() called")
         #endif
         Task {
             do {
                 try await messagingManager.fetchConversations()
                 #if DEBUG
-                print("[Messages] loadConversations() completed OK, list count: \(messagingManager.conversations.count)")
                 #endif
             } catch {
                 #if DEBUG
-                print("[Messages] loadConversations() failed: \(error)")
                 #endif
             }
         }
@@ -67,7 +63,6 @@ struct MessagesScreen: View {
                 try await friendsManager.fetchPendingRequests()
             } catch {
                 #if DEBUG
-                print("Failed to load friend requests: \(error)")
                 #endif
             }
         }
@@ -79,7 +74,6 @@ struct MessagesScreen: View {
                 try await friendsManager.fetchFriends()
             } catch {
                 #if DEBUG
-                print("Failed to load friends: \(error)")
                 #endif
             }
         }
@@ -91,7 +85,6 @@ struct MessagesScreen: View {
                 try await friendsManager.fetchPeopleLikedMe()
             } catch {
                 #if DEBUG
-                print("Failed to load likes: \(error)")
                 #endif
             }
         }
@@ -106,7 +99,6 @@ struct MessagesScreen: View {
                 try await messagingManager.fetchConversations()
             } catch {
                 #if DEBUG
-                print("Failed to load matches: \(error)")
                 #endif
             }
         }
@@ -125,7 +117,6 @@ struct MessagesScreen: View {
             let nsError = error as NSError
             if nsError.domain != NSURLErrorDomain || nsError.code != NSURLErrorCancelled {
                 #if DEBUG
-                print("Failed to refresh: \(error)")
                 #endif
             }
         }
@@ -153,7 +144,6 @@ struct MessagesScreen: View {
                 }
             } catch {
                 #if DEBUG
-                print("Failed to create conversation: \(error)")
                 #endif
             }
         }
@@ -166,7 +156,6 @@ struct MessagesScreen: View {
                 // Conversations are refreshed inside respondToFriendRequest
             } catch {
                 #if DEBUG
-                print("Failed to accept request: \(error)")
                 #endif
             }
         }
@@ -178,7 +167,6 @@ struct MessagesScreen: View {
                 try await friendsManager.respondToFriendRequest(request.id, accept: false)
             } catch {
                 #if DEBUG
-                print("Failed to decline request: \(error)")
                 #endif
             }
         }
@@ -585,7 +573,6 @@ struct MessagesScreen: View {
         )
         .onAppear {
             #if DEBUG
-            print("[Messages] MessagesScreen onAppear | isDatingEnabled: \(isDatingEnabled), selectedMode: \(selectedMode)")
             #endif
             // Clear app badge when opening Messages tab
             UNUserNotificationCenter.current().setBadgeCount(0)
@@ -602,12 +589,10 @@ struct MessagesScreen: View {
         }
         .onChange(of: selectedMode) { _, newMode in
             #if DEBUG
-            print("[Messages] selectedMode changed → \(newMode) | visible: \(visibleConversations.count), hidden: \(hiddenConversations.count)")
             #endif
         }
         .onChange(of: messagingManager.conversations.count) { _, newCount in
             #if DEBUG
-            print("[Messages] conversations.count changed → total: \(newCount) | visible: \(visibleConversations.count), hidden: \(hiddenConversations.count)")
             #endif
         }
         // Note: Realtime subscriptions are managed by AppDataManager at the ContentView level

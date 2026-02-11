@@ -113,11 +113,10 @@ class CameraViewController: UIViewController {
                         self?.configureCamera()
                     }
                 } else {
-                    print("Camera permission denied")
                 }
             }
         default:
-            print("Camera permission not available")
+            break
         }
     }
     
@@ -126,7 +125,6 @@ class CameraViewController: UIViewController {
         session.sessionPreset = .photo
         
         guard let frontCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) else {
-            print("Failed to get front camera")
             return
         }
         
@@ -136,7 +134,6 @@ class CameraViewController: UIViewController {
             if session.canAddInput(input) {
                 session.addInput(input)
             } else {
-                print("Cannot add camera input")
                 return
             }
             
@@ -145,7 +142,6 @@ class CameraViewController: UIViewController {
                 session.addOutput(output)
                 photoOutput = output
             } else {
-                print("Cannot add photo output")
                 return
             }
             
@@ -163,7 +159,6 @@ class CameraViewController: UIViewController {
                 self.previewLayer?.frame = self.view.bounds
             }
         } catch {
-            print("Failed to setup camera input: \(error)")
         }
     }
     

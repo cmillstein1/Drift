@@ -156,7 +156,6 @@ struct OrientationScreen: View {
                     ProfileUpdateRequest(gender: selectedOrientation)
                 )
             } catch {
-                print("Failed to save orientation: \(error)")
             }
             await MainActor.run {
                 isSaving = false
@@ -271,6 +270,5 @@ struct OrientationOption: View {
 
 #Preview {
     OrientationScreen {
-        print("Continue tapped")
     }
 }

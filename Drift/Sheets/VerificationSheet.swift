@@ -346,7 +346,6 @@ struct VerificationView: View {
         }
     }
     
-    
     // MARK: - Functions
     
     private func verifyFace(image: UIImage) {
@@ -372,10 +371,6 @@ struct VerificationView: View {
             return
         }
         
-        print("📸 Verification starting...")
-        print("📸 Reference URL: \(referenceURL)")
-        print("📸 Selfie size: \(imageData.count) bytes")
-        
         // Verify reference URL is accessible
         Task {
             do {
@@ -383,7 +378,6 @@ struct VerificationView: View {
                 if let url = URL(string: referenceURL) {
                     let (_, response) = try await URLSession.shared.data(from: url)
                     if let httpResponse = response as? HTTPURLResponse {
-                        print("📸 Reference URL status: \(httpResponse.statusCode)")
                         if httpResponse.statusCode != 200 {
                             await MainActor.run {
                                 verificationResult = .failure("Reference photo is not accessible. Please try again.")
@@ -394,7 +388,6 @@ struct VerificationView: View {
                     }
                 }
             } catch {
-                print("⚠️ Could not verify reference URL accessibility: \(error)")
                 // Continue anyway - might still work
             }
             
@@ -462,7 +455,6 @@ struct InstructionRow: View {
         }
     }
 }
-
 
 #Preview {
     NavigationStack {

@@ -69,7 +69,6 @@ struct FriendsScreen: View {
                 )
                 lastDataFetch = Date()
             } catch {
-                print("Failed to load friends profiles: \(error)")
             }
             await MainActor.run {
                 isLoading = false
@@ -86,7 +85,6 @@ struct FriendsScreen: View {
             do {
                 try await friendsManager.sendFriendRequest(to: profileId)
             } catch {
-                print("Failed to send friend request: \(error)")
             }
         }
     }
@@ -103,7 +101,6 @@ struct FriendsScreen: View {
             do {
                 try await friendsManager.sendFriendRequest(to: profile.id, message: friendRequestMessage)
             } catch {
-                print("Failed to send friend request: \(error)")
             }
         }
         showMessageSheet = false

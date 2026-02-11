@@ -112,6 +112,5 @@ struct FriendOnboardingFlow: View {
 
 #Preview {
     FriendOnboardingFlow {
-        print("Friend onboarding complete")
     }
 }

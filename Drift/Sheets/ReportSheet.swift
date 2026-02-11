@@ -409,7 +409,6 @@ struct ReportSheet: View {
                     }
                 }
             } catch {
-                print("Failed to submit report: \(error)")
                 await MainActor.run {
                     isSubmitting = false
                     // Still show confirmation even if email fails (report is saved)

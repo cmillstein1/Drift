@@ -10,7 +10,6 @@ import CoreLocation
 import DriftBackend
 import Auth
 
-
 struct DiscoverScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var profileManager = ProfileManager.shared
@@ -60,8 +59,10 @@ struct DiscoverScreen: View {
     /// Cached blocked user IDs to avoid duplicate fetches across loadProfiles/preloadFriendsProfiles
     @State private var cachedBlockedIds: [UUID] = []
     @State private var lastExclusionFetch: Date = .distantPast
-    /// True until the first profile fetch completes (prevents empty-state flash on launch)
+    /// True until the first dating profile fetch completes (prevents empty-state flash on launch)
     @State private var isInitialLoading: Bool = true
+    /// True until the first friends profile fetch completes (separate from dating to avoid premature empty state)
+    @State private var isInitialLoadingFriends: Bool = true
     /// Stamp overlay shown during swipe animation ("LIKE" or "NOPE")
     @State private var showLikeStamp: Bool = false
     @State private var showNopeStamp: Bool = false
@@ -75,6 +76,10 @@ struct DiscoverScreen: View {
     @State private var loadProfilesTask: Task<Void, Never>?
     @State private var preloadFriendsTask: Task<Void, Never>?
     @State private var recycleProfilesTask: Task<Void, Never>?
+    /// True after the initial onAppear fetch has been kicked off (prevents scenePhase .active from double-fetching on launch)
+    @State private var hasPerformedInitialFetch: Bool = false
+    /// True once the device location has been used for a profile fetch (prevents redundant refetch)
+    @State private var hasFetchedWithLocation: Bool = false
     /// Geocoded coordinates for profiles that have a location string but no lat/lon.
     /// Stores ALL geocoded locations (location, homeBase, nextDestination) so distance filter can match any.
     @State private var geocodedProfileCoords: [UUID: [CLLocationCoordinate2D]] = [:]
@@ -121,10 +126,8 @@ struct DiscoverScreen: View {
         let userLat = coord?.latitude ?? profileManager.currentProfile?.latitude
         let userLon = coord?.longitude ?? profileManager.currentProfile?.longitude
         let unswiped = profiles.filter { !swipedIds.contains($0.id) }
-        print("[Dating Debug] visibleDatingProfiles: total=\(profiles.count), unswiped=\(unswiped.count), userLat=\(userLat ?? 0), userLon=\(userLon ?? 0), maxDist=\(datingFilterPreferences.maxDistanceMiles), alongRoute=\(datingFilterPreferences.alongMyRoute), unlimited=\(datingFilterPreferences.isUnlimitedDistance), geocoded=\(geocodedProfileCoords.count)")
         let result = unswiped.filter { datingFilterPreferences.matches($0, currentUserLat: userLat, currentUserLon: userLon, routeCoordinates: routeCoordinates, geocodedCoords: geocodedProfileCoords) }
         if unswiped.count != result.count {
-            print("[Dating Debug] Filtered \(unswiped.count - result.count) profiles by distance")
         }
         return result
     }
@@ -153,7 +156,6 @@ struct DiscoverScreen: View {
         let userLon = coord?.longitude ?? profileManager.currentProfile?.longitude
         let result = friendsProfiles.filter { friendsFilterPreferences.matches($0, currentUserLat: userLat, currentUserLon: userLon, routeCoordinates: routeCoordinates, geocodedCoords: geocodedProfileCoords) }
         if result.count != friendsProfiles.count || result.isEmpty {
-            print("[Friends Debug] visibleFriendsProfiles: friendsProfiles=\(friendsProfiles.count), afterFilter=\(result.count), routeCoords=\(routeCoordinates.count)")
         }
         return result
     }
@@ -196,7 +198,6 @@ struct DiscoverScreen: View {
                 }
             } catch {
                 #if DEBUG
-                print("[DiscoverScreen] Failed to load route coordinates: \(error)")
                 #endif
                 routeCoordinates = []
             }
@@ -257,9 +258,12 @@ struct DiscoverScreen: View {
                 await geocodeProfilesWithoutCoordinates()
                 await fetchTravelStopCoordinates()
             } catch {
-                print("Failed to load profiles: \(error)")
             }
-            isInitialLoading = false
+            if targetMode == .dating {
+                isInitialLoading = false
+            } else {
+                isInitialLoadingFriends = false
+            }
         }
     }
 
@@ -289,7 +293,6 @@ struct DiscoverScreen: View {
                     friendsMaxDistanceMiles: maxDist
                 )
             } catch {
-                print("Failed to recycle profiles: \(error)")
             }
         }
     }
@@ -327,9 +330,8 @@ struct DiscoverScreen: View {
                     friendsMaxDistanceMiles: friendsFilterPreferences.maxDistanceMiles
                 )
             } catch {
-                print("Failed to preload friends profiles: \(error)")
             }
-            isInitialLoading = false
+            isInitialLoadingFriends = false
             // Clear all geocoded coords so removed locations/travel stops don't persist
             geocodedProfileCoords.removeAll()
             await geocodeProfilesWithoutCoordinates()
@@ -364,7 +366,6 @@ struct DiscoverScreen: View {
                 geocodedProfileCoords[p.id] == nil
         }
         guard !needGeocode.isEmpty else { return }
-        print("[Geocode] Geocoding \(needGeocode.count) profiles without valid coordinates")
         let geocoder = CLGeocoder()
         for p in needGeocode {
             let locationStrings = geocodeLocationStrings(for: p)
@@ -372,7 +373,6 @@ struct DiscoverScreen: View {
             for locationString in locationStrings {
                 if let cached = locationGeocodeCache[locationString] {
                     coords.append(cached)
-                    print("[Geocode] \(p.name ?? "?") — cached '\(locationString)' → \(cached.latitude), \(cached.longitude)")
                     continue
                 }
                 // Try geocoding as-is first, then retry with ", USA" if it fails
@@ -391,14 +391,12 @@ struct DiscoverScreen: View {
                 if let coord = coord {
                     locationGeocodeCache[locationString] = coord
                     coords.append(coord)
-                    print("[Geocode] \(p.name ?? "?") — geocoded '\(locationString)' → \(coord.latitude), \(coord.longitude)")
                 }
                 try? await Task.sleep(nanoseconds: 300_000_000)
             }
             if !coords.isEmpty {
                 geocodedProfileCoords[p.id] = coords
             } else {
-                print("[Geocode] \(p.name ?? "?") — failed to geocode any of: \(locationStrings)")
             }
         }
     }
@@ -434,10 +432,8 @@ struct DiscoverScreen: View {
             }
             travelStopsByUser = grouped
             if !stops.isEmpty {
-                print("[TravelSchedule] Added coordinates from \(stops.count) travel stops for \(Set(stops.map { $0.userId }).count) users")
             }
         } catch {
-            print("[TravelSchedule] Failed to fetch: \(error)")
         }
     }
 
@@ -533,7 +529,6 @@ struct DiscoverScreen: View {
                         likedFadingId = nil
                     }
                 }
-                print("❌ [DISCOVER] Failed to record swipe: \(error)")
             }
         }
 
@@ -565,7 +560,6 @@ struct DiscoverScreen: View {
             }
         }
         .onAppear {
-            print("[Friends Debug] DiscoverScreen.onAppear — filterPrefs: maxDist=\(friendsFilterPreferences.maxDistanceMiles), alongMyRoute=\(friendsFilterPreferences.alongMyRoute), unlimited=\(friendsFilterPreferences.isUnlimitedDistance)")
             // Load cached profiles from disk immediately to prevent empty-state flash
             profileManager.loadCachedDiscoverProfiles()
 
@@ -585,6 +579,9 @@ struct DiscoverScreen: View {
                 mode = .friends
                 tabBarVisibility.discoverStartInFriendsMode = false
             }
+            // Track whether location was available at fetch time
+            hasFetchedWithLocation = DiscoveryLocationProvider.shared.lastCoordinate != nil
+
             let discoveryMode = supabaseManager.getDiscoveryMode()
             if discoveryMode == .both {
                 // Default to Friends (travel community first) for App Store positioning
@@ -599,6 +596,7 @@ struct DiscoverScreen: View {
                 mode = .friends
                 preloadFriendsProfiles()
             }
+            hasPerformedInitialFetch = true
             // Load route coordinates if along-my-route is enabled in either filter
             if friendsFilterPreferences.alongMyRoute || datingFilterPreferences.alongMyRoute {
                 loadRouteCoordinates()
@@ -623,6 +621,9 @@ struct DiscoverScreen: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
+            // Skip the initial .active transition on app launch — onAppear already started fetches.
+            // Only refresh when returning to foreground from background.
+            guard hasPerformedInitialFetch, !isInitialLoadingFriends else { return }
             // Refresh all discover data when app returns to foreground
             let discoveryMode = supabaseManager.getDiscoveryMode()
             if discoveryMode == .both || discoveryMode == .friends {
@@ -633,6 +634,23 @@ struct DiscoverScreen: View {
                 loadProfiles(forMode: .dating)
             }
             Task { try? await communityManager.fetchPosts(type: .event) }
+        }
+        .onChange(of: locationProvider.lastCoordinate?.latitude) { old, new in
+            // When device location first arrives after initial fetch was done without it,
+            // re-fetch profiles so server-side distance queries use the real coordinates.
+            guard old == nil, new != nil, hasPerformedInitialFetch, !hasFetchedWithLocation else { return }
+            hasFetchedWithLocation = true
+            let discoveryMode = supabaseManager.getDiscoveryMode()
+            if discoveryMode == .both || discoveryMode == .friends {
+                preloadFriendsTask?.cancel()
+                profileManager.resetFetchGuard(for: .friends)
+                preloadFriendsProfiles()
+            }
+            if discoveryMode == .both || discoveryMode == .dating {
+                loadProfilesTask?.cancel()
+                profileManager.resetFetchGuard(for: .dating)
+                loadProfiles(forMode: .dating)
+            }
         }
         .onChange(of: mode) { _, newMode in
             // Reset profile transition opacity
@@ -684,7 +702,6 @@ struct DiscoverScreen: View {
                                     content: messageText
                                 )
                             } catch {
-                                print("Failed to send match message: \(error)")
                             }
                         }
                     }
@@ -1006,7 +1023,7 @@ struct DiscoverScreen: View {
             events: visibleEvents,
             distanceMiles: distanceMiles(for:),
             sharedInterests: sharedInterestsForGrid,
-            isLoading: isInitialLoading,
+            isLoading: isInitialLoadingFriends,
             spinnerTopOffset: 100,
             onRefresh: {
                 forceReloadFriends()
@@ -1197,7 +1214,6 @@ struct DiscoverScreen: View {
                     }
                 }
             } catch {
-                print("[DISCOVER] Failed to record swipe: \(error)")
             }
         }
     }
@@ -1245,7 +1261,6 @@ struct DiscoverScreen: View {
             do {
                 try await friendsManager.deleteSwipe(on: profile.id)
             } catch {
-                print("[DISCOVER] Failed to delete swipe for reverse: \(error)")
             }
         }
     }
@@ -1265,7 +1280,6 @@ struct DiscoverScreen: View {
                     }
                 }
             } catch {
-                print("[DISCOVER] Failed to send friend request: \(error)")
             }
         }
 
@@ -1521,7 +1535,7 @@ struct DiscoverScreen: View {
                 distanceMiles: distanceMiles(for:),
                 sharedInterests: sharedInterestsForGrid,
                 topSpacing: 60, // Smaller top spacing since no mode switcher in friends-only mode
-                isLoading: isInitialLoading,
+                isLoading: isInitialLoadingFriends,
                 onRefresh: {
                     forceReloadFriends()
                     try? await communityManager.fetchPosts(type: .event)
@@ -1593,11 +1607,9 @@ struct DiscoverScreen: View {
             do {
                 try await friendsManager.sendFriendRequest(to: profileId)
             } catch {
-                print("Failed to send friend request: \(error)")
             }
         }
     }
-
 
     // MARK: - Dating Settings Button
     @ViewBuilder

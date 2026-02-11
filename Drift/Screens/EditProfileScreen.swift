@@ -59,7 +59,6 @@ struct EditProfileScreen: View {
         case preview = "Preview"
     }
     
-    
     enum TravelPaceOption: String, CaseIterable {
         case slow = "slow"
         case moderate = "moderate"
@@ -382,11 +381,6 @@ struct EditProfileScreen: View {
         homeBase = profile.homeBase ?? ""
         morningPerson = profile.morningPerson
 
-        print("🟢 [LOAD] loadProfileData() called")
-        print("🟢 [LOAD] profile.workStyle: \(String(describing: profile.workStyle))")
-        print("🟢 [LOAD] profile.homeBase: \(String(describing: profile.homeBase))")
-        print("🟢 [LOAD] profile.morningPerson: \(String(describing: profile.morningPerson))")
-
         // Load travel stops
         Task {
             do {
@@ -396,7 +390,6 @@ struct EditProfileScreen: View {
                     travelStopsCount = stops.count
                 }
             } catch {
-                print("Failed to load travel stops: \(error)")
             }
         }
 
@@ -442,15 +435,11 @@ struct EditProfileScreen: View {
 
         let changed = current != original
         if changed != hasChanges {
-            print("🟡 [CHANGES] hasChanges: \(changed)")
             if original.workStyle != current.workStyle {
-                print("🟡 [CHANGES] workStyle changed: \(String(describing: original.workStyle)) -> \(String(describing: current.workStyle))")
             }
             if original.homeBase != current.homeBase {
-                print("🟡 [CHANGES] homeBase changed: \(original.homeBase) -> \(current.homeBase)")
             }
             if original.morningPerson != current.morningPerson {
-                print("🟡 [CHANGES] morningPerson changed: \(String(describing: original.morningPerson)) -> \(String(describing: current.morningPerson))")
             }
         }
         hasChanges = changed
@@ -504,7 +493,6 @@ struct EditProfileScreen: View {
                     selectedPhotoIndex = nil
                 }
             } catch {
-                print("Failed to upload photo: \(error)")
                 await MainActor.run {
                     isUploadingPhoto = nil
                     photoImages.removeValue(forKey: index)
@@ -549,18 +537,12 @@ struct EditProfileScreen: View {
                     promptAnswers: capped.isEmpty ? nil : capped
                 ))
             } catch {
-                print("Failed to save prompts: \(error)")
             }
         }
     }
 
     private func saveChanges() {
         isSaving = true
-
-        print("🔵 [SAVE] saveChanges() called")
-        print("🔵 [SAVE] workStyle: \(String(describing: workStyle))")
-        print("🔵 [SAVE] homeBase: \(homeBase)")
-        print("🔵 [SAVE] morningPerson: \(String(describing: morningPerson))")
 
         Task {
             do {
@@ -579,9 +561,7 @@ struct EditProfileScreen: View {
                     homeBase: homeBase.isEmpty ? nil : homeBase,
                     morningPerson: morningPerson
                 )
-                print("🔵 [SAVE] Calling profileManager.updateProfile...")
                 try await profileManager.updateProfile(updates)
-                print("🔵 [SAVE] updateProfile succeeded!")
                 await MainActor.run {
                     if promptAnswers.count > Self.maxPrompts {
                         promptAnswers = cappedPrompts
@@ -590,7 +570,6 @@ struct EditProfileScreen: View {
                     onBack()
                 }
             } catch {
-                print("🔴 [SAVE] Failed to save profile: \(error)")
                 await MainActor.run {
                     isSaving = false
                 }

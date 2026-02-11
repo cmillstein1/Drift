@@ -221,7 +221,6 @@ public class CampflareManager: ObservableObject {
 
         // Debug: Print the request body
         if let body = urlRequest.httpBody, let bodyString = String(data: body, encoding: .utf8) {
-            print("🔍 Search request body: \(bodyString)")
         }
 
         do {
@@ -233,7 +232,6 @@ public class CampflareManager: ObservableObject {
             // Debug: Print response body on error
             if httpResponse.statusCode >= 400 {
                 if let responseString = String(data: data, encoding: .utf8) {
-                    print("❌ API error response (\(httpResponse.statusCode)): \(responseString)")
                 }
             }
 

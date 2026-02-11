@@ -9,7 +9,6 @@ import SwiftUI
 import DriftBackend
 import Auth
 
-
 struct MessageDetailScreen: View {
     let conversation: Conversation
     let onClose: () -> Void
@@ -425,7 +424,6 @@ struct MessageDetailScreen: View {
                 try await messagingManager.fetchMessages(for: conversation.id)
                 await messagingManager.subscribeToMessages(conversationId: conversation.id)
             } catch {
-                print("Failed to load messages: \(error)")
             }
         }
     }
@@ -443,7 +441,6 @@ struct MessageDetailScreen: View {
             do {
                 try await messagingManager.sendMessage(to: conversation.id, content: textToSend)
             } catch {
-                print("Failed to send message: \(error)")
             }
         }
     }

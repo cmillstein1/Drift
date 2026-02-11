@@ -19,11 +19,6 @@ extension SupabaseManager {
         let session = try await client.auth.session
 
         #if DEBUG
-        print("[DeleteAccount] Starting account deletion...")
-        print("[DeleteAccount] User ID: \(session.user.id)")
-        print("[DeleteAccount] Token length: \(session.accessToken.count)")
-        print("[DeleteAccount] Token expires at: \(Date(timeIntervalSince1970: session.expiresAt))")
-        print("[DeleteAccount] Token (first 40): \(String(session.accessToken.prefix(40)))...")
         // Decode JWT payload to inspect claims
         let parts = session.accessToken.split(separator: ".")
         if parts.count >= 2 {
@@ -32,7 +27,6 @@ extension SupabaseManager {
             while base64.count % 4 != 0 { base64.append("=") }
             if let data = Data(base64Encoded: base64),
                let json = String(data: data, encoding: .utf8) {
-                print("[DeleteAccount] JWT payload: \(json)")
             }
         }
         #endif
@@ -52,7 +46,6 @@ extension SupabaseManager {
             ) { data, response in
                 #if DEBUG
                 let bodyString = String(data: data, encoding: .utf8) ?? "<non-utf8>"
-                print("[DeleteAccount] HTTP \(response.statusCode) — body: \(bodyString)")
                 #endif
                 return try JSONDecoder().decode(DeleteAccountResponse.self, from: data)
             }
@@ -60,20 +53,16 @@ extension SupabaseManager {
             guard decoded.success else {
                 let msg = decoded.error ?? "Account deletion failed"
                 #if DEBUG
-                print("[DeleteAccount] Server returned success=false: \(msg)")
                 #endif
                 throw NSError(domain: "SupabaseManager", code: -1, userInfo: [NSLocalizedDescriptionKey: msg])
             }
 
             #if DEBUG
-            print("[DeleteAccount] Success! Clearing auth state...")
             #endif
         } catch let error as FunctionsError {
             #if DEBUG
-            print("[DeleteAccount] FunctionsError: \(error)")
             if case .httpError(let code, let data) = error {
                 let body = String(data: data, encoding: .utf8) ?? "<non-utf8>"
-                print("[DeleteAccount] HTTP \(code) — body: \(body)")
             }
             #endif
             throw error

@@ -109,7 +109,6 @@ struct EventsJoinedSheet: View {
             do {
                 try await communityManager.fetchJoinedEvents()
             } catch {
-                print("Failed to load joined events: \(error)")
             }
             await MainActor.run {
                 isLoading = false

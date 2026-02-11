@@ -120,13 +120,11 @@ class EmergencyManager {
         
         // Construct the tel URL
         guard let phoneURL = URL(string: "tel://\(emergencyNumber)") else {
-            print("❌ Invalid emergency number: \(emergencyNumber)")
             return
         }
         
         // Check if device can make calls
         guard UIApplication.shared.canOpenURL(phoneURL) else {
-            print("❌ Cannot make calls on this device")
             // Show alert to user
             return
         }
@@ -135,9 +133,7 @@ class EmergencyManager {
         // iOS will automatically use satellite if no cellular/Wi-Fi available (iPhone 14+)
         UIApplication.shared.open(phoneURL, options: [:]) { success in
             if success {
-                print("✅ Emergency call initiated: \(emergencyNumber)")
             } else {
-                print("❌ Failed to initiate emergency call")
             }
         }
     }

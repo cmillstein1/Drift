@@ -49,7 +49,6 @@ struct OnboardingBackButton: View {
         
         VStack {
             OnboardingBackButton {
-                print("Back tapped")
             }
             Spacer()
         }

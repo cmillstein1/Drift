@@ -34,7 +34,6 @@ struct CommunityScreen: View {
                 await communityManager.subscribeToPosts()
                 lastDataFetch = Date()
             } catch {
-                print("Failed to load Builder Help data: \(error)")
             }
         }
     }
@@ -223,7 +222,6 @@ struct CommunityScreen: View {
             do {
                 try await communityManager.fetchPosts(type: .help)
             } catch {
-                print("[CommunityScreen] Builder Help refresh failed: \(error)")
             }
         }
         .scrollContentBackground(.hidden)

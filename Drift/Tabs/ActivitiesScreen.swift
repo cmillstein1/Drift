@@ -63,7 +63,6 @@ struct ActivitiesScreen: View {
                 await activityManager.subscribeToActivities()
                 lastDataFetch = Date()
             } catch {
-                print("Failed to load activities: \(error)")
             }
         }
     }
@@ -254,7 +253,6 @@ struct ActivitiesScreen: View {
                                 )
                             }
                         } catch {
-                            print("Failed to save activity: \(error)")
                         }
                     }
                 }

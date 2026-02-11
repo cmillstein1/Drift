@@ -116,7 +116,6 @@ struct SubscriptionStatusView: View {
                             
                             if case .failure(let error) = result {
                                 // Show error alert
-                                print("❌ Restore failed: \(error.localizedDescription)")
                             }
                         }
                     }) {

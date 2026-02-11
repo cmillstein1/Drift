@@ -61,7 +61,6 @@ public class MessagingManager: ObservableObject {
     public func fetchConversations() async throws {
         guard let userId = SupabaseManager.shared.currentUser?.id else {
             #if DEBUG
-            print("[Messages] fetchConversations skipped: no current user (not authenticated)")
             #endif
             throw MessagingError.notAuthenticated
         }
@@ -69,7 +68,6 @@ public class MessagingManager: ObservableObject {
         isFetchingConversations = true
 
         #if DEBUG
-        print("[Messages] fetchConversations started (userId: \(userId.uuidString.prefix(8))...)")
         #endif
         // Only show the published loading indicator on initial fetch (no existing data).
         // Refreshes keep existing data visible while fetching in the background.
@@ -92,34 +90,8 @@ public class MessagingManager: ObservableObject {
                     .execute()
                     .value
             } catch {
-                let nsError = error as NSError
-                let isCancelled = nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
-                #if DEBUG
-                if !isCancelled {
-                    if let decodingError = error as? DecodingError {
-                        switch decodingError {
-                        case .keyNotFound(let key, let context):
-                            print("[Messages] Decode failed: keyNotFound '\(key.stringValue)' at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
-                        case .typeMismatch(let type, let context):
-                            print("[Messages] Decode failed: typeMismatch \(type) at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
-                        case .valueNotFound(let type, let context):
-                            print("[Messages] Decode failed: valueNotFound \(type) at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
-                        case .dataCorrupted(let context):
-                            print("[Messages] Decode failed: dataCorrupted at \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) — \(context.debugDescription)")
-                        @unknown default:
-                            print("[Messages] Decode failed: \(decodingError)")
-                        }
-                    } else {
-                        print("[Messages] fetchConversations request/parse error: \(error)")
-                    }
-                }
-                #endif
                 throw error
             }
-
-            #if DEBUG
-            print("[Messages] API returned \(conversations.count) conversation(s) | types: \(conversations.map { $0.type.rawValue })")
-            #endif
 
             // Batch-fetch last message for all conversations in a single query
             let conversationIds = conversations.map { $0.id }
@@ -161,13 +133,11 @@ public class MessagingManager: ObservableObject {
                 let leftAt = myParticipant?.leftAt
                 #if DEBUG
                 if idx < 3 {
-                    print("[Messages]   [\(idx)] conv \(conv.id.uuidString.prefix(8))... participants: \(conv.participants?.count ?? 0), hiddenAt: \(hiddenAt != nil ? "set" : "nil"), leftAt: \(leftAt != nil ? "set" : "nil"), otherUser: \(conv.otherUser != nil ? "yes" : "no")")
                 }
                 #endif
             }
             #if DEBUG
             if conversations.count > 3 {
-                print("[Messages]   ... and \(conversations.count - 3) more")
             }
             #endif
 
@@ -200,12 +170,10 @@ public class MessagingManager: ObservableObject {
             let hiddenCount = filtered.filter { $0.isHidden(for: userId) }.count
 
             #if DEBUG
-            print("[Messages] After filter (not left): \(filtered.count) | visible: \(visibleCount), hidden: \(hiddenCount) | current list had: \(self.conversations.count) | types: \(filtered.map { $0.type.rawValue })")
             #endif
 
             self.conversations = filtered
             #if DEBUG
-            print("[Messages] conversations set to \(self.conversations.count) item(s)")
             #endif
 
             self.updateUnreadCount(userId: userId)
@@ -217,12 +185,10 @@ public class MessagingManager: ObservableObject {
             let nsError = error as NSError
             if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
                 #if DEBUG
-                print("[Messages] fetchConversations cancelled (request cancelled)")
                 #endif
                 return
             }
             #if DEBUG
-            print("[Messages] fetchConversations failed: \(error)")
             #endif
             errorMessage = error.localizedDescription
             throw error
@@ -681,7 +647,6 @@ public class MessagingManager: ObservableObject {
             await client.realtimeV2.setAuth(accessToken)
         } catch {
             #if DEBUG
-            print("[Messages] Could not set realtime auth: \(error)")
             #endif
         }
 
@@ -762,7 +727,6 @@ public class MessagingManager: ObservableObject {
                     }
                 } catch {
                     #if DEBUG
-                    print("[Messages] Failed to fetch new message: \(error)")
                     #endif
                 }
             }
@@ -804,7 +768,6 @@ public class MessagingManager: ObservableObject {
                 try await channel.broadcast(event: "typing", message: TypingPayload(userId: userId.uuidString))
             } catch {
                 #if DEBUG
-                print("[Typing] Broadcast failed: \(error)")
                 #endif
             }
         }
@@ -833,7 +796,6 @@ public class MessagingManager: ObservableObject {
             await client.realtimeV2.setAuth(accessToken)
         } catch {
             #if DEBUG
-            print("[Conversations] Could not set realtime auth: \(error)")
             #endif
         }
 

@@ -131,7 +131,6 @@ struct InviteCodeSheet: View {
                         
                         Button(action: {
                             // Handle waitlist action
-                            print("Join waitlist tapped")
                         }) {
                             Text("Join the waitlist")
                                 .font(.system(size: 14, weight: .medium))
@@ -279,6 +278,5 @@ struct InviteCodeSheet: View {
 
 #Preview {
     InviteCodeSheet(isOpen: .constant(true)) { code in
-        print("Code submitted: \(code)")
     }
 }

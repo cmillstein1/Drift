@@ -253,7 +253,6 @@ struct AboutMeScreen: View {
                     ProfileUpdateRequest(bio: aboutText)
                 )
             } catch {
-                print("Failed to save about me: \(error)")
             }
             await MainActor.run {
                 isSaving = false
@@ -265,6 +264,5 @@ struct AboutMeScreen: View {
 
 #Preview {
     AboutMeScreen {
-        print("Continue tapped")
     }
 }

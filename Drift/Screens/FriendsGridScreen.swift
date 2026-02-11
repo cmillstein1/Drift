@@ -158,7 +158,6 @@ struct FriendsGridScreen: View {
                     self.isLoading = false
                 }
             } catch {
-                print("Failed to load friends: \(error)")
                 await MainActor.run {
                     self.friends = []
                     self.isLoading = false

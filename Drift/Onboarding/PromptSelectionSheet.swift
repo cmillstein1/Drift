@@ -129,6 +129,5 @@ struct PromptOptionButton: View {
 
 #Preview {
     PromptSelectionSheet(selectedPrompts: ["The best trip I ever took was..."]) { prompt in
-        print("Selected: \(prompt)")
     }
 }

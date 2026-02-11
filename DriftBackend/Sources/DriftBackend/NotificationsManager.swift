@@ -281,7 +281,6 @@ public class NotificationsManager: ObservableObject {
         } catch {
             if (error as NSError).code != NSURLErrorCancelled {
                 #if DEBUG
-                print("[Notifications] Failed to fetch matches: \(error)")
                 #endif
             }
             return []
@@ -323,7 +322,6 @@ public class NotificationsManager: ObservableObject {
         } catch {
             if (error as NSError).code != NSURLErrorCancelled {
                 #if DEBUG
-                print("[Notifications] Failed to fetch friend requests: \(error)")
                 #endif
             }
             return []
@@ -410,7 +408,6 @@ public class NotificationsManager: ObservableObject {
         } catch {
             if (error as NSError).code != NSURLErrorCancelled {
                 #if DEBUG
-                print("[Notifications] Failed to fetch community replies: \(error)")
                 #endif
             }
             return []
@@ -500,7 +497,6 @@ public class NotificationsManager: ObservableObject {
         } catch {
             if (error as NSError).code != NSURLErrorCancelled {
                 #if DEBUG
-                print("[Notifications] Failed to fetch event joins: \(error)")
                 #endif
             }
             return []
@@ -625,7 +621,6 @@ public class NotificationsManager: ObservableObject {
         } catch {
             if (error as NSError).code != NSURLErrorCancelled {
                 #if DEBUG
-                print("[Notifications] Failed to fetch event messages: \(error)")
                 #endif
             }
             return []

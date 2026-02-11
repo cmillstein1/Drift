@@ -176,7 +176,6 @@ struct ActivityPreferenceScreen: View {
                     ProfileUpdateRequest(interests: merged)
                 )
             } catch {
-                print("Failed to save activity preferences: \(error)")
             }
             await MainActor.run {
                 isSaving = false
@@ -364,6 +363,5 @@ struct ActivityPreferenceCard: View {
 
 #Preview {
     ActivityPreferenceScreen {
-        print("Continue tapped")
     }
 }

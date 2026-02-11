@@ -178,7 +178,6 @@ struct ContentView: View {
                     deepLinkConversation = conversation
                 } catch {
                     #if DEBUG
-                    print("[DeepLink] Failed to open match conversation: \(error)")
                     #endif
                 }
             }
@@ -191,7 +190,6 @@ struct ContentView: View {
                     deepLinkPost = post
                 } catch {
                     #if DEBUG
-                    print("[DeepLink] Failed to fetch event post: \(error)")
                     #endif
                 }
             }
@@ -204,7 +202,6 @@ struct ContentView: View {
                     deepLinkPost = post
                 } catch {
                     #if DEBUG
-                    print("[DeepLink] Failed to fetch community post: \(error)")
                     #endif
                 }
             }
@@ -292,10 +289,6 @@ private struct TabBarRoundedCorner: Shape {
         return Path(path.cgPath)
     }
 }
-
-
-
-
 
 #Preview {
     ContentView()

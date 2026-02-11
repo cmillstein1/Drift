@@ -252,6 +252,5 @@ struct FeaturePill: View {
 
 #Preview {
     FriendWelcomeScreen {
-        print("Continue tapped")
     }
 }

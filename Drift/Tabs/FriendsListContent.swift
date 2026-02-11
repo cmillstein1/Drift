@@ -65,7 +65,6 @@ struct FriendsListContent: View {
                     excludeIds: excludeIds
                 )
             } catch {
-                print("Failed to load friends profiles: \(error)")
             }
             await MainActor.run {
                 isLoading = false
@@ -82,7 +81,6 @@ struct FriendsListContent: View {
             do {
                 try await friendsManager.sendFriendRequest(to: profileId)
             } catch {
-                print("Failed to send friend request: \(error)")
             }
         }
     }

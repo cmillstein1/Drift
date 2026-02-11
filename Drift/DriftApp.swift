@@ -33,14 +33,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         #if DEBUG
-        print("[FCM] APNs device token received (\(deviceToken.count) bytes) – FCM will get token next")
         #endif
         Messaging.messaging().apnsToken = deviceToken
     }
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
         #if DEBUG
-        print("[FCM] APNs registration FAILED (Simulator or missing capability): \(error.localizedDescription)")
         #endif
     }
 }
@@ -56,7 +54,6 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         Messaging.messaging().appDidReceiveMessage(userInfo)
         #if DEBUG
         let content = notification.request.content
-        print("[FCM] Notification received (foreground): \(content.title) – \(content.body)")
         #endif
         // Suppress notifications while the app is in the foreground —
         // realtime updates already handle new messages/events in-app.
@@ -72,7 +69,6 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         Messaging.messaging().appDidReceiveMessage(userInfo)
         #if DEBUG
         let content = response.notification.request.content
-        print("[FCM] Notification tapped: \(content.title) – \(content.body)")
         #endif
 
         // Parse notification payload and route to the relevant screen (deeplink).
@@ -116,7 +112,6 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
     ) {
         Messaging.messaging().appDidReceiveMessage(userInfo)
         #if DEBUG
-        print("[FCM] Notification received (background): \(userInfo)")
         #endif
         completionHandler(.newData)
     }
@@ -127,10 +122,7 @@ extension AppDelegate: MessagingDelegate {
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
         #if DEBUG
         if let token = fcmToken {
-            print("[FCM] Registration token (use this in Firebase → Send test message):")
-            print("[FCM] \(token)")
         } else {
-            print("[FCM] Registration token is nil – check APNs and internet")
         }
         #endif
 
@@ -311,7 +303,6 @@ struct DriftApp: App {
                         do {
                             try await profileManager.fetchCurrentProfile()
                         } catch {
-                            print("Failed to fetch profile: \(error)")
                         }
                     }
                     // Re-send FCM token now that user is authenticated
@@ -334,7 +325,6 @@ struct DriftApp: App {
                         do {
                             try await profileManager.fetchCurrentProfile()
                         } catch {
-                            print("Failed to fetch profile: \(error)")
                         }
                     }
                 }
@@ -373,7 +363,6 @@ struct DriftApp: App {
                         // The session should already be set by signInWithOAuth, but we can verify
                         try await supabaseManager.checkAuthStatus()
                     } catch {
-                        print("Failed to handle OAuth callback: \(error)")
                     }
                 }
             }
