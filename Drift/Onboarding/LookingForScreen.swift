@@ -14,6 +14,7 @@ struct LookingForScreen: View {
     @StateObject private var profileManager = ProfileManager.shared
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @State private var selectedOptions: [String] = []
+    @State private var isSaving = false
     @State private var titleOpacity: Double = 0
     @State private var titleOffset: CGFloat = -20
     @State private var subtitleOpacity: Double = 0
@@ -117,17 +118,24 @@ struct LookingForScreen: View {
                     Spacer()
                     
                     Button(action: {
-                        onContinue()
+                        saveAndContinue()
                     }) {
-                        Text("Continue")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(buttonBackground)
-                            .clipShape(Capsule())
+                        if isSaving {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        } else {
+                            Text("Continue")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        }
                     }
-                    .disabled(selectedOptions.isEmpty)
+                    .background(buttonBackground)
+                    .clipShape(Capsule())
+                    .disabled(selectedOptions.isEmpty || isSaving)
                     .padding(.horizontal, 24)
                     .padding(.bottom, 12)
                     .opacity(buttonOpacity)
@@ -163,6 +171,34 @@ struct LookingForScreen: View {
         }
     }
     
+    private func saveAndContinue() {
+        isSaving = true
+        // Map display names to orientation values
+        let orientationMap: [String: String] = [
+            "Male": "men",
+            "Female": "women",
+            "Non-binary": "non-binary"
+        ]
+        let orientationValues = selectedOptions.compactMap { orientationMap[$0] }
+        let orientation: String
+        if Set(orientationValues) == Set(["men", "women", "non-binary"]) {
+            orientation = "everyone"
+        } else {
+            orientation = orientationValues.joined(separator: ",")
+        }
+        Task {
+            do {
+                try await profileManager.updateProfile(ProfileUpdateRequest(orientation: orientation))
+            } catch {
+                print("Failed to save orientation: \(error)")
+            }
+            await MainActor.run {
+                isSaving = false
+                onContinue()
+            }
+        }
+    }
+
     private func toggleOption(_ option: String, at index: Int) {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             if selectedOptions.contains(option) {

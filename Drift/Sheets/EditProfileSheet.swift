@@ -49,7 +49,7 @@ struct EditProfileSheet: View {
     @State private var selectedDate: Date = Date()
     
     // Dating preferences states
-    @State private var interestedIn: InterestedIn = .everyone
+    @State private var interestedInOptions: Set<String> = ["men", "women", "non-binary"]
     @State private var maxDistance: Double = 50
     @State private var minAge: Double = 18
     @State private var maxAge: Double = 50
@@ -124,6 +124,15 @@ struct EditProfileSheet: View {
     private let sunsetRose = Color(red: 0.93, green: 0.36, blue: 0.51)
     private let warmWhite = Color(red: 0.99, green: 0.98, blue: 0.96)
     
+    private var interestedInDisplayName: String {
+        let displayMap: [String: String] = ["men": "Men", "women": "Women", "non-binary": "Non-binary"]
+        if interestedInOptions.count == 3 || interestedInOptions.contains("everyone") {
+            return "Everyone"
+        }
+        let sorted = ["men", "women", "non-binary"].filter { interestedInOptions.contains($0) }
+        return sorted.compactMap { displayMap[$0] }.joined(separator: ", ")
+    }
+
     private var showDatingSection: Bool {
         // Only show dating section if user is NOT in "friends only" mode
         supabaseManager.getDiscoveryMode() != .friends
@@ -621,7 +630,7 @@ struct EditProfileSheet: View {
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(charcoalColor)
                             
-                            Text(interestedIn.displayName)
+                            Text(interestedInDisplayName)
                                 .font(.system(size: 13))
                                 .foregroundColor(charcoalColor.opacity(0.6))
                         }
@@ -732,7 +741,7 @@ struct EditProfileSheet: View {
         .sheet(isPresented: $showInterestedInModal) {
             InterestedInSheet(
                 isPresented: $showInterestedInModal,
-                selection: $interestedIn
+                selectedOptions: $interestedInOptions
             )
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
@@ -922,7 +931,7 @@ struct EditProfileSheet: View {
                 
                 // Load dating preferences
                 if let orientation = profile.orientation {
-                    interestedIn = InterestedIn(rawValue: orientation) ?? .everyone
+                    interestedInOptions = DatingSettingsSheet.parseOrientation(orientation)
                 }
                 if let min = profile.preferredMinAge {
                     minAge = Double(min)
@@ -1040,7 +1049,7 @@ struct EditProfileSheet: View {
                     latitude: lat,
                     longitude: lon,
                     travelPace: travelPace.toBackendType,
-                    orientation: interestedIn.rawValue,
+                    orientation: DatingSettingsSheet.orientationString(from: interestedInOptions),
                     preferredMinAge: Int(minAge),
                     preferredMaxAge: Int(maxAge),
                     preferredMaxDistanceMiles: Int(maxDistance),

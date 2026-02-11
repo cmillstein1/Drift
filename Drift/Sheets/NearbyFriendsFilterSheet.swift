@@ -25,14 +25,14 @@ struct NearbyFriendsFilterPreferences: Equatable, Codable {
 
     static let `default` = NearbyFriendsFilterPreferences(
         maxDistanceMiles: 50,
-        alongMyRoute: false
+        alongMyRoute: true
     )
 
     /// 200 = slider max = no distance limit.
     var isUnlimitedDistance: Bool { maxDistanceMiles >= 200 }
 
     var hasActiveFilters: Bool {
-        maxDistanceMiles != 50 || alongMyRoute
+        maxDistanceMiles != 50 || !alongMyRoute
     }
 
     /// Returns whether a profile passes the distance filter.

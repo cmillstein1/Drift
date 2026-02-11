@@ -34,7 +34,7 @@ struct DatingFilterPreferences: Equatable, Codable {
     var maxDistanceMiles: Int
 
     static let `default` = DatingFilterPreferences(
-        alongMyRoute: false,
+        alongMyRoute: true,
         maxDistanceMiles: 50
     )
 
@@ -121,7 +121,7 @@ struct DatingSettingsSheet: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var profileManager = ProfileManager.shared
 
-    @State private var interestedIn: InterestedIn = .women
+    @State private var interestedInOptions: Set<String> = ["women"]
     @State private var distance: Double = 50
     @State private var minAge: Double = 18
     @State private var maxAge: Double = 80
@@ -138,6 +138,29 @@ struct DatingSettingsSheet: View {
 
     private var isVerified: Bool {
         profileManager.currentProfile?.verified ?? false
+    }
+
+    private var interestedInDisplayName: String {
+        let displayMap: [String: String] = ["men": "Men", "women": "Women", "non-binary": "Non-binary"]
+        if interestedInOptions.count == 3 || interestedInOptions.contains("everyone") {
+            return "Everyone"
+        }
+        let sorted = ["men", "women", "non-binary"].filter { interestedInOptions.contains($0) }
+        return sorted.compactMap { displayMap[$0] }.joined(separator: ", ")
+    }
+
+    static func parseOrientation(_ orientation: String) -> Set<String> {
+        if orientation == "everyone" {
+            return Set(["men", "women", "non-binary"])
+        }
+        return Set(orientation.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) })
+    }
+
+    static func orientationString(from options: Set<String>) -> String {
+        if options.count == 3 || options.contains("everyone") {
+            return "everyone"
+        }
+        return options.sorted().joined(separator: ",")
     }
 
     var body: some View {
@@ -178,7 +201,7 @@ struct DatingSettingsSheet: View {
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(charcoalColor)
 
-                                Text(interestedIn.displayName)
+                                Text(interestedInDisplayName)
                                     .font(.system(size: 13))
                                     .foregroundColor(charcoalColor.opacity(0.6))
                             }
@@ -377,7 +400,7 @@ struct DatingSettingsSheet: View {
         .sheet(isPresented: $showInterestedInModal) {
             InterestedInSheet(
                 isPresented: $showInterestedInModal,
-                selection: $interestedIn
+                selectedOptions: $interestedInOptions
             )
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
@@ -391,7 +414,7 @@ struct DatingSettingsSheet: View {
         // Load server-side prefs
         if let profile = profileManager.currentProfile {
             if let orientation = profile.orientation {
-                interestedIn = InterestedIn(rawValue: orientation) ?? .women
+                interestedInOptions = Self.parseOrientation(orientation)
             }
             if let min = profile.preferredMinAge {
                 minAge = Double(min)
@@ -423,7 +446,8 @@ struct DatingSettingsSheet: View {
 
         // Update currentProfile in memory immediately so that onDismiss re-fetch
         // uses the latest values (the async server save may not finish in time).
-        profileManager.currentProfile?.orientation = interestedIn.rawValue
+        let orientationString = Self.orientationString(from: interestedInOptions)
+        profileManager.currentProfile?.orientation = orientationString
         profileManager.currentProfile?.preferredMinAge = Int(minAge)
         profileManager.currentProfile?.preferredMaxAge = Int(maxAge)
         profileManager.currentProfile?.preferredMaxDistanceMiles = Int(distance)
@@ -435,7 +459,7 @@ struct DatingSettingsSheet: View {
         Task {
             do {
                 try await profileManager.updateProfile(ProfileUpdateRequest(
-                    orientation: interestedIn.rawValue,
+                    orientation: orientationString,
                     preferredMinAge: Int(minAge),
                     preferredMaxAge: Int(maxAge),
                     preferredMaxDistanceMiles: Int(distance)
@@ -552,8 +576,14 @@ struct AgeRangeSlider: View {
 
 struct InterestedInSheet: View {
     @Binding var isPresented: Bool
-    @Binding var selection: InterestedIn
+    @Binding var selectedOptions: Set<String>
     @Environment(\.dismiss) var dismiss
+
+    private let options: [(key: String, label: String)] = [
+        ("men", "Men"),
+        ("women", "Women"),
+        ("non-binary", "Non-binary")
+    ]
 
     private let charcoalColor = Color("Charcoal")
     private let burntOrange = Color("BurntOrange")
@@ -585,21 +615,27 @@ struct InterestedInSheet: View {
             .padding(.top, 24)
             .padding(.bottom, 16)
 
+            Text("Select all that apply")
+                .font(.system(size: 15))
+                .foregroundColor(charcoalColor.opacity(0.6))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
+
             // Options
             VStack(spacing: 12) {
-                ForEach(InterestedIn.allCases, id: \.self) { option in
+                ForEach(options, id: \.key) { option in
                     Button(action: {
-                        selection = option
-                        dismiss()
+                        toggleOption(option.key)
                     }) {
                         HStack {
-                            Text(option.displayName)
+                            Text(option.label)
                                 .font(.system(size: 16, weight: .medium))
                                 .foregroundColor(charcoalColor)
 
                             Spacer()
 
-                            if selection == option {
+                            if selectedOptions.contains(option.key) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 22))
                                     .foregroundColor(burntOrange)
@@ -614,7 +650,7 @@ struct InterestedInSheet: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16)
-                                .stroke(selection == option ? burntOrange : Color.gray.opacity(0.2), lineWidth: selection == option ? 2 : 1)
+                                .stroke(selectedOptions.contains(option.key) ? burntOrange : Color.gray.opacity(0.2), lineWidth: selectedOptions.contains(option.key) ? 2 : 1)
                         )
                     }
                 }
@@ -625,6 +661,17 @@ struct InterestedInSheet: View {
             Spacer()
         }
         .background(warmWhite)
+    }
+
+    private func toggleOption(_ key: String) {
+        if selectedOptions.contains(key) {
+            // Don't allow deselecting the last option
+            if selectedOptions.count > 1 {
+                selectedOptions.remove(key)
+            }
+        } else {
+            selectedOptions.insert(key)
+        }
     }
 }
 

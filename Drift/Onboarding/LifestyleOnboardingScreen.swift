@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import MapKit
 import DriftBackend
 
 struct LifestyleOnboardingScreen: View {
@@ -27,6 +28,8 @@ struct LifestyleOnboardingScreen: View {
     @State private var buttonOpacity: Double = 0
     @State private var buttonOffset: CGFloat = 20
 
+    @StateObject private var searchCompleter = TravelLocationSearchCompleter()
+    @State private var isSearchingHomeBase = false
     @FocusState private var isHomeBaseFocused: Bool
 
     private let charcoalColor = Color(red: 0.2, green: 0.2, blue: 0.2)
@@ -90,34 +93,90 @@ struct LifestyleOnboardingScreen: View {
                                 .font(.system(size: 18, weight: .semibold))
                                 .foregroundColor(charcoalColor)
 
-                            HStack(spacing: 12) {
-                                Image(systemName: "house")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(charcoalColor.opacity(0.4))
+                            VStack(alignment: .leading, spacing: 0) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "house")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(charcoalColor.opacity(0.4))
 
-                                TextField("City or region", text: $homeBase)
-                                    .font(.system(size: 16))
-                                    .foregroundColor(charcoalColor)
-                                    .focused($isHomeBaseFocused)
-                                    .textInputAutocapitalization(.words)
+                                    TextField("City or region", text: $homeBase)
+                                        .font(.system(size: 16))
+                                        .foregroundColor(charcoalColor)
+                                        .focused($isHomeBaseFocused)
+                                        .textInputAutocapitalization(.words)
+                                        .onChange(of: homeBase) { _, newValue in
+                                            searchCompleter.search(query: newValue)
+                                            isSearchingHomeBase = !newValue.isEmpty
+                                        }
+                                        .onChange(of: isHomeBaseFocused) { _, focused in
+                                            if !focused {
+                                                isSearchingHomeBase = false
+                                            }
+                                        }
 
-                                if !homeBase.isEmpty {
-                                    Button {
-                                        homeBase = ""
-                                    } label: {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .font(.system(size: 18))
-                                            .foregroundColor(charcoalColor.opacity(0.3))
+                                    if !homeBase.isEmpty {
+                                        Button {
+                                            homeBase = ""
+                                            searchCompleter.results = []
+                                            isSearchingHomeBase = false
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.system(size: 18))
+                                                .foregroundColor(charcoalColor.opacity(0.3))
+                                        }
                                     }
                                 }
+                                .padding(16)
+                                .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(isHomeBaseFocused ? burntOrange : Color.gray.opacity(0.2), lineWidth: 2)
+                                )
+
+                                if isSearchingHomeBase && !searchCompleter.results.isEmpty {
+                                    VStack(spacing: 0) {
+                                        ForEach(searchCompleter.results.prefix(5), id: \.self) { completion in
+                                            Button {
+                                                selectHomeBaseCompletion(completion)
+                                            } label: {
+                                                HStack(spacing: 12) {
+                                                    Image(systemName: "mappin.circle.fill")
+                                                        .font(.system(size: 18))
+                                                        .foregroundColor(charcoalColor.opacity(0.4))
+
+                                                    VStack(alignment: .leading, spacing: 2) {
+                                                        Text(completion.title)
+                                                            .font(.system(size: 15, weight: .medium))
+                                                            .foregroundColor(charcoalColor)
+                                                            .lineLimit(1)
+
+                                                        if !completion.subtitle.isEmpty {
+                                                            Text(completion.subtitle)
+                                                                .font(.system(size: 13))
+                                                                .foregroundColor(charcoalColor.opacity(0.6))
+                                                                .lineLimit(1)
+                                                        }
+                                                    }
+
+                                                    Spacer()
+                                                }
+                                                .padding(.horizontal, 16)
+                                                .padding(.vertical, 10)
+                                            }
+
+                                            if completion != searchCompleter.results.prefix(5).last {
+                                                Divider()
+                                                    .padding(.leading, 46)
+                                            }
+                                        }
+                                    }
+                                    .background(Color.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                                    .padding(.top, 4)
+                                }
                             }
-                            .padding(16)
-                            .background(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(isHomeBaseFocused ? burntOrange : Color.gray.opacity(0.2), lineWidth: 2)
-                            )
 
                             Text("The place you return to between adventures")
                                 .font(.system(size: 13))
@@ -212,6 +271,18 @@ struct LifestyleOnboardingScreen: View {
             buttonOpacity = 1
             buttonOffset = 0
         }
+    }
+
+    private func selectHomeBaseCompletion(_ completion: MKLocalSearchCompletion) {
+        let displayName: String
+        if !completion.subtitle.isEmpty {
+            displayName = "\(completion.title), \(completion.subtitle)"
+        } else {
+            displayName = completion.title
+        }
+        homeBase = displayName
+        isSearchingHomeBase = false
+        isHomeBaseFocused = false
     }
 
     private func loadExistingData() {

@@ -225,12 +225,14 @@ struct DriftApp: App {
                         // 4. Show friend onboarding flow
                         FriendOnboardingFlow {
                             supabaseManager.isShowingFriendOnboarding = false
+                            supabaseManager.isShowingPreferenceSelection = false
                         }
                     } else if supabaseManager.isShowingOnboarding && UserDefaults.standard.object(forKey: "datingOnboardingStartStep") != nil {
                         // 5. Partial dating onboarding - user switching from community to dating mode
                         OnboardingFlow {
                             withAnimation(.easeInOut(duration: 0.6)) {
                                 supabaseManager.isShowingOnboarding = false
+                                supabaseManager.isShowingPreferenceSelection = false
                             }
                         }
                         .transition(.opacity)
@@ -240,6 +242,7 @@ struct DriftApp: App {
                         OnboardingFlow {
                             withAnimation(.easeInOut(duration: 0.6)) {
                                 supabaseManager.isShowingOnboarding = false
+                                supabaseManager.isShowingPreferenceSelection = false
                             }
                         }
                         .transition(.opacity)

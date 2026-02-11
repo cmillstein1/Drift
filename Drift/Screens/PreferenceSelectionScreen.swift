@@ -175,9 +175,10 @@ struct PreferenceSelectionScreen: View {
                                 .font(.system(size: 16, weight: .semibold))
                         }
                     }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 58)
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: 58)
+                .contentShape(Capsule())
                 .foregroundColor(.white)
                 .background(
                     Group {

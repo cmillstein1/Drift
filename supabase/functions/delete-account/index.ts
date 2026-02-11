@@ -1,5 +1,6 @@
 // supabase/functions/delete-account/index.ts
-// Self-service account deletion: verifies the user via JWT, then deletes them via service role.
+// Self-service account deletion: verifies the user via JWT,
+// explicitly cleans up all user data, then deletes the auth user via service role.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
@@ -38,8 +39,55 @@ serve(async (req) => {
       )
     }
 
+    const uid = user.id
     const serviceClient = createClient(supabaseUrl, serviceKey)
-    const { error: deleteError } = await serviceClient.auth.admin.deleteUser(user.id)
+
+    // Explicitly delete user data from all tables before removing the auth user.
+    // This avoids trigger conflicts during CASCADE deletes.
+    // Order matters: delete from leaf tables first, then parent tables.
+
+    // Tables referencing auth.users(id) directly
+    await serviceClient.from("event_messages").delete().eq("user_id", uid)
+    await serviceClient.from("event_chat_mutes").delete().eq("user_id", uid)
+    await serviceClient.from("admin_invite_redemptions").delete().eq("user_id", uid)
+
+    // Tables referencing profiles(id) — delete from leaf tables first
+    await serviceClient.from("post_likes").delete().eq("user_id", uid)
+    await serviceClient.from("post_replies").delete().eq("author_id", uid)
+    await serviceClient.from("event_attendees").delete().eq("user_id", uid)
+    await serviceClient.from("activity_attendees").delete().eq("user_id", uid)
+    await serviceClient.from("channel_memberships").delete().eq("user_id", uid)
+    await serviceClient.from("channel_messages").delete().eq("user_id", uid)
+    await serviceClient.from("van_builder_experts").delete().eq("user_id", uid)
+    await serviceClient.from("swipes").delete().or(`swiper_id.eq.${uid},swiped_id.eq.${uid}`)
+    await serviceClient.from("matches").delete().or(`user1_id.eq.${uid},user2_id.eq.${uid}`)
+    await serviceClient.from("friends").delete().or(`requester_id.eq.${uid},addressee_id.eq.${uid}`)
+
+    // Messages & conversation participants
+    await serviceClient.from("messages").delete().eq("sender_id", uid)
+    await serviceClient.from("conversation_participants").delete().eq("user_id", uid)
+
+    // Reports (reporter gets cascade, reported_user gets set null)
+    await serviceClient.from("reports").delete().eq("reporter_id", uid)
+    await serviceClient.from("reports").update({ reported_user_id: null }).eq("reported_user_id", uid)
+
+    // Community posts (cascade will clean up remaining replies/likes/attendees for these posts)
+    await serviceClient.from("community_posts").delete().eq("author_id", uid)
+
+    // Activities (cascade will clean up remaining attendees for these activities)
+    await serviceClient.from("activities").delete().eq("host_id", uid)
+
+    // Travel schedule
+    await serviceClient.from("travel_schedule").delete().eq("user_id", uid)
+
+    // Van builder resources (SET NULL on uploaded_by)
+    await serviceClient.from("van_builder_resources").update({ uploaded_by: null }).eq("uploaded_by", uid)
+
+    // Profile itself
+    await serviceClient.from("profiles").delete().eq("id", uid)
+
+    // Finally delete the auth user (should now have no FK references)
+    const { error: deleteError } = await serviceClient.auth.admin.deleteUser(uid)
     if (deleteError) {
       return new Response(
         JSON.stringify({ success: false, error: deleteError.message }),

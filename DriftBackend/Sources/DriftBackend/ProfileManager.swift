@@ -313,7 +313,17 @@ public class ProfileManager: ObservableObject {
             if lookingFor == .dating, let current = currentProfile {
                 let minAge = current.preferredMinAge ?? 18
                 let maxAge = current.preferredMaxAge ?? 80
-                let interestedIn = current.orientation // "women", "men", "non-binary", "everyone"
+                let interestedIn = current.orientation // "women", "men", "non-binary", "everyone", or comma-separated like "men,women"
+
+                // Parse orientation into a set of accepted values
+                let acceptedGenders: Set<String>
+                if let interest = interestedIn, interest != "everyone" {
+                    acceptedGenders = Set(interest.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) })
+                } else {
+                    acceptedGenders = [] // empty = accept everyone
+                }
+
+                let genderMap: [String: String] = ["women": "Female", "men": "Male", "non-binary": "Non-binary"]
 
                 profiles = profiles.filter { p in
                     let age = p.displayAge
@@ -321,19 +331,12 @@ public class ProfileManager: ObservableObject {
 
                     // Gender filter: match user's orientation preference against profile's gender
                     let genderOk: Bool
-                    if let interest = interestedIn, interest != "everyone" {
-                        if let profileGender = p.gender {
-                            switch interest {
-                            case "women": genderOk = profileGender == "Female"
-                            case "men": genderOk = profileGender == "Male"
-                            case "non-binary": genderOk = profileGender == "Non-binary"
-                            default: genderOk = true
-                            }
-                        } else {
-                            // Profile has no gender set — still show (don't hide)
-                            genderOk = true
-                        }
+                    if acceptedGenders.isEmpty {
+                        genderOk = true
+                    } else if let profileGender = p.gender {
+                        genderOk = acceptedGenders.contains { genderMap[$0] == profileGender }
                     } else {
+                        // Profile has no gender set — still show (don't hide)
                         genderOk = true
                     }
 
