@@ -209,32 +209,26 @@ extension EditProfileScreen {
     // MARK: - Travel Plans Section
 
     var travelPlansSection: some View {
-        VStack(spacing: 0) {
-            sectionHeader("Travel Plans")
-
-            Divider().background(Color.gray.opacity(0.1))
-
-            NavigationLink(destination: TravelPlansEditorView()) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Upcoming Destinations")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(charcoalColor)
-                        Text(travelStopsCount > 0 ? "\(travelStopsCount) destination\(travelStopsCount == 1 ? "" : "s") planned" : "Add your travel plans")
-                            .font(.system(size: 14))
-                            .foregroundColor(travelStopsCount > 0 ? charcoalColor.opacity(0.6) : charcoalColor.opacity(0.4))
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(charcoalColor.opacity(0.4))
+        NavigationLink(destination: TravelPlansEditorView()) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Travel Plans")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(charcoalColor)
+                    Text(travelStopsCount > 0 ? "\(travelStopsCount) destination\(travelStopsCount == 1 ? "" : "s") planned" : "Add your travel plans")
+                        .font(.system(size: 14))
+                        .foregroundColor(travelStopsCount > 0 ? charcoalColor.opacity(0.6) : charcoalColor.opacity(0.4))
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .contentShape(Rectangle())
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(charcoalColor.opacity(0.4))
             }
-            .buttonStyle(PlainButtonStyle())
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(PlainButtonStyle())
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)

@@ -801,7 +801,7 @@ public class MessagingManager: ObservableObject {
         }
         Task {
             do {
-                try await channel.httpSend(event: "typing", message: TypingPayload(userId: userId.uuidString))
+                try await channel.broadcast(event: "typing", message: TypingPayload(userId: userId.uuidString))
             } catch {
                 #if DEBUG
                 print("[Typing] Broadcast failed: \(error)")
@@ -816,7 +816,7 @@ public class MessagingManager: ObservableObject {
         guard let channel = messageChannel,
               let userId = SupabaseManager.shared.currentUser?.id else { return }
         Task {
-            try? await channel.httpSend(event: "stopped_typing", message: TypingPayload(userId: userId.uuidString))
+            try? await channel.broadcast(event: "stopped_typing", message: TypingPayload(userId: userId.uuidString))
         }
     }
 

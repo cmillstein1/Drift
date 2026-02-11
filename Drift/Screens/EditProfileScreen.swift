@@ -344,9 +344,9 @@ struct EditProfileScreen: View {
         ScrollView {
             VStack(spacing: 16) {
                 photosSection
+                travelPlansSection
                 vanLifeEssentialsSection
                 myJourneySection
-                travelPlansSection
                 lifestyleSection
                 interestsSection
             }

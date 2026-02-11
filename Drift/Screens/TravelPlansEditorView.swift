@@ -95,7 +95,7 @@ struct TravelPlansEditorView: View {
                     saveTravelStops()
                 }
             )
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.large])
         }
         .sheet(item: $editingStop) { stop in
             TravelStopEditorSheet(
@@ -108,7 +108,7 @@ struct TravelPlansEditorView: View {
                     }
                 }
             )
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.large])
         }
     }
 
