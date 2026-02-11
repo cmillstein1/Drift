@@ -11,7 +11,7 @@ public enum LookingFor: String, Codable, CaseIterable, Sendable {
         switch self {
         case .dating: return "Dating"
         case .friends: return "Friends"
-        case .both: return "Both"
+        case .both: return "Friends & Dating"
         }
     }
 }
