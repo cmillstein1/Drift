@@ -26,6 +26,7 @@ public class MessagingManager: ObservableObject {
     private var messageChannel: RealtimeChannelV2?
     private var conversationsChannel: RealtimeChannelV2?
     private var currentConversationId: UUID?
+    private var isFetchingConversations = false
     private var isSubscribingToConversations = false
     private var isSubscribingToMessages = false
     private var typingBroadcastSubscriptions: [RealtimeSubscription] = []
@@ -64,12 +65,18 @@ public class MessagingManager: ObservableObject {
             #endif
             throw MessagingError.notAuthenticated
         }
-        guard !isLoading else { return }
+        guard !isFetchingConversations else { return }
+        isFetchingConversations = true
 
         #if DEBUG
         print("[Messages] fetchConversations started (userId: \(userId.uuidString.prefix(8))...)")
         #endif
-        isLoading = true
+        // Only show the published loading indicator on initial fetch (no existing data).
+        // Refreshes keep existing data visible while fetching in the background.
+        let isInitialLoad = conversations.isEmpty
+        if isInitialLoad {
+            isLoading = true
+        }
 
         do {
             // Fetch conversations with participants
@@ -218,8 +225,10 @@ public class MessagingManager: ObservableObject {
 
             self.updateUnreadCount(userId: userId)
             isLoading = false
+            isFetchingConversations = false
         } catch {
             isLoading = false
+            isFetchingConversations = false
             let nsError = error as NSError
             if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
                 #if DEBUG
@@ -394,6 +403,30 @@ public class MessagingManager: ObservableObject {
             .eq("conversation_id", value: conversationId)
             .eq("user_id", value: userId)
             .execute()
+
+        // Auto-unhide for ALL participants when a message is sent.
+        // This clears hidden_at for everyone in the conversation so
+        // the thread resurfaces on both sides.
+        struct UnhideAllPayload: Encodable {
+            enum CodingKeys: String, CodingKey { case hidden_at }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encodeNil(forKey: .hidden_at)
+            }
+        }
+        try? await client
+            .from("conversation_participants")
+            .update(UnhideAllPayload())
+            .eq("conversation_id", value: conversationId)
+            .not("hidden_at", operator: .is, value: "null")
+            .execute()
+
+        // Update local state if the sender had it hidden
+        if let conv = conversations.first(where: { $0.id == conversationId }),
+           conv.isHidden(for: userId) {
+            updateParticipantFlag(conversationId: conversationId, userId: userId) { $0.hiddenAt = nil }
+            recentParticipantState[conversationId] = (hiddenAt: nil, leftAt: nil, at: Date())
+        }
 
         // Update the local conversation's lastMessage for immediate UI feedback
         if let index = conversations.firstIndex(where: { $0.id == conversationId }) {
@@ -828,10 +861,23 @@ public class MessagingManager: ObservableObject {
             table: "conversations"
         )
 
+        let inserts = channel.postgresChange(
+            InsertAction.self,
+            schema: "public",
+            table: "conversation_participants",
+            filter: "user_id=eq.\(userId)"
+        )
+
         await channel.subscribe()
 
         Task {
             for await _ in updates {
+                try? await self.fetchConversations()
+            }
+        }
+
+        Task {
+            for await _ in inserts {
                 try? await self.fetchConversations()
             }
         }

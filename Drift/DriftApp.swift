@@ -58,7 +58,9 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         let content = notification.request.content
         print("[FCM] Notification received (foreground): \(content.title) – \(content.body)")
         #endif
-        completionHandler([.banner, .badge, .sound, .list])
+        // Suppress notifications while the app is in the foreground —
+        // realtime updates already handle new messages/events in-app.
+        completionHandler([])
     }
 
     func userNotificationCenter(
