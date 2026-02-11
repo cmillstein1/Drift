@@ -238,7 +238,6 @@ struct PrivacySafetySupportSheet: View {
 
 struct BlockedUsersView: View {
     @StateObject private var friendsManager = FriendsManager.shared
-    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
     @State private var blockedList: [Friend] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
@@ -327,12 +326,6 @@ struct BlockedUsersView: View {
         .background(softGray)
         .navigationTitle("Blocked users")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            tabBarVisibility.isVisible = false
-        }
-        .onDisappear {
-            tabBarVisibility.isVisible = true
-        }
         .task {
             await loadBlocked()
         }

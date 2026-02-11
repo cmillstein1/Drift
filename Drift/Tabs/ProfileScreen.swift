@@ -14,7 +14,6 @@ struct ProfileScreen: View {
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var revenueCatManager = RevenueCatManager.shared
-    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
     @State private var isSigningOut = false
     @State private var showEditProfile = false
     @State private var showDiscoveryModeSheet = false
@@ -146,17 +145,10 @@ struct ProfileScreen: View {
                     VerificationView()
                 } else if destination == "editProfile" {
                     EditProfileScreen(onBack: {
-                        tabBarVisibility.isVisible = true
                         navigationPath.removeLast()
                     })
                 } else if destination == "privacySafetySupport" {
                     PrivacySafetySupportScreen()
-                }
-            }
-            .onChange(of: navigationPath) { _, newPath in
-                // Only show tab bar when fully back at profile root (no edit/detail push)
-                if newPath.isEmpty {
-                    tabBarVisibility.isVisible = true
                 }
             }
             .sheet(isPresented: $showPaywall) {
@@ -223,25 +215,6 @@ struct ProfileScreen: View {
                     Color.black.opacity(0.3)
                 }
                 .ignoresSafeArea(edges: .top)
-                
-                // Settings Button - positioned at bottom trailing
-                Button(action: {
-                    if hasDatingEnabled {
-                        showDatingSettings = true
-                    } else {
-                        showFriendsSettings = true
-                    }
-                }) {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
-                        .background(Color.black.opacity(0.2))
-                        .clipShape(Circle())
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(.trailing, 16)
-                .padding(.bottom, 16)
                 
                 // Profile Info - moved down to reduce spacing
                 VStack(spacing: 0) {
@@ -345,12 +318,6 @@ struct ProfileScreen: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 20))
                             }
                             .buttonStyle(PlainButtonStyle())
-                            .simultaneousGesture(
-                                TapGesture().onEnded {
-                                    let tabBarVisibility = TabBarVisibility.shared
-                                    tabBarVisibility.isVisible = false
-                                }
-                            )
                         }
                         
                         Spacer()
@@ -536,7 +503,37 @@ struct ProfileScreen: View {
             }
             
             menuDivider
-            
+
+            // Dating Preferences (only when dating is enabled)
+            if hasDatingEnabled {
+                Button(action: {
+                    showDatingSettings = true
+                }) {
+                    ProfileMenuRow(
+                        icon: "heart",
+                        iconStyle: .outline,
+                        title: "Dating Preferences",
+                        subtitle: nil
+                    )
+                }
+
+                menuDivider
+            }
+
+            // Community Preferences
+            Button(action: {
+                showFriendsSettings = true
+            }) {
+                ProfileMenuRow(
+                    icon: "person.2",
+                    iconStyle: .outline,
+                    title: "Community Preferences",
+                    subtitle: nil
+                )
+            }
+
+            menuDivider
+
             // Notifications
             Button(action: {
                 showNotificationsSheet = true
@@ -681,17 +678,24 @@ struct ProfileScreen: View {
     private func updateDiscoveryMode(_ mode: SupabaseManager.DiscoveryMode) async {
         do {
             try await supabaseManager.updateDiscoveryMode(mode)
+            profileManager.discoveryModeVersion += 1
             if mode == .both || mode == .dating {
-                // Check if dating onboarding is complete
-                let hasCompletedDatingOnboarding = profileManager.hasCompletedDatingOnboarding()
-                if !hasCompletedDatingOnboarding {
-                    // Determine starting step for partial onboarding
-                    let startStep = profileManager.getDatingOnboardingStartStep()
-                    // Store the start step for partial onboarding
-                    UserDefaults.standard.set(startStep, forKey: "datingOnboardingStartStep")
-                    supabaseManager.isShowingOnboarding = true
-                    supabaseManager.isShowingWelcomeSplash = false
-                    supabaseManager.isShowingPreferenceSelection = false
+                // If user already completed onboarding, just update their lookingFor
+                // so they appear in dating discovery — don't force them through onboarding again
+                let alreadyOnboarded = profileManager.currentProfile?.onboardingCompleted ?? false
+                if alreadyOnboarded {
+                    if profileManager.currentProfile?.lookingFor != .both && profileManager.currentProfile?.lookingFor != .dating {
+                        try await profileManager.updateProfile(ProfileUpdateRequest(lookingFor: .both))
+                    }
+                } else {
+                    let hasCompletedDatingOnboarding = profileManager.hasCompletedDatingOnboarding()
+                    if !hasCompletedDatingOnboarding {
+                        let startStep = profileManager.getDatingOnboardingStartStep()
+                        UserDefaults.standard.set(startStep, forKey: "datingOnboardingStartStep")
+                        supabaseManager.isShowingOnboarding = true
+                        supabaseManager.isShowingWelcomeSplash = false
+                        supabaseManager.isShowingPreferenceSelection = false
+                    }
                 }
             }
         } catch {

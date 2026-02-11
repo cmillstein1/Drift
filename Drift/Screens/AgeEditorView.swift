@@ -9,7 +9,6 @@ struct AgeEditorView: View {
     @Binding var age: String
     @Binding var birthday: Date?
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
     @State private var selectedDate: Date = Date()
 
     private let calendar = Calendar.current
@@ -119,18 +118,6 @@ struct AgeEditorView: View {
                 // Default to 18 years ago
                 selectedDate = maxDate
             }
-            // Immediately hide tab bar and keep it hidden
-            tabBarVisibility.isVisible = false
-            // Also set it with animation after a brief delay to override any other changes
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    tabBarVisibility.isVisible = false
-                }
-            }
-        }
-        .onDisappear {
-            // Don't show tab bar here - let EditProfileScreen handle it
         }
     }
 }

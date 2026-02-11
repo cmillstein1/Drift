@@ -62,9 +62,11 @@ struct NearbyFriendsFilterPreferences: Equatable, Codable {
         guard !referencePoints.isEmpty else { return true }
 
         // Use stored coordinates, or fall back to geocoded location string
+        // Treat sentinel values (-999) and out-of-range coords as missing
         let plat: Double
         let plon: Double
-        if let lat = profile.latitude, let lon = profile.longitude {
+        if let lat = profile.latitude, let lon = profile.longitude,
+           abs(lat) <= 90, abs(lon) <= 180 {
             plat = lat
             plon = lon
         } else if let geocoded = geocodedCoords[profile.id] {
@@ -296,6 +298,7 @@ struct NearbyFriendsFilterSheet: View {
             maxDistanceMiles: Int(maxDistanceMiles),
             alongMyRoute: alongMyRoute
         )
+        ProfileManager.shared.communityPrefsVersion += 1
         dismiss()
     }
 }

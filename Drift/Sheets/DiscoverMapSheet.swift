@@ -39,7 +39,6 @@ struct DiscoverMapSheet: View {
     let distanceMiles: (UserProfile) -> Int?
 
     @ObservedObject private var locationProvider = DiscoveryLocationProvider.shared
-    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var hasCenteredOnce = false
     /// Geocoded coords for profiles that have location string but no lat/lon (so they appear on map).
@@ -172,7 +171,6 @@ struct DiscoverMapSheet: View {
             }
         }
         .onAppear {
-            tabBarVisibility.isVisible = false
             DiscoveryLocationProvider.shared.requestLocation()
             centerMapIfNeeded()
             Task {
@@ -183,9 +181,6 @@ struct DiscoverMapSheet: View {
                     }
                 }
             }
-        }
-        .onDisappear {
-            tabBarVisibility.isVisible = true
         }
         .task {
             await geocodeProfilesWithLocationStringOnly()

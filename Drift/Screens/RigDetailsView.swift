@@ -78,8 +78,6 @@ private struct RigDetailsExtended: Codable {
 struct RigDetailsView: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var rigInfo: String
-    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
-
     @State private var isEditMode = false
     @State private var vanType = "Sprinter"
     @State private var year = "2019"
@@ -156,7 +154,6 @@ struct RigDetailsView: View {
         .onAppear {
             parseRigInfo()
             loadExtendedState()
-            tabBarVisibility.isVisible = false
         }
         .onDisappear {
             if !isEditMode {

@@ -27,8 +27,6 @@ struct FriendDetailView: View {
     }
     
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
-    
     // For navigation from friends grid, we don't want to dismiss all the way back
     var isFromFriendsGrid: Bool = false
     
@@ -481,16 +479,6 @@ struct FriendDetailView: View {
         .navigationBarBackButtonHidden(false)
         .toolbar(.hidden, for: .tabBar)
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            withAnimation {
-                tabBarVisibility.isVisible = false
-            }
-        }
-        .onDisappear {
-            withAnimation {
-                tabBarVisibility.isVisible = true
-            }
-        }
         .fullScreenCover(isPresented: $showFullScreenPhoto) {
             FriendDetailPhotoFullScreenView(
                 imageUrls: images,

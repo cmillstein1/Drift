@@ -9,7 +9,6 @@ import DriftBackend
 struct AboutEditorView: View {
     @Binding var about: String
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
     @StateObject private var profileManager = ProfileManager.shared
     @State private var editedAbout: String = ""
     @State private var isSaving = false
@@ -66,10 +65,6 @@ struct AboutEditorView: View {
         }
         .onAppear {
             editedAbout = about
-            tabBarVisibility.isVisible = false
-        }
-        .onDisappear {
-            // Keep tab bar hidden when popping back to Edit Profile
         }
     }
 

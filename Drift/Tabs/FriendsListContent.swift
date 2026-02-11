@@ -20,7 +20,6 @@ struct FriendsListContent: View {
     @StateObject private var friendsManager = FriendsManager.shared
     @ObservedObject private var supabaseManager = SupabaseManager.shared
     @ObservedObject private var discoveryLocation = DiscoveryLocationProvider.shared
-    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
     @State private var isLoading = true
     @State private var swipedIds: [UUID] = []
 
@@ -112,7 +111,7 @@ struct FriendsListContent: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.bottom, tabBarVisibility.isVisible ? LayoutConstants.tabBarBottomPadding : 0)
+        .padding(.bottom, LayoutConstants.tabBarBottomPadding)
     }
 
     @ViewBuilder
@@ -149,7 +148,7 @@ struct FriendsListContent: View {
             }
             DiscoverEndOfFeedView()
                 .padding(.top, 24)
-                .padding(.bottom, tabBarVisibility.isVisible ? 16 : 40)
+                .padding(.bottom, 16)
         }
     }
 
@@ -166,7 +165,7 @@ struct FriendsListContent: View {
                 ) {
                     scrollContent
                 }
-                .ignoresSafeArea(edges: tabBarVisibility.isVisible ? [] : .bottom)
+                .ignoresSafeArea(edges: [])
             } else {
                 ScrollView(showsIndicators: false) {
                     scrollContent

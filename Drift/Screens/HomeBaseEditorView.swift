@@ -8,7 +8,6 @@ import SwiftUI
 struct HomeBaseEditorView: View {
     @Binding var homeBase: String
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
     @State private var editedHomeBase: String = ""
 
     private let charcoalColor = Color("Charcoal")
@@ -71,13 +70,6 @@ struct HomeBaseEditorView: View {
         }
         .onAppear {
             editedHomeBase = homeBase
-            tabBarVisibility.isVisible = false
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 100_000_000)
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    tabBarVisibility.isVisible = false
-                }
-            }
         }
     }
 }

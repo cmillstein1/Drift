@@ -13,8 +13,6 @@ import DriftBackend
 struct MessageProfileDetailView: View {
     let profile: UserProfile
     @Binding var isOpen: Bool
-    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
-
     var body: some View {
         ProfileDetailView(
             profile: profile,
@@ -24,10 +22,5 @@ struct MessageProfileDetailView: View {
             showBackButton: true,
             showLikeAndPassButtons: false
         )
-        .onAppear {
-            tabBarVisibility.isVisible = false
-        }
-        // Do not set isVisible = true on disappear: we're returning to the message thread
-        // where the tab bar should stay hidden; it will show again when the user leaves the thread.
     }
 }

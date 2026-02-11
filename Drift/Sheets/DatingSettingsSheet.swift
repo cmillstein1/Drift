@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreLocation
 import DriftBackend
 
 // MARK: - Interested In Options
@@ -44,7 +45,8 @@ struct DatingFilterPreferences: Equatable, Codable {
         _ profile: UserProfile,
         currentUserLat: Double?,
         currentUserLon: Double?,
-        routeCoordinates: [ReferenceCoordinate] = []
+        routeCoordinates: [ReferenceCoordinate] = [],
+        geocodedCoords: [UUID: CLLocationCoordinate2D] = [:]
     ) -> Bool {
         if isUnlimitedDistance { return true }
 
@@ -57,12 +59,32 @@ struct DatingFilterPreferences: Equatable, Codable {
         }
 
         guard !referencePoints.isEmpty else { return true }
-        guard let plat = profile.latitude, let plon = profile.longitude else { return true }
 
-        return referencePoints.contains { ref in
+        // Use stored coordinates, or fall back to geocoded location string
+        // Treat sentinel values (-999) and out-of-range coords as missing
+        let plat: Double
+        let plon: Double
+        if let lat = profile.latitude, let lon = profile.longitude,
+           abs(lat) <= 90, abs(lon) <= 180 {
+            plat = lat
+            plon = lon
+        } else if let geocoded = geocodedCoords[profile.id] {
+            plat = geocoded.latitude
+            plon = geocoded.longitude
+        } else {
+            // No coordinates and no geocoded fallback — can't verify distance, exclude
+            print("[Dating Filter] \(profile.name ?? "?") has no coordinates — excluding from distance filter")
+            return false
+        }
+
+        let passed = referencePoints.contains { ref in
             let miles = Self.haversineMiles(lat1: ref.latitude, lon1: ref.longitude, lat2: plat, lon2: plon)
             return miles <= Double(maxDistanceMiles)
         }
+        if !passed {
+            print("[Dating Filter] \(profile.name ?? "?") filtered out — outside \(maxDistanceMiles) mi")
+        }
+        return passed
     }
 
     private static func haversineMiles(lat1: Double, lon1: Double, lat2: Double, lon2: Double) -> Double {

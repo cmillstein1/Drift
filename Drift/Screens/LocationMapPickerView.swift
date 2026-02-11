@@ -11,8 +11,6 @@ import DriftBackend
 struct LocationMapPickerView: View {
     @Binding var location: String
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
-
     @State private var selectedCoordinate: CLLocationCoordinate2D?
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var locationName: String = ""
@@ -179,19 +177,9 @@ struct LocationMapPickerView: View {
                 }
             }
             .onAppear {
-                // Immediately hide tab bar and keep it hidden
-                tabBarVisibility.isVisible = false
-                // Also set it with animation after a brief delay to override any other changes
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        tabBarVisibility.isVisible = false
-                    }
-                }
                 initializeLocation()
             }
             .onDisappear {
-                // Don't show tab bar here - let EditProfileScreen handle it
                 // Cancel any pending geocoding when view disappears
                 geocodeTask?.cancel()
             }

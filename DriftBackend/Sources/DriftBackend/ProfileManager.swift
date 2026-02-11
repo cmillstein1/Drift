@@ -23,6 +23,10 @@ public class ProfileManager: ObservableObject {
     @Published public var errorMessage: String?
     /// Incremented when dating preferences are saved; observed by DiscoverScreen to trigger re-fetch.
     @Published public var datingPrefsVersion: Int = 0
+    /// Incremented when community/friends preferences are saved; observed by DiscoverScreen to trigger re-fetch.
+    @Published public var communityPrefsVersion: Int = 0
+    /// Incremented when discovery mode changes; observed by DiscoverScreen to trigger re-fetch.
+    @Published public var discoveryModeVersion: Int = 0
 
     /// Guards against duplicate concurrent discover profile fetches from rapid tab switches.
     /// Separate flags for dating and friends so they don't block each other.

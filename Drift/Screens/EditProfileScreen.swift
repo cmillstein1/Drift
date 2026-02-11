@@ -15,8 +15,6 @@ struct EditProfileScreen: View {
     let onBack: () -> Void
     @Environment(\.dismiss) var dismiss
     @StateObject var profileManager = ProfileManager.shared
-    @ObservedObject var tabBarVisibility = TabBarVisibility.shared
-    
     @State var name: String = ""
     @State var age: String = ""
     @State var birthday: Date?
@@ -138,7 +136,6 @@ struct EditProfileScreen: View {
     var body: some View {
         mainContentWithNav
             .onAppear(perform: handleOnAppear)
-            .task { tabBarVisibility.isVisible = false }
             .onChange(of: name) { _, _ in checkForChanges() }
             .onChange(of: age) { _, _ in checkForChanges() }
             .onChange(of: currentLocation) { _, _ in checkForChanges() }
@@ -193,13 +190,6 @@ struct EditProfileScreen: View {
         if !hasLoadedInitialData {
             loadProfileData()
             hasLoadedInitialData = true
-        }
-        tabBarVisibility.isVisible = false
-        Task { @MainActor in
-            for delay in [0.05, 0.1, 0.2, 0.3, 0.5] {
-                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                tabBarVisibility.isVisible = false
-            }
         }
     }
 
@@ -597,10 +587,6 @@ struct EditProfileScreen: View {
                         promptAnswers = cappedPrompts
                     }
                     isSaving = false
-                    // Show tab bar before going back
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        tabBarVisibility.isVisible = true
-                    }
                     onBack()
                 }
             } catch {

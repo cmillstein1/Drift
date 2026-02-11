@@ -639,15 +639,10 @@ struct MessagesScreen: View {
                 conversation: conversation,
                 onClose: {
                     selectedConversation = nil
-                    tabBarVisibility.isVisible = true
                 }
             )
             .navigationBarBackButtonHidden(true)
-            .onAppear {
-                tabBarVisibility.isVisible = false
-            }
             .onDisappear {
-                tabBarVisibility.isVisible = true
                 loadConversations()
             }
         }

@@ -77,7 +77,7 @@ struct DiscoveryModeSheet: View {
                                 endPoint: .bottomTrailing
                             ),
                             accentColor: burntOrange,
-                            showSetupNote: !profileManager.hasCompletedDatingOnboarding()
+                            showSetupNote: !(profileManager.currentProfile?.onboardingCompleted ?? false) && !profileManager.hasCompletedDatingOnboarding()
                         ) {
                             onSelectDatingAndFriends()
                             dismiss()

@@ -14,7 +14,6 @@ import Auth
 // Observable object for tab bar visibility and cross-tab navigation
 class TabBarVisibility: ObservableObject {
     static let shared = TabBarVisibility()
-    @Published var isVisible: Bool = true
     /// When true, Messages "Find friends" requested switch to Discover tab.
     @Published var switchToDiscoverInFriendsMode: Bool = false
     /// When true, Discover should open in Friends mode (cleared after consumed).
@@ -87,32 +86,11 @@ struct ContentView: View {
             }
             .ignoresSafeArea(edges: .bottom)
 
-            // Tab bar: slide away when user scrolls down, show when near top (or when full-screen context hides it)
             floatingTabBar
-                .offset(y: tabBarVisibility.isVisible ? 0 : LayoutConstants.tabBarHeight)
-                .opacity(tabBarVisibility.isVisible ? 1 : 0)
-                .allowsHitTesting(tabBarVisibility.isVisible)
-                .animation(.easeInOut(duration: 0.25), value: tabBarVisibility.isVisible)
         }
         .toolbar(.hidden, for: .navigationBar)
         }
         .ignoresSafeArea(.keyboard)
-        .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offsetY in
-            // Slide tab bar away when scrolling down, show when near top (hysteresis to avoid flicker)
-            let hideThreshold: CGFloat = -50
-            let showThreshold: CGFloat = -20
-            let shouldHide = offsetY < hideThreshold
-            let shouldShow = offsetY > showThreshold
-            if shouldHide, tabBarVisibility.isVisible {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    tabBarVisibility.isVisible = false
-                }
-            } else if shouldShow, !tabBarVisibility.isVisible {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    tabBarVisibility.isVisible = true
-                }
-            }
-        }
         .task(id: supabaseManager.currentUser?.id) {
             guard supabaseManager.currentUser != nil else { return }
             // Initialize all app data (conversations, friends, matches, etc.)
@@ -138,19 +116,6 @@ struct ContentView: View {
             if requested {
                 selectedTab = .discover
                 tabBarVisibility.switchToDiscoverInFriendsMode = false
-            }
-        }
-        .onChange(of: selectedTab) { _, newTab in
-            // Tabs that don't report scroll offset (Map, Community, Messages) should show tab bar when selected
-            switch newTab {
-            case .map, .community, .messages:
-                if !tabBarVisibility.isVisible {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        tabBarVisibility.isVisible = true
-                    }
-                }
-            case .discover, .profile:
-                break
             }
         }
         .onChange(of: deepLinkRouter.pending) { _, destination in

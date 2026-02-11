@@ -279,7 +279,15 @@ struct DriftApp: App {
             .onChange(of: supabaseManager.isCheckingAuth) { _, _ in dismissSplashIfReady() }
             .onChange(of: supabaseManager.hasRedeemedInvite) { _, _ in dismissSplashIfReady() }
             .onChange(of: profileManager.isLoading) { _, _ in dismissSplashIfReady() }
-            .onChange(of: supabaseManager.isAuthenticated) { _, _ in dismissSplashIfReady() }
+            .onChange(of: supabaseManager.isAuthenticated) { oldValue, newValue in
+                if newValue && !oldValue {
+                    // User just signed in — re-show splash to cover the loading
+                    // period (profile fetch, config, invite check) so onboarding
+                    // screens don't flash briefly.
+                    showSplash = true
+                }
+                dismissSplashIfReady()
+            }
             .onChange(of: appConfigManager.isConfigured) { _, _ in dismissSplashIfReady() }
             .task(id: supabaseManager.isAuthenticated) {
                 if supabaseManager.isAuthenticated {

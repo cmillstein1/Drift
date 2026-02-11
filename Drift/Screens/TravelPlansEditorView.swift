@@ -11,8 +11,6 @@ import DriftBackend
 struct TravelPlansEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var profileManager = ProfileManager.shared
-    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
-
     @State private var travelStops: [DriftBackend.TravelStop] = []
     @State private var isLoading = true
     @State private var isSaving = false
@@ -86,7 +84,6 @@ struct TravelPlansEditorView: View {
             }
         }
         .onAppear {
-            tabBarVisibility.isVisible = false
             loadTravelStops()
         }
         .sheet(isPresented: $showAddStop) {

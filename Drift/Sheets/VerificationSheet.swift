@@ -11,7 +11,6 @@ import DriftBackend
 struct VerificationView: View {
     @StateObject private var verifyFaceIDManager = VerifyFaceIDManager.shared
     @StateObject private var profileManager = ProfileManager.shared
-    @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
     @Environment(\.dismiss) private var dismiss
     
     @State private var showCamera = false
@@ -42,7 +41,6 @@ struct VerificationView: View {
                 HStack {
                     Spacer()
                     Button(action: {
-                        tabBarVisibility.isVisible = true
                         dismiss()
                     }) {
                         Text("Done")
@@ -72,14 +70,6 @@ struct VerificationView: View {
             }
         }
         .navigationBarHidden(true)
-        .onAppear {
-            // Hide tab bar when verification screen appears
-            tabBarVisibility.isVisible = false
-        }
-        .onDisappear {
-            // Show tab bar when verification screen disappears
-            tabBarVisibility.isVisible = true
-        }
         .fullScreenCover(isPresented: $showCamera) {
             FaceVerificationCameraView(capturedImage: $capturedImage)
                 .ignoresSafeArea(.all)
@@ -298,7 +288,6 @@ struct VerificationView: View {
             
             // Done Button
             Button(action: {
-                tabBarVisibility.isVisible = true
                 dismiss()
             }) {
                 Text("Done")

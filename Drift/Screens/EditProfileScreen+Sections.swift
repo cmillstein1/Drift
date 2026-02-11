@@ -108,7 +108,6 @@ extension EditProfileScreen {
                 ProfileEditRow(title: "Name", value: name.isEmpty ? "Add your name" : name)
             }
             .buttonStyle(PlainButtonStyle())
-            .simultaneousGesture(TapGesture().onEnded { hideTabBar() })
 
             Divider().background(Color.gray.opacity(0.1))
 
@@ -116,7 +115,6 @@ extension EditProfileScreen {
                 ProfileEditRow(title: "Age", value: age.isEmpty ? "Add your age" : age)
             }
             .buttonStyle(PlainButtonStyle())
-            .simultaneousGesture(TapGesture().onEnded { hideTabBar() })
 
             Divider().background(Color.gray.opacity(0.1))
 
@@ -124,7 +122,6 @@ extension EditProfileScreen {
                 ProfileEditRow(title: "Current Location", value: currentLocation.isEmpty ? "Add location" : currentLocation)
             }
             .buttonStyle(PlainButtonStyle())
-            .simultaneousGesture(TapGesture().onEnded { hideTabBar() })
 
             Divider().background(Color.gray.opacity(0.1))
 
@@ -132,7 +129,6 @@ extension EditProfileScreen {
                 ProfileEditRow(title: "The Rig", value: rigInfo.isEmpty ? "Add your rig info" : rigInfo)
             }
             .buttonStyle(PlainButtonStyle())
-            .simultaneousGesture(TapGesture().onEnded { hideTabBar() })
 
             Divider().background(Color.gray.opacity(0.1))
 
@@ -155,7 +151,6 @@ extension EditProfileScreen {
                 ProfileEditRow(title: "About", value: about.isEmpty ? "Add your answer" : about, isMultiline: true)
             }
             .buttonStyle(PlainButtonStyle())
-            .simultaneousGesture(TapGesture().onEnded { hideTabBar() })
 
             if !promptAnswers.isEmpty {
                 ForEach(Array(promptAnswers.enumerated()), id: \.offset) { index, promptAnswer in
@@ -239,7 +234,6 @@ extension EditProfileScreen {
                 .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
-            .simultaneousGesture(TapGesture().onEnded { hideTabBar() })
         }
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -262,7 +256,6 @@ extension EditProfileScreen {
                 ProfileEditRow(title: "Home Base", value: homeBase.isEmpty ? "Add home base" : homeBase)
             }
             .buttonStyle(PlainButtonStyle())
-            .simultaneousGesture(TapGesture().onEnded { hideTabBar() })
 
             Divider().background(Color.gray.opacity(0.1))
 
@@ -380,9 +373,4 @@ extension EditProfileScreen {
         .background(Color.white)
     }
 
-    private func hideTabBar() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            tabBarVisibility.isVisible = false
-        }
-    }
 }

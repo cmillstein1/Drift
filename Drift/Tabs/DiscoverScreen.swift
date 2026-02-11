@@ -20,6 +20,7 @@ struct DiscoverScreen: View {
     @StateObject private var revenueCatManager = RevenueCatManager.shared
     @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
     @StateObject private var notificationsManager = NotificationsManager.shared
+    @ObservedObject private var locationProvider = DiscoveryLocationProvider.shared
 
     @State private var showNotificationsSheet: Bool = false
     @State private var swipedIds: Set<UUID> = []
@@ -116,7 +117,12 @@ struct DiscoverScreen: View {
         let userLat = coord?.latitude ?? profileManager.currentProfile?.latitude
         let userLon = coord?.longitude ?? profileManager.currentProfile?.longitude
         let unswiped = profiles.filter { !swipedIds.contains($0.id) }
-        return unswiped.filter { datingFilterPreferences.matches($0, currentUserLat: userLat, currentUserLon: userLon, routeCoordinates: routeCoordinates) }
+        print("[Dating Debug] visibleDatingProfiles: total=\(profiles.count), unswiped=\(unswiped.count), userLat=\(userLat ?? 0), userLon=\(userLon ?? 0), maxDist=\(datingFilterPreferences.maxDistanceMiles), alongRoute=\(datingFilterPreferences.alongMyRoute), unlimited=\(datingFilterPreferences.isUnlimitedDistance), geocoded=\(geocodedProfileCoords.count)")
+        let result = unswiped.filter { datingFilterPreferences.matches($0, currentUserLat: userLat, currentUserLon: userLon, routeCoordinates: routeCoordinates, geocodedCoords: geocodedProfileCoords) }
+        if unswiped.count != result.count {
+            print("[Dating Debug] Filtered \(unswiped.count - result.count) profiles by distance")
+        }
+        return result
     }
 
     /// Current profile for full-screen dating view
@@ -149,13 +155,15 @@ struct DiscoverScreen: View {
     }
 
     /// Events filtered by the same distance preferences as friends.
+    /// The user's own events always pass the filter.
     private var visibleEvents: [CommunityPost] {
         let coord = DiscoveryLocationProvider.shared.lastCoordinate
         let userLat = coord?.latitude ?? profileManager.currentProfile?.latitude
         let userLon = coord?.longitude ?? profileManager.currentProfile?.longitude
+        let currentUserId = supabaseManager.currentUser?.id
         return communityManager.posts
             .filter { $0.type == .event }
-            .filter { friendsFilterPreferences.matchesEvent($0, currentUserLat: userLat, currentUserLon: userLon, routeCoordinates: routeCoordinates) }
+            .filter { $0.authorId == currentUserId || friendsFilterPreferences.matchesEvent($0, currentUserLat: userLat, currentUserLon: userLon, routeCoordinates: routeCoordinates) }
     }
 
     /// Current profile for full-screen friends view
@@ -237,9 +245,7 @@ struct DiscoverScreen: View {
                 if mode == targetMode {
                     currentIndex = 0
                 }
-                if lookingFor == .friends || lookingFor == .both {
-                    await geocodeProfilesWithoutCoordinates()
-                }
+                await geocodeProfilesWithoutCoordinates()
             } catch {
                 print("Failed to load profiles: \(error)")
             }
@@ -308,24 +314,56 @@ struct DiscoverScreen: View {
         }
     }
 
-    /// Geocode profiles that have a location string but no lat/lon so distance filtering works.
+    /// Returns true if the profile has valid (non-sentinel) coordinates.
+    private func hasValidCoordinates(_ profile: UserProfile) -> Bool {
+        guard let lat = profile.latitude, let lon = profile.longitude else { return false }
+        return abs(lat) <= 90 && abs(lon) <= 180
+    }
+
+    /// Geocode profiles that have a location string but no valid lat/lon so distance filtering works.
+    /// Processes both friends and dating profiles.
     private func geocodeProfilesWithoutCoordinates() async {
-        let needGeocode = friendsProfiles.filter { p in
-            p.latitude == nil && p.longitude == nil &&
-            p.location != nil && !p.location!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let allProfiles = friendsProfiles + profiles
+        // Deduplicate by ID and filter to profiles needing geocoding
+        var seen = Set<UUID>()
+        let needGeocode = allProfiles.filter { p in
+            guard !seen.contains(p.id) else { return false }
+            seen.insert(p.id)
+            return !hasValidCoordinates(p) &&
+                p.location != nil && !p.location!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                geocodedProfileCoords[p.id] == nil
         }
         guard !needGeocode.isEmpty else { return }
+        print("[Geocode] Geocoding \(needGeocode.count) profiles without valid coordinates")
         let geocoder = CLGeocoder()
         for p in needGeocode {
             let locationString = p.location!.trimmingCharacters(in: .whitespacesAndNewlines)
             if let cached = locationGeocodeCache[locationString] {
                 geocodedProfileCoords[p.id] = cached
+                print("[Geocode] \(p.name ?? "?") — cached '\(locationString)' → \(cached.latitude), \(cached.longitude)")
                 continue
             }
-            guard let placemarks = try? await geocoder.geocodeAddressString(locationString),
-                  let coord = placemarks.first?.location?.coordinate else { continue }
-            locationGeocodeCache[locationString] = coord
-            geocodedProfileCoords[p.id] = coord
+            // Try geocoding as-is first, then retry with ", USA" if it fails
+            var coord: CLLocationCoordinate2D? = nil
+            if let placemarks = try? await geocoder.geocodeAddressString(locationString),
+               let c = placemarks.first?.location?.coordinate {
+                coord = c
+            } else {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                let withCountry = locationString + ", USA"
+                if let placemarks = try? await geocoder.geocodeAddressString(withCountry),
+                   let c = placemarks.first?.location?.coordinate {
+                    coord = c
+                    print("[Geocode] \(p.name ?? "?") — retried with '\(withCountry)'")
+                }
+            }
+            if let coord = coord {
+                locationGeocodeCache[locationString] = coord
+                geocodedProfileCoords[p.id] = coord
+                print("[Geocode] \(p.name ?? "?") — geocoded '\(locationString)' → \(coord.latitude), \(coord.longitude)")
+            } else {
+                print("[Geocode] \(p.name ?? "?") — failed to geocode '\(locationString)'")
+            }
             try? await Task.sleep(nanoseconds: 300_000_000)
         }
     }
@@ -482,16 +520,12 @@ struct DiscoverScreen: View {
                 // Default to Friends (travel community first) for App Store positioning
                 mode = .friends
                 // Preload both datasets for instant tab switching
-                if profileManager.discoverProfiles.isEmpty {
-                    loadProfiles(forMode: .dating)
-                }
+                loadProfiles(forMode: .dating)
                 if profileManager.discoverProfilesFriends.isEmpty {
                     preloadFriendsProfiles()
                 }
             } else if discoveryMode == .dating {
-                if profileManager.discoverProfiles.isEmpty {
-                    loadProfiles(forMode: .dating)
-                }
+                loadProfiles(forMode: .dating)
             } else if discoveryMode == .friends {
                 // Friends-only mode - load friends profiles for community grid
                 mode = .friends
@@ -499,10 +533,8 @@ struct DiscoverScreen: View {
                     preloadFriendsProfiles()
                 }
             }
-            tabBarVisibility.isVisible = true
-
-            // Load route coordinates if along-my-route is already enabled
-            if friendsFilterPreferences.alongMyRoute {
+            // Load route coordinates if along-my-route is enabled in either filter
+            if friendsFilterPreferences.alongMyRoute || datingFilterPreferences.alongMyRoute {
                 loadRouteCoordinates()
             }
 
@@ -516,7 +548,6 @@ struct DiscoverScreen: View {
             Task { try? await communityManager.fetchPosts(type: .event) }
         }
         .onDisappear {
-            tabBarVisibility.isVisible = true
             loadProfilesTask?.cancel()
             preloadFriendsTask?.cancel()
             recycleProfilesTask?.cancel()
@@ -529,9 +560,6 @@ struct DiscoverScreen: View {
             profileTransitionOpacity = 1.0
             // Clear reverse state when switching modes
             lastPassedProfile = nil
-
-            // Keep tab bar visible in both modes
-            tabBarVisibility.isVisible = true
 
             // Only reload if profiles for this mode are empty (preserve cached data when switching)
             if newMode == .dating && profileManager.discoverProfiles.isEmpty {
@@ -551,8 +579,9 @@ struct DiscoverScreen: View {
             } else {
                 routeCoordinates = []
             }
-            // Re-fetch friends profiles with updated along-my-route setting
+            // Re-fetch friends profiles and events with updated settings
             preloadFriendsProfiles()
+            Task { try? await communityManager.fetchPosts(type: .event) }
         }
         .fullScreenCover(item: $matchedProfile) { profile in
             MatchAnimationView(
@@ -624,14 +653,41 @@ struct DiscoverScreen: View {
             DatingSettingsSheet(isPresented: $showDatingSettings)
         }
         .onChange(of: profileManager.datingPrefsVersion) { _, _ in
-            // Dating preferences were saved — reload filter prefs and re-fetch profiles
+            // Dating preferences were saved — reload filter prefs and re-fetch profiles + events
             datingFilterPreferences = DatingFilterPreferences.fromStorage()
+            if datingFilterPreferences.alongMyRoute {
+                loadRouteCoordinates()
+            }
             loadProfilesTask?.cancel()
             profileManager.resetFetchGuard(for: .dating)
             currentDatingProfileIndex = 0
             currentIndex = 0
             profileManager.discoverProfiles = []
             loadProfiles(forMode: .dating)
+            Task { try? await communityManager.fetchPosts(type: .event) }
+        }
+        .onChange(of: profileManager.communityPrefsVersion) { _, _ in
+            // Community preferences were saved — reload filter prefs and re-fetch profiles + events
+            friendsFilterPreferences = NearbyFriendsFilterPreferences.fromStorage()
+        }
+        .onChange(of: profileManager.discoveryModeVersion) { _, _ in
+            // Discovery mode changed — re-fetch all data for the new mode
+            let discoveryMode = supabaseManager.getDiscoveryMode()
+            if discoveryMode == .both {
+                mode = .friends
+                profileManager.resetFetchGuard(for: .dating)
+                profileManager.resetFetchGuard(for: .friends)
+                loadProfiles(forMode: .dating)
+                preloadFriendsProfiles()
+            } else if discoveryMode == .dating {
+                profileManager.resetFetchGuard(for: .dating)
+                loadProfiles(forMode: .dating)
+            } else {
+                mode = .friends
+                profileManager.resetFetchGuard(for: .friends)
+                preloadFriendsProfiles()
+            }
+            Task { try? await communityManager.fetchPosts(type: .event) }
         }
         .sheet(isPresented: $showFilters) {
             NearbyFriendsFilterSheet(
@@ -1374,7 +1430,7 @@ struct DiscoverScreen: View {
 
                 Spacer()
             }
-            .padding(.bottom, tabBarVisibility.isVisible ? LayoutConstants.tabBarBottomPadding : 24)
+            .padding(.bottom, LayoutConstants.tabBarBottomPadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(softGray)
