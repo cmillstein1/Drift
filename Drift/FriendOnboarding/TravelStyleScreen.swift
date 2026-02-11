@@ -13,6 +13,7 @@ struct TravelStyle: Identifiable {
     let title: String
     let description: String
     let icon: String
+    let imageName: String
     let gradient: LinearGradient
 }
 
@@ -30,6 +31,8 @@ struct TravelStyleScreen: View {
     @State private var selectedStyle: String? = nil
     @State private var selectedSocial: String? = nil
     @State private var isSaving = false
+    @State private var currentStyleIndex: Int = 0
+    @State private var dragOffset: CGFloat = 0
     
     private let softGray = Color("SoftGray")
     private let charcoalColor = Color("Charcoal")
@@ -44,8 +47,9 @@ struct TravelStyleScreen: View {
             TravelStyle(
                 id: "van-life",
                 title: "Van Life",
-                description: "Living on the road in a converted van",
+                description: "Living on the road, waking up to new views",
                 icon: "car.fill",
+                imageName: "VanLife",
                 gradient: LinearGradient(
                     gradient: Gradient(colors: [burntOrange, sunsetRose]),
                     startPoint: .topLeading,
@@ -55,8 +59,9 @@ struct TravelStyleScreen: View {
             TravelStyle(
                 id: "digital-nomad",
                 title: "Digital Nomad",
-                description: "Working remotely from different locations",
+                description: "Working remotely from anywhere in the world",
                 icon: "backpack.fill",
+                imageName: "DigitalNomad",
                 gradient: LinearGradient(
                     gradient: Gradient(colors: [skyBlue, forestGreen]),
                     startPoint: .topLeading,
@@ -66,8 +71,9 @@ struct TravelStyleScreen: View {
             TravelStyle(
                 id: "slow-travel",
                 title: "Slow Travel",
-                description: "Staying months at a time in each place",
+                description: "Taking time to truly experience each place",
                 icon: "house.fill",
+                imageName: "SlowTraveler",
                 gradient: LinearGradient(
                     gradient: Gradient(colors: [forestGreen, desertSand]),
                     startPoint: .topLeading,
@@ -77,8 +83,9 @@ struct TravelStyleScreen: View {
             TravelStyle(
                 id: "frequent-traveler",
                 title: "Frequent Traveler",
-                description: "Always exploring new destinations",
+                description: "Always chasing the next adventure",
                 icon: "airplane",
+                imageName: "AdventureSeeker",
                 gradient: LinearGradient(
                     gradient: Gradient(colors: [desertSand, burntOrange]),
                     startPoint: .topLeading,
@@ -93,14 +100,14 @@ struct TravelStyleScreen: View {
             SocialPreference(
                 id: "solo",
                 title: "Solo Explorer",
-                description: "I travel alone and like meeting people along the way",
+                description: "Travel alone, meet people along the way",
                 icon: "person.fill"
             ),
             SocialPreference(
                 id: "group",
                 title: "Group Traveler",
-                description: "I prefer traveling with friends or joining groups",
-                icon: "person.3.fill"
+                description: "Prefer traveling with friends or groups",
+                icon: "person.2.fill"
             )
         ]
     }
@@ -139,60 +146,111 @@ struct TravelStyleScreen: View {
         }
     }
 
+    private func selectStyleAtIndex(_ index: Int) {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            currentStyleIndex = index
+            selectedStyle = travelStyles[index].id
+        }
+    }
+
     var body: some View {
         ZStack {
             softGray
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 0) {
-                // Header
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("What's your travel style?")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(charcoalColor)
-                    
-                    Text("Help us connect you with your kind of people")
-                        .font(.system(size: 14))
-                        .foregroundColor(charcoalColor.opacity(0.6))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
-                .padding(.bottom, 24)
-                
-                // Content
                 ScrollView {
-                    VStack(spacing: 32) {
-                        // Travel Lifestyle
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("TRAVEL LIFESTYLE")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(charcoalColor.opacity(0.5))
-                                .tracking(1)
-                            
-                            VStack(spacing: 12) {
-                                ForEach(travelStyles) { style in
-                                    TravelStyleCard(
-                                        style: style,
-                                        isSelected: selectedStyle == style.id,
-                                        onTap: {
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                                selectedStyle = style.id
-                                            }
-                                        }
-                                    )
-                                }
+                    VStack(spacing: 0) {
+                        // Header
+                        VStack(spacing: 8) {
+                            Text("How do you travel?")
+                                .font(.system(size: 28, weight: .bold))
+                                .foregroundColor(charcoalColor)
+
+                            Text("Swipe to choose your style")
+                                .font(.system(size: 14))
+                                .foregroundColor(charcoalColor.opacity(0.6))
+                        }
+                        .padding(.top, 16)
+                        .padding(.bottom, 24)
+
+                        // Image Carousel
+                        let imageSpacing: CGFloat = 260
+                        ZStack {
+                            ForEach(Array(travelStyles.enumerated()), id: \.element.id) { index, style in
+                                let offset = CGFloat(index - currentStyleIndex) * imageSpacing + dragOffset
+                                let isActive = index == currentStyleIndex
+
+                                Image(style.imageName)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 240, height: 170)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    .opacity(isActive ? 1 : 0.35)
+                                    .shadow(color: isActive ? .black.opacity(0.15) : .clear, radius: 12, x: 0, y: 6)
+                                    .offset(x: offset)
                             }
                         }
-                        
-                        // Social Preference
-                        VStack(alignment: .leading, spacing: 16) {
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 190)
+                        .clipped()
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    dragOffset = value.translation.width
+                                }
+                                .onEnded { value in
+                                    let predicted = value.predictedEndTranslation.width
+                                    let threshold: CGFloat = imageSpacing / 3
+                                    var newIndex = currentStyleIndex
+                                    if predicted < -threshold {
+                                        newIndex = min(currentStyleIndex + 1, travelStyles.count - 1)
+                                    } else if predicted > threshold {
+                                        newIndex = max(currentStyleIndex - 1, 0)
+                                    }
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                        currentStyleIndex = newIndex
+                                        selectedStyle = travelStyles[newIndex].id
+                                        dragOffset = 0
+                                    }
+                                }
+                        )
+
+                        // Title and description for current style
+                        VStack(spacing: 6) {
+                            Text(travelStyles[currentStyleIndex].title)
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(charcoalColor)
+
+                            Text(travelStyles[currentStyleIndex].description)
+                                .font(.system(size: 15))
+                                .foregroundColor(charcoalColor.opacity(0.6))
+                        }
+                        .padding(.top, 12)
+
+                        // Page indicator dots
+                        HStack(spacing: 8) {
+                            ForEach(0..<travelStyles.count, id: \.self) { index in
+                                Capsule()
+                                    .fill(index == currentStyleIndex ? charcoalColor : charcoalColor.opacity(0.25))
+                                    .frame(
+                                        width: index == currentStyleIndex ? 24 : 8,
+                                        height: 8
+                                    )
+                                    .animation(.spring(response: 0.3), value: currentStyleIndex)
+                            }
+                        }
+                        .padding(.top, 16)
+
+                        // Social Preference Section
+                        VStack(spacing: 16) {
                             Text("SOCIAL PREFERENCE")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(charcoalColor.opacity(0.5))
                                 .tracking(1)
-                            
-                            VStack(spacing: 12) {
+                                .padding(.top, 32)
+
+                            HStack(spacing: 16) {
                                 ForEach(socialPreferences) { pref in
                                     SocialPreferenceCard(
                                         preference: pref,
@@ -206,18 +264,17 @@ struct TravelStyleScreen: View {
                                 }
                             }
                         }
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 100)
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 100)
                 }
             }
-            
-            // Bottom CTA - Pinned to bottom with solid background
+
+            // Bottom CTA
             VStack(spacing: 0) {
                 Spacer()
-                
+
                 VStack(spacing: 0) {
-                    // Button - Make entire area clickable
                     Button(action: {
                         if canContinue {
                             saveAndContinue()
@@ -260,74 +317,9 @@ struct TravelStyleScreen: View {
                 .background(Color.softGray)
             }
         }
-    }
-}
-
-struct TravelStyleCard: View {
-    let style: TravelStyle
-    let isSelected: Bool
-    let onTap: () -> Void
-    
-    private let charcoalColor = Color("Charcoal")
-    private let forestGreen = Color("ForestGreen")
-    
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 16) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(isSelected ? Color.white.opacity(0.2) : Color.white)
-                        .frame(width: 48, height: 48)
-                    
-                    Image(systemName: style.icon)
-                        .font(.system(size: 24))
-                        .foregroundColor(isSelected ? .white : charcoalColor)
-                }
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(style.title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(isSelected ? .white : charcoalColor)
-                    
-                    Text(style.description)
-                        .font(.system(size: 13))
-                        .foregroundColor(isSelected ? .white.opacity(0.8) : charcoalColor.opacity(0.6))
-                }
-                
-                Spacer()
-
-                ZStack {
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 24, height: 24)
-
-                    Circle()
-                        .fill(forestGreen)
-                        .frame(width: 12, height: 12)
-                }
-                .opacity(isSelected ? 1 : 0)
-            }
-            .padding(16)
-            .background(
-                ZStack {
-                    if isSelected {
-                        style.gradient
-                    } else {
-                        Color.white
-                    }
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(
-                        isSelected ? Color.clear : Color.gray.opacity(0.2),
-                        lineWidth: isSelected ? 0 : 1
-                    )
-            )
-            .shadow(color: isSelected ? .black.opacity(0.1) : .clear, radius: 8, x: 0, y: 4)
+        .onAppear {
+            selectedStyle = travelStyles[0].id
         }
-        .buttonStyle(PlainButtonStyle())
     }
 }
 
@@ -335,73 +327,47 @@ struct SocialPreferenceCard: View {
     let preference: SocialPreference
     let isSelected: Bool
     let onTap: () -> Void
-    
+
     private let charcoalColor = Color("Charcoal")
-    private let skyBlue = Color("SkyBlue")
+    private let burntOrange = Color("BurntOrange")
     private let forestGreen = Color("ForestGreen")
-    private let softGray = Color("SoftGray")
-    
+
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 16) {
+            VStack(spacing: 12) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(
-                            isSelected ?
-                            LinearGradient(
-                                gradient: Gradient(colors: [skyBlue, forestGreen]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ) :
-                            LinearGradient(
-                                gradient: Gradient(colors: [softGray, softGray]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 48, height: 48)
-                    
+                    Circle()
+                        .fill(Color("SoftGray"))
+                        .frame(width: 56, height: 56)
+
                     Image(systemName: preference.icon)
                         .font(.system(size: 24))
-                        .foregroundColor(isSelected ? .white : charcoalColor)
+                        .foregroundColor(
+                            preference.id == "solo" ? burntOrange : forestGreen
+                        )
                 }
-                
-                VStack(alignment: .leading, spacing: 4) {
+
+                VStack(spacing: 4) {
                     Text(preference.title)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(charcoalColor)
-                    
+
                     Text(preference.description)
                         .font(.system(size: 13))
-                        .foregroundColor(charcoalColor.opacity(0.6))
+                        .foregroundColor(charcoalColor.opacity(0.5))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                
-                Spacer()
-
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [skyBlue, forestGreen]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 24, height: 24)
-
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 12, height: 12)
-                }
-                .opacity(isSelected ? 1 : 0)
             }
-            .padding(16)
+            .padding(.vertical, 24)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity)
             .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 20))
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(
-                        isSelected ? skyBlue : Color.gray.opacity(0.2),
+                        isSelected ? forestGreen : Color.gray.opacity(0.15),
                         lineWidth: isSelected ? 2 : 1
                     )
             )

@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "DigitalNomad.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
