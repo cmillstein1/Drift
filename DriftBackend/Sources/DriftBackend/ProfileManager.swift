@@ -734,12 +734,11 @@ public class ProfileManager: ObservableObject {
     // MARK: - Dating Onboarding
     
     /// Checks if a profile has completed dating-specific onboarding (used for current user or discovery).
-    /// Returns true if they have gender set, lookingFor set to dating/both, and at least 3 prompt answers.
+    /// Returns true if they have gender set and lookingFor set to dating/both.
     public static func hasCompletedDatingOnboarding(profile: UserProfile) -> Bool {
         let hasGender = !(profile.gender?.isEmpty ?? true)
         let isLookingForDating = profile.lookingFor == .dating || profile.lookingFor == .both
-        let hasPromptAnswers = (profile.promptAnswers?.count ?? 0) >= 3
-        return hasGender && isLookingForDating && hasPromptAnswers
+        return hasGender && isLookingForDating
     }
 
     /// Checks if the current user has completed dating-specific onboarding.

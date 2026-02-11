@@ -737,15 +737,15 @@ struct DiscoverScreen: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            // Show the appropriate pane based on mode (smooth crossfade)
+            // Both panes stay alive for instant switching; toggle visibility with opacity
             ZStack {
-                if mode == .friends {
-                    unifiedFriendsPane
-                        .transition(.opacity)
-                } else {
-                    unifiedDatingPane
-                        .transition(.opacity)
-                }
+                unifiedFriendsPane
+                    .opacity(mode == .friends ? 1 : 0)
+                    .allowsHitTesting(mode == .friends)
+
+                unifiedDatingPane
+                    .opacity(mode == .dating ? 1 : 0)
+                    .allowsHitTesting(mode == .dating)
             }
             .animation(.easeInOut(duration: 0.28), value: mode)
 
@@ -798,8 +798,8 @@ struct DiscoverScreen: View {
     }
 
     private var unifiedOverlayVisible: Bool {
-        // Always show overlay in friends mode so filter/notifications/create-event stay accessible on empty state
-        return mode == .friends || (mode == .dating && !visibleDatingProfiles.isEmpty)
+        // Always show overlay so mode switcher is a single, persistent instance
+        return true
     }
 
     /// Bell button for notifications. Same style as CommunityScreen.
@@ -1383,23 +1383,9 @@ struct DiscoverScreen: View {
 
         ZStack {
             VStack(spacing: 0) {
-                // Mode switcher at top — match Messages tab (safe area + 10pt)
+                // Top spacing to clear the persistent overlay switcher
                 if discoveryMode == .both {
-                    HStack {
-                        modeSwitcher(style: .light)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 70)
-                    .padding(.bottom, 20)
-
-                    // Subtitle under segment (dating)
-                    Text("Stories from travelers looking to date")
-                        .font(.system(size: 12))
-                        .foregroundColor(inkSub)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 16)
+                    Spacer().frame(height: 120)
                 }
 
                 Spacer()

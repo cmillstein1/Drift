@@ -614,7 +614,12 @@ struct MessagesScreen: View {
         .sheet(isPresented: $showLikesYouScreen) {
             LikesYouScreen()
         }
-        .sheet(isPresented: $showLikesYouPaywall) {
+        .sheet(isPresented: $showLikesYouPaywall, onDismiss: {
+            // After paywall closes, if user now has pro access, show the likes screen
+            if revenueCatManager.hasProAccess {
+                showLikesYouScreen = true
+            }
+        }) {
             PaywallScreen(isOpen: $showLikesYouPaywall, source: .likesYou)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
