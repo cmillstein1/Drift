@@ -47,6 +47,19 @@ struct CommunityEventCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 20))
             }
 
+            // Dating tag (top right)
+            if event.isDatingEvent == true {
+                Text("Dating")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(burntOrange.opacity(0.85))
+                    .clipShape(Capsule())
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .padding(12)
+            }
+
             // Bottom pill with event info
             HStack(spacing: 12) {
                 // Host avatar

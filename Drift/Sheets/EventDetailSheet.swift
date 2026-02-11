@@ -901,6 +901,21 @@ struct EventDetailSheet: View {
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(charcoal)
             }
+
+            if post.isDatingEvent == true {
+                HStack(spacing: 6) {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 12))
+                    Text("Dating Event")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .foregroundColor(burntOrange)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(burntOrange.opacity(0.1))
+                .clipShape(Capsule())
+            }
+
             Text(post.content)
                 .font(.system(size: 15))
                 .foregroundColor(charcoal.opacity(0.7))
